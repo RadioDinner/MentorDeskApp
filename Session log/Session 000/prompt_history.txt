@@ -27,3 +27,7 @@ SESSION 000 - PROMPT HISTORY
     - Vercel: main branch auto-deploy for now, eventually preview deployments. Also add a future feature: ability to put different orgs on different releases of the app (not relevant at current scope).
 
 11. merge all branches to main and delete the leftover branches, then write the session handoff document per the instructions and we'll wrap for today
+
+12. i dont think you did this right. Main doesn't have any of the changes, there are just weird branches that when I click "Compare & pull request" it says that there is nothing to compare
+
+13. ok, re-write the session documents and summary and add these prompts to the log, re-write the hand off document, delete the stale branches, commit everything to main, leaving only "Main". Then we'll wrap the session
