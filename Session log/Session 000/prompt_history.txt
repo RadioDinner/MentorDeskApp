@@ -1,5 +1,5 @@
-SESSION 1 - PROMPT HISTORY
-===========================
+SESSION 000 - PROMPT HISTORY
+==============================
 
 1. Ok, we are going to be building an app for Mentoring Companies or mentors to use as their software of choice. We want to solve issues that exist with current options like Paperbell, CoachAccoutable, Teachable. We want to build a premium experience. This is an app that will be re-distrubuted to Coaching Organizations and licensed to the Organizations like Microsoft licenses M365 to their customers. However, I will now focus on building that app. We will focus on the other parts later
 
@@ -10,3 +10,5 @@ SESSION 1 - PROMPT HISTORY
 4. start fresh, even delete the text file and readme of https://github.com/RadioDinner/MentorDeskApp
 
 5. Ok I have a set of requirements at the beginning of each session. I want you to create a folder on main, titled "Session log". In that folder, I want you to autonumber sessions and add a folder for each session. In each unique session folder, I want you to ALWAYS log the prompts I've used, in a text file called prompt_history. At the end of each session, I want you to create a log documenting all the changes we made, directional decisions we've discussed and anything prevelant to the project. This would essentially be creating a handoff document to hand from session to session. I want you to save these instructions to main as "new_session_instructions" and I will occasionally ask you to update it as we go
+
+6. Rename session 1 to session 000
