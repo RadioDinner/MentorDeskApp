@@ -1,0 +1,112 @@
+MENTORDESK GLOSSARY
+====================
+
+This document defines the terminology used across the MentorDesk project.
+All contributors and sessions should reference this glossary for consistency.
+
+
+PLATFORM & PRODUCT TERMS
+--------------------------
+
+App
+    The primary web application used by coaching organizations, individual
+    mentors, or coaches to manage their mentoring business. This is the
+    core product -- analogous to the Microsoft 365 admin portal. It is
+    where organizations add mentors, add mentees, build courses, bill
+    mentees, and track staff payments. When used colloquially, "app"
+    refers to the web app. The term also encompasses the iOS and Android
+    apps collectively when speaking generally about the product.
+
+Web App
+    The browser-based version of the App. This is the primary interface
+    and the first platform being built.
+
+iOS App
+    The native Apple (iPhone/iPad) version of the App. Refers explicitly
+    and exclusively to the iOS build.
+
+Android App
+    The native Android version of the App. Refers explicitly and
+    exclusively to the Android build.
+
+MentorDesk
+    The name of the overall product/platform. MentorDesk is the software
+    that coaching organizations license and use.
+
+
+USER ROLES
+-----------
+
+Organization (Org)
+    A coaching company, mentoring firm, or training organization that
+    licenses and uses MentorDesk. An organization is a tenant in the
+    multi-tenant system.
+
+Admin
+    An organization-level administrator who has full access to manage
+    mentors, mentees, staff, offerings, billing, and settings within
+    their organization.
+
+Mentor / Coach
+    An individual who delivers mentoring, coaching, or training sessions
+    to mentees. Can exist within an organization or operate independently
+    as a solo practitioner.
+
+Mentee / Trainee / Client
+    An individual receiving mentoring, coaching, or training. Enrolled
+    in offerings and billed through the platform.
+
+Staff
+    Employees or contractors of an organization who are tracked for
+    payroll and operational purposes but are not necessarily mentors
+    or mentees.
+
+
+BUSINESS CONCEPTS
+------------------
+
+Offering
+    A product or service provided by an organization. Offerings come in
+    two types: Courses and Arrangements.
+
+Course
+    A structured content program -- may include lessons, modules, videos,
+    and assessments. Can be one-time or recurring.
+
+Arrangement
+    A meeting-based mentoring program billed on a recurring basis.
+    Includes credit allocation, cancellation policies, and scheduling.
+
+Meeting
+    A scheduled session between a mentor and mentee, typically part of
+    an arrangement. Credits are consumed when meetings are booked.
+
+Credit
+    A unit representing a mentee's entitlement to schedule meetings
+    within an arrangement. Credits are granted per billing period and
+    may or may not roll over.
+
+Invoice
+    A billing record for a mentee, tracking amounts owed and payment
+    status for enrolled offerings.
+
+
+TECHNICAL TERMS
+----------------
+
+Tenant
+    A single organization's isolated data space within the multi-tenant
+    system. Each tenant has its own mentors, mentees, offerings, and
+    settings.
+
+Multi-tenancy
+    The architecture pattern where a single deployment of MentorDesk
+    serves multiple organizations, with data isolation between them.
+
+Supabase
+    The backend platform used for database (PostgreSQL), authentication,
+    storage, and serverless functions.
+
+RLS (Row-Level Security)
+    PostgreSQL feature used to enforce tenant isolation -- ensures users
+    can only access data belonging to their organization.
