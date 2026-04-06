@@ -25,3 +25,5 @@ SESSION 000 - PROMPT HISTORY
 10. [Answers to quiz questions 4-5]
     - Mentee experience will be part of the app from the start. Building org-level admin portal for staff roles, but mentee experience on the same app.
     - Vercel: main branch auto-deploy for now, eventually preview deployments. Also add a future feature: ability to put different orgs on different releases of the app (not relevant at current scope).
+
+11. merge all branches to main and delete the leftover branches, then write the session handoff document per the instructions and we'll wrap for today

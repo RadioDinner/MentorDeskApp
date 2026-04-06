@@ -1,0 +1,80 @@
+SESSION 000 - HANDOFF LOG
+==========================
+Date: 2026-04-06
+
+
+SUMMARY
+--------
+This was the inaugural session for the MentorDesk project. The repo was
+cleaned out completely (it previously contained an entire app codebase from
+a prior project called "CourseCorrect") and rebuilt from scratch. No
+application code was written -- this session was entirely about project
+setup, terminology, and roadmap planning.
+
+
+CHANGES MADE
+-------------
+1. Wiped the repo clean -- removed all old CourseCorrect/MentorDesk code,
+   migrations, android app, super-admin app, landing page, etc.
+2. Created `new_session_instructions` -- persistent file defining session
+   logging requirements (prompt history, handoff docs, folder structure).
+3. Created `Glossary.txt` -- project terminology definitions including:
+   - App, Web App, iOS App, Android App, MentorDesk
+   - User roles: Organization, Admin, Mentor, Mentee, Staff
+   - Business concepts: Offering, Course, Arrangement, Meeting, Credit, Invoice
+   - Branding: Org Branding, Theme
+   - Technical: Tenant, Multi-tenancy, Supabase, RLS
+   - Test/Dev: TechBeans (test org)
+4. Created `ROADMAP.txt` -- full phased roadmap (Phase 0-7 + Future Backlog).
+5. Created `Session log/Session 000/` with prompt_history.txt and this file.
+6. Merged everything to main, deleted feature branches.
+
+
+DIRECTIONAL DECISIONS
+----------------------
+1. FRESH START: The repo was completely wiped. No code from the prior
+   CourseCorrect project is being carried forward.
+
+2. PRODUCT MODEL: MentorDesk is a SaaS tool licensed to coaching
+   organizations -- similar to how Microsoft licenses M365. We are NOT
+   building org provisioning or a licensing portal at this time.
+
+3. SINGLE ORG FOCUS: Building for a single org in function right now.
+   Test org is called "TechBeans." But the data model will include
+   organization_id on all relevant tables from day one.
+
+4. BRANDING: Shopify-style. Orgs can customize logo and color theme.
+   MentorDesk remains the visible product name and brand.
+
+5. SAME APP FOR ALL ROLES: The mentee experience lives in the same app
+   as the admin/mentor/staff experience. Role-based routing determines
+   what each user sees.
+
+6. TECH STACK: React + Vite frontend, Supabase backend (PostgreSQL,
+   auth, storage), Vercel for deployment.
+
+7. DEPLOYMENT: Vercel auto-deploy from main branch. Preview deployments
+   per branch/PR planned for later.
+
+8. FUTURE BACKLOG ITEM: Per-org release versioning (ability to put
+   different orgs on different app versions). Not in scope now.
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- No application code exists yet.
+- Repo contains only planning/documentation files:
+  - new_session_instructions
+  - Glossary.txt
+  - ROADMAP.txt
+  - Session log/Session 000/ (prompt_history.txt, session_log.txt)
+- Next step: Begin Phase 0 (Foundation) -- project scaffolding, Supabase
+  setup, auth, multi-tenant schema, base UI, Vercel deployment.
+
+
+OPEN ITEMS / QUESTIONS FOR NEXT SESSION
+-----------------------------------------
+- TypeScript vs JavaScript decision (not yet discussed)
+- Styling framework decision (Tailwind suggested but not confirmed)
+- Supabase project -- does one already exist, or create fresh?
+- Vercel project -- does one already exist, or create fresh?
