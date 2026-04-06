@@ -1,0 +1,168 @@
+MENTORDESK PROJECT ROADMAP
+============================
+
+Last updated: Session 000 (2026-04-06)
+
+See Glossary.txt for terminology definitions.
+
+
+SCOPE SUMMARY
+--------------
+
+We are building MentorDesk -- a mentoring platform app that will be licensed
+to coaching organizations. The app serves both staff roles (admin, mentor,
+staff) and client roles (mentee) within a single codebase and deployment.
+
+Current build target: a single-org functional app using a test organization
+called "TechBeans." The data model includes organization_id from day one for
+future multi-tenancy, but there is no org provisioning, org switching, or
+super-admin UI at this stage.
+
+Branding model: Shopify-style. Organizations can customize their logo and
+color theme. MentorDesk remains the visible product name and brand.
+
+
+========================================================================
+PHASE 0 -- FOUNDATION
+========================================================================
+
+Goal: Scaffold the project, set up infrastructure, and establish patterns
+that everything else builds on.
+
+  [ ] React + Vite project setup (TypeScript optional -- decide in session)
+  [ ] Tailwind CSS (or chosen styling framework) configuration
+  [ ] Supabase project setup (auth, database, storage)
+  [ ] Multi-tenant database schema foundation
+      - organizations table
+      - profiles table with organization_id
+      - RLS policies enforcing tenant isolation
+  [ ] Supabase auth integration (email/password to start)
+  [ ] Base layout components (sidebar nav, top bar, responsive shell)
+  [ ] Role-based routing (admin, mentor, mentee, staff)
+  [ ] Theming engine -- org-level logo and color customization
+  [ ] Vercel project setup with auto-deploy from main branch
+  [ ] Seed data for test org "TechBeans"
+  [ ] Environment variable structure (.env.example)
+  [ ] .gitignore, project README
+
+
+========================================================================
+PHASE 1 -- CORE ADMIN PORTAL
+========================================================================
+
+Goal: Build the admin management backbone -- the tools an org admin uses
+day-to-day to run their mentoring business.
+
+  [ ] Admin dashboard (overview stats, quick actions)
+  [ ] Mentor management (CRUD, profiles, avatars, contact details)
+  [ ] Mentee management (CRUD, profiles, enrollment tracking)
+  [ ] Staff management (CRUD, pay type, pay rate)
+  [ ] Assign mentees to mentors
+  [ ] Company settings page (logo upload, brand colors, defaults)
+  [ ] Audit log (track admin actions)
+
+
+========================================================================
+PHASE 2 -- OFFERINGS (COURSES & ARRANGEMENTS)
+========================================================================
+
+Goal: Let orgs create and manage the products they sell to mentees.
+
+  [ ] Offerings list page (courses + arrangements in one view)
+  [ ] Course creation form
+  [ ] Arrangement creation form
+      - Meetings per period
+      - Program duration
+      - Credits rollover toggle
+      - Cancellation policy (reallocate / consume / window)
+  [ ] Enroll mentees in offerings
+  [ ] Credit ledger system for arrangements
+  [ ] Meeting scheduling (with credit deduction)
+  [ ] Mentee-facing: view enrolled offerings, schedule meetings
+
+
+========================================================================
+PHASE 3 -- CONTENT & COURSE DELIVERY
+========================================================================
+
+Goal: Build the course content system so orgs can create structured
+learning programs and mentees can consume them.
+
+  [ ] Course builder (lessons, modules, ordering)
+  [ ] Rich text lesson editor (TipTap or similar)
+  [ ] Media support (images, video embeds)
+  [ ] Mentee-facing: course viewer, lesson progression
+  [ ] Lesson completion tracking
+  [ ] Quizzes / assessments (optional stretch)
+
+
+========================================================================
+PHASE 4 -- BILLING & FINANCIALS
+========================================================================
+
+Goal: Let orgs bill their mentees and track what they pay their staff.
+
+  [ ] Invoice creation (per mentee, per offering)
+  [ ] Invoice status tracking (draft, sent, paid, overdue)
+  [ ] Payment recording
+  [ ] Staff payroll tracking (hours/salary, pay rates)
+  [ ] Billing dashboard / summary view
+  [ ] Credit allocation on invoice payment (arrangement auto-credits)
+
+
+========================================================================
+PHASE 5 -- COMMUNICATION & ENGAGEMENT
+========================================================================
+
+Goal: Keep mentors and mentees connected within the platform.
+
+  [ ] In-app messaging (mentor <-> mentee)
+  [ ] Notification system (in-app)
+  [ ] Email notifications (meeting reminders, invoice alerts)
+  [ ] Activity feed / recent actions
+
+
+========================================================================
+PHASE 6 -- REPORTING & ANALYTICS
+========================================================================
+
+Goal: Give admins visibility into how their org is performing.
+
+  [ ] Activity reports (meetings held, courses completed)
+  [ ] Financial reports (revenue, outstanding invoices)
+  [ ] Mentor performance summary
+  [ ] Mentee progress summary
+  [ ] Export capabilities (CSV)
+
+
+========================================================================
+PHASE 7 -- MOBILE APPS
+========================================================================
+
+Goal: Bring the mentee and mentor experience to native mobile.
+
+  [ ] iOS app
+  [ ] Android app
+  [ ] Push notifications
+  [ ] Offline-friendly where possible
+
+
+========================================================================
+FUTURE / BACKLOG
+========================================================================
+
+Items that are out of scope now but will be built eventually:
+
+  [ ] Super-admin dashboard (platform-level management)
+  [ ] Org onboarding / provisioning flow
+  [ ] Org switching UI
+  [ ] Subscription / licensing management
+  [ ] Per-org release versioning (ability to put different orgs on
+      different releases of the app)
+  [ ] Preview deployments per branch/PR on Vercel
+  [ ] Payment gateway integration (Stripe, etc.)
+  [ ] Calendar integrations (Google Calendar, Outlook)
+  [ ] Video call integration (Zoom, Google Meet)
+  [ ] Custom domain support per org
+  [ ] API for third-party integrations
+  [ ] White-label depth (hiding MentorDesk name -- if ever)

@@ -91,6 +91,27 @@ Invoice
     status for enrolled offerings.
 
 
+BRANDING & CUSTOMIZATION
+-------------------------
+
+Org Branding
+    The customization layer available to each organization. Currently
+    includes logo and color theme. MentorDesk remains the visible
+    product name (Shopify-style branding, not full white-label).
+
+Theme
+    The set of brand colors an organization configures to customize
+    the look of their MentorDesk instance.
+
+
+TEST & DEVELOPMENT
+-------------------
+
+TechBeans
+    The test organization used during development. All seed data and
+    initial testing is done under this org.
+
+
 TECHNICAL TERMS
 ----------------
 
