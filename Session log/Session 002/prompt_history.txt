@@ -126,3 +126,8 @@ Prompt 28:
 On the cards of people in the view/edit screen, I want a single non-scrolling
 page with two columns. Personal info edit on left, system emails (password
 resets, invites) on the right. Role specific changes to come later.
+
+Prompt 29:
+On each of the people modules, I want the ability to add a person. Staff
+module: "Create Staff member". Mentee page: "Create Mentee account". And
+so on for other modules. Module specific edit page changes coming soon.

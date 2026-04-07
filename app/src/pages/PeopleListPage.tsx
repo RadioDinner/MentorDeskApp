@@ -7,9 +7,11 @@ import type { StaffMember, StaffRole } from '../types'
 interface PeopleListPageProps {
   title: string
   roles: StaffRole[]
+  createLabel: string
+  createRoute: string
 }
 
-export default function PeopleListPage({ title, roles }: PeopleListPageProps) {
+export default function PeopleListPage({ title, roles, createLabel, createRoute }: PeopleListPageProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
@@ -78,6 +80,12 @@ export default function PeopleListPage({ title, roles }: PeopleListPageProps) {
             {people.length} {people.length === 1 ? 'person' : 'people'}
           </p>
         </div>
+        <button
+          onClick={() => navigate(createRoute)}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+        >
+          + {createLabel}
+        </button>
       </div>
 
       {people.length === 0 ? (

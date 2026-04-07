@@ -8,6 +8,7 @@ import ProfilePage from './pages/ProfilePage'
 import CompanySettingsPage from './pages/CompanySettingsPage'
 import PeopleListPage from './pages/PeopleListPage'
 import PersonEditPage from './pages/PersonEditPage'
+import PersonCreatePage from './pages/PersonCreatePage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -30,10 +31,14 @@ export default function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'staff']} />} />
-            <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} />} />
-            <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} />} />
-            <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} />} />
+            <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'staff']} createLabel="Create Staff Member" createRoute="/staff/new" />} />
+            <Route path="/staff/new" element={<PersonCreatePage title="Create Staff Member" defaultRole="staff" backRoute="/staff" />} />
+            <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} createLabel="Create Mentor" createRoute="/mentors/new" />} />
+            <Route path="/mentors/new" element={<PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />} />
+            <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />
+            <Route path="/assistant-mentors/new" element={<PersonCreatePage title="Create Assistant Mentor" defaultRole="mentor" backRoute="/assistant-mentors" />} />
+            <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} createLabel="Create Mentee Account" createRoute="/mentees/new" />} />
+            <Route path="/mentees/new" element={<PersonCreatePage title="Create Mentee Account" defaultRole="staff" backRoute="/mentees" />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
