@@ -14,3 +14,6 @@ Auth users, do those need to be added to supabase? How will that work in
 terms of security? Let's imagine "TechBeans" has 10 staff, 4 mentors and 300
 mentees, and "VisionBoardCopilot" has 3 staff, 2 mentors and 50 mentees,
 will each one need an auth?
+
+Prompt 3:
+How do I create the env vars? Or where do I find them?
