@@ -33,3 +33,7 @@ Prompt 7:
 Then reported login working but showing "Welcome back, Alice" instead of
 their own name. Provided staff table data showing user_id linked to Alice's
 record. Auth email is derricktw@protonmail.com.)
+
+Prompt 8:
+How will adding other users work? Will I need to add each staff account
+through supabase?
