@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
@@ -18,6 +18,14 @@ const ROLE_CATEGORIES: { value: RoleCategory; label: string }[] = [
   { value: 'staff', label: 'Staff' },
   { value: 'mentor', label: 'Mentors' },
   { value: 'assistant_mentor', label: 'Asst. Mentors' },
+]
+
+const MODULE_GROUPS = ['Main', 'People', 'Business', 'Finance', 'System']
+
+const DEFAULT_ROLE_GROUPS: RoleGroup[] = [
+  { id: 'rg-admin', name: 'Admin', module_groups: ['Main', 'People', 'Business', 'Finance', 'System'] },
+  { id: 'rg-operations', name: 'Operations', module_groups: ['Main', 'People', 'Business', 'Finance'] },
+  { id: 'rg-course-builder', name: 'Course Builder', module_groups: ['Main', 'Business'] },
 ]
 
 const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
@@ -74,6 +82,8 @@ export default function CompanySettingsPage() {
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [newStepName, setNewStepName] = useState('')
   const [cancellationPolicy, setCancellationPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>(DEFAULT_ROLE_GROUPS)
+  const [newGroupName, setNewGroupName] = useState('')
 
   useEffect(() => {
     if (!profile) return
@@ -102,6 +112,7 @@ export default function CompanySettingsPage() {
       setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
       setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
       setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
+      setRoleGroups(o.role_groups ?? DEFAULT_ROLE_GROUPS)
       setLoading(false)
     }
 
@@ -124,6 +135,7 @@ export default function CompanySettingsPage() {
       pay_type_settings: paySettings,
       mentee_flow: { steps: flowSteps },
       default_cancellation_policy: cancellationPolicy,
+      role_groups: roleGroups,
     }
 
     const { error } = await supabase
@@ -527,6 +539,90 @@ export default function CompanySettingsPage() {
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-2">Courses and engagements are added to this list when you create them with "Add to mentee flow" checked.</p>
+          </div>
+        </CollapseCard>
+
+        {/* Role Groups */}
+        <CollapseCard title="Role Groups" defaultOpen={false}>
+          <div>
+            <p className="text-sm text-gray-500 mb-4">
+              Define access groups that control which modules staff members can see. Assign groups to staff from the Staff module.
+            </p>
+
+            {roleGroups.map(group => (
+              <div key={group.id} className="mb-4 border border-gray-200 rounded-md p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <input
+                    type="text"
+                    value={group.name}
+                    onChange={e => setRoleGroups(gs => gs.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
+                    className="text-sm font-semibold text-gray-900 border-0 outline-none bg-transparent p-0 focus:ring-0"
+                  />
+                  {group.id !== 'rg-admin' && (
+                    <button type="button"
+                      onClick={() => setRoleGroups(gs => gs.filter(g => g.id !== group.id))}
+                      className="text-xs text-gray-300 hover:text-red-500 transition-colors">&times;</button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {MODULE_GROUPS.map(mg => {
+                    const active = group.module_groups.includes(mg)
+                    return (
+                      <button key={mg} type="button"
+                        disabled={group.id === 'rg-admin'}
+                        onClick={() => {
+                          setRoleGroups(gs => gs.map(g => {
+                            if (g.id !== group.id) return g
+                            const next = active
+                              ? g.module_groups.filter(m => m !== mg)
+                              : [...g.module_groups, mg]
+                            return { ...g, module_groups: next }
+                          }))
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                          active
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                        } ${group.id === 'rg-admin' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        {mg}
+                      </button>
+                    )
+                  })}
+                </div>
+                {group.id === 'rg-admin' && (
+                  <p className="text-[10px] text-gray-400 mt-2">Admin group always has full access.</p>
+                )}
+              </div>
+            ))}
+
+            {/* Add new group */}
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                placeholder="New group name"
+                className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (!newGroupName.trim()) return
+                    setRoleGroups(gs => [...gs, { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: ['Main'] }])
+                    setNewGroupName('')
+                  }
+                }}
+              />
+              <button type="button"
+                onClick={() => {
+                  if (!newGroupName.trim()) return
+                  setRoleGroups(gs => [...gs, { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: ['Main'] }])
+                  setNewGroupName('')
+                }}
+                className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
+                Add
+              </button>
+            </div>
           </div>
         </CollapseCard>
 

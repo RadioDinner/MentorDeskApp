@@ -208,3 +208,9 @@ Prompt 43:
 Overhaul Pairings module with three views: 1) By Mentor - see who's
 paired to each mentor, 2) Unpaired - view and quickly pair mentees,
 3) By Status - view mentees grouped by flow status with mentor changes.
+
+Prompt 44:
+Build staff role-level access control. Role Groups in company settings
+(Admin=all, Operations=People+Business+Finance, Course Builder=Business).
+Add toggleable role group badges to staff list. Sidebar filters by
+the user's assigned role groups.

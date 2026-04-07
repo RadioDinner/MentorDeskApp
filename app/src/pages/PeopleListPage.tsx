@@ -2,19 +2,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { StaffMember, StaffRole } from '../types'
+import { logAudit } from '../lib/audit'
+import type { StaffMember, StaffRole, RoleGroup } from '../types'
 
 interface PeopleListPageProps {
   title: string
   roles: StaffRole[]
   createLabel: string
   createRoute: string
+  showAccessGroups?: boolean
 }
 
-export default function PeopleListPage({ title, roles, createLabel, createRoute }: PeopleListPageProps) {
+export default function PeopleListPage({ title, roles, createLabel, createRoute, showAccessGroups }: PeopleListPageProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
+  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,11 +56,39 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute 
       }
 
       setPeople(data as StaffMember[])
+
+      if (showAccessGroups) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('role_groups')
+          .eq('id', profile!.organization_id)
+          .single()
+        if (orgData?.role_groups) setRoleGroups(orgData.role_groups as RoleGroup[])
+      }
+
       setLoading(false)
     }
 
     fetchPeople()
   }, [profile, roles])
+
+  async function toggleGroup(person: StaffMember, groupId: string) {
+    if (!profile) return
+    const current = person.access_groups ?? []
+    const next = current.includes(groupId)
+      ? current.filter(g => g !== groupId)
+      : [...current, groupId]
+
+    const { error: updateError } = await supabase
+      .from('staff')
+      .update({ access_groups: next })
+      .eq('id', person.id)
+
+    if (updateError) return
+
+    setPeople(ps => ps.map(p => p.id === person.id ? { ...p, access_groups: next } : p))
+    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { fields: 'access_groups', access_groups: next } })
+  }
 
   if (loading) {
     return <div className="text-sm text-gray-500">Loading...</div>
@@ -111,13 +142,35 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute 
                 </div>
               </div>
 
-              {/* Actions */}
-              <button
-                onClick={() => navigate(`/people/${person.id}/edit`)}
-                className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-              >
-                Edit
-              </button>
+              {/* Role groups + Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                {showAccessGroups && roleGroups.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {roleGroups.map(rg => {
+                      const active = (person.access_groups ?? []).includes(rg.id)
+                      return (
+                        <button key={rg.id} type="button"
+                          onClick={() => toggleGroup(person, rg.id)}
+                          title={`${rg.name}: ${active ? 'Remove' : 'Add'}`}
+                          className={`px-2 py-0.5 text-[10px] font-medium rounded border transition-colors ${
+                            active
+                              ? 'bg-brand text-white border-brand'
+                              : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600'
+                          }`}
+                        >
+                          {rg.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <button
+                  onClick={() => navigate(`/people/${person.id}/edit`)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           ))}
         </div>

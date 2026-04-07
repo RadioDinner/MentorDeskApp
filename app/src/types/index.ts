@@ -1,5 +1,11 @@
 export type StaffRole = 'admin' | 'mentor' | 'assistant_mentor' | 'staff'
 
+export interface RoleGroup {
+  id: string
+  name: string
+  module_groups: string[]
+}
+
 export type PayType = 'hourly' | 'salary' | 'pct_monthly_profit' | 'pct_engagement_profit'
 
 export type RoleCategory = 'staff' | 'mentor' | 'assistant_mentor'
@@ -44,6 +50,7 @@ export interface Organization {
   pay_type_settings: PayTypeSettings
   mentee_flow: MenteeFlow
   default_cancellation_policy: CancellationPolicy
+  role_groups: RoleGroup[]
   created_at: string
 }
 
@@ -123,6 +130,7 @@ export interface StaffMember {
   country: string | null
   pay_type: PayType | null
   pay_rate: number | null
+  access_groups: string[]
   created_at: string
   updated_at: string
 }
