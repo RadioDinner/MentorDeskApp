@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import CompanySettingsPage from './pages/CompanySettingsPage'
 import PeopleListPage from './pages/PeopleListPage'
+import PersonEditPage from './pages/PersonEditPage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} />} />
             <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} />} />
             <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} />} />
+            <Route path="/people/:id/edit" element={<PersonEditPage />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CompanySettingsPage />

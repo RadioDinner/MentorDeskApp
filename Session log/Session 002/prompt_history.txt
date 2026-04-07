@@ -121,3 +121,8 @@ In the people group of modules, I want all the modules to start the same
 way. A list of people in that module. Profile picture on left, first and
 last name with email below in smaller type. Edit button on right side of
 each card.
+
+Prompt 28:
+On the cards of people in the view/edit screen, I want a single non-scrolling
+page with two columns. Personal info edit on left, system emails (password
+resets, invites) on the right. Role specific changes to come later.
