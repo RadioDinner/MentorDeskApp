@@ -181,3 +181,9 @@ assigning courses to mentees.
 
 Prompt 39:
 User loved "Pairings" as the name.
+
+Prompt 40:
+Create course and create engagement buttons don't work. Also build out
+course creation with: price, one-time setup fee, course plan settings
+(lesson dispense by interval/completion/all-at-once, lesson count,
+due date, and mentee preview mode for upcoming lessons).

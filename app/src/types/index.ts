@@ -20,12 +20,23 @@ export interface Organization {
 
 export type OfferingType = 'course' | 'engagement'
 
+export type DispenseMode = 'interval' | 'completion' | 'all_at_once'
+export type PreviewMode = 'hidden' | 'titles_only' | 'full_preview'
+
 export interface Offering {
   id: string
   organization_id: string
   type: OfferingType
   name: string
   description: string | null
+  price_cents: number
+  setup_fee_cents: number
+  currency: string
+  dispense_mode: DispenseMode
+  dispense_interval_days: number | null
+  lesson_count: number | null
+  course_due_date: string | null
+  preview_mode: PreviewMode
   created_at: string
   updated_at: string
 }
