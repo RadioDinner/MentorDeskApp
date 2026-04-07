@@ -1,0 +1,10 @@
+SESSION 001 - PROMPT HISTORY
+==============================
+
+1. Let's begin a session. Pull the new session instructions and let's number this session 001. I want to start building out the staff logins.
+
+2. Let's add the term "Staff" to the glossary. I'll occasionally refer to these people as "org staff" but the term "staff" refers to the people inside the organization that uses mentor desk for their team, NOT me or the Mentor Desk Platform.
+
+   The first thing I want to start working on for this session is making so I have a login page for the app. I want to add some stuff to the staff table, like their first and last name, role, email, phone, address split by street, city, state, zip and country, a unique UUID for the staff member AND make sure you include the organization_id in this table.
+
+

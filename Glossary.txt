@@ -56,10 +56,16 @@ Mentee / Trainee / Client
     An individual receiving mentoring, coaching, or training. Enrolled
     in offerings and billed through the platform.
 
-Staff
-    Employees or contractors of an organization who are tracked for
-    payroll and operational purposes but are not necessarily mentors
-    or mentees.
+Staff / Org Staff
+    The people inside a coaching organization (the organization that
+    licenses MentorDesk) who use the platform to run their business.
+    This includes admins, mentors, and operational staff members.
+    "Staff" and "org staff" refer exclusively to personnel within the
+    client organization -- NOT Anthropic, not MentorDesk platform
+    employees, and not the development team. Staff roles:
+      - Admin: full access to manage the org's MentorDesk instance
+      - Mentor/Coach: delivers sessions to mentees
+      - Staff: general operational staff tracked for payroll purposes
 
 
 BUSINESS CONCEPTS
