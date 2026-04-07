@@ -11,4 +11,6 @@ SESSION 001 - PROMPT HISTORY
 
 4. merge it into main
 
+5. My vercel deployment is failing. I understand this is a side project but we need to fix it. [error: vite: command not found, Command "vite build" exited with 127]
+
 
