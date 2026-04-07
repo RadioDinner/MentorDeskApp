@@ -10,7 +10,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',  to: '/dashboard',  icon: '▦', roles: ['admin', 'mentor', 'staff'] },
-  { label: 'Profile',   to: '/profile',   icon: '◆', roles: ['admin', 'mentor', 'staff'] },
   { label: 'Mentors',    to: '/mentors',    icon: '◉', roles: ['admin'] },
   { label: 'Mentees',    to: '/mentees',    icon: '◎', roles: ['admin', 'mentor'] },
   { label: 'Staff',      to: '/staff',      icon: '◈', roles: ['admin'] },
@@ -19,7 +18,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export default function Sidebar() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
 
   const visible = NAV_ITEMS.filter(item =>
     profile ? item.roles.includes(profile.role) : false
@@ -53,19 +52,13 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User + sign out */}
+      {/* User info */}
       {profile && (
         <div className="px-4 py-4 border-t border-gray-200">
           <p className="text-xs font-medium text-gray-900 truncate">
             {profile.first_name} {profile.last_name}
           </p>
           <p className="text-xs text-gray-500 capitalize">{profile.role}</p>
-          <button
-            onClick={signOut}
-            className="mt-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Sign out
-          </button>
         </div>
       )}
 
