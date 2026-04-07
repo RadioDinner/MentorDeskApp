@@ -86,15 +86,33 @@ export default function ProfilePage() {
 
     setPasswordSaving(true)
     try {
-      const result = await Promise.race([
-        supabase.auth.updateUser({ password: newPassword }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Request timed out after 15 seconds')), 15000)
-        ),
-      ])
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setPasswordMsg({ type: 'error', text: 'No active session. Please sign in again.' })
+        return
+      }
 
-      if (result.error) {
-        setPasswordMsg({ type: 'error', text: result.error.message })
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
+
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ password: newPassword }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
+        setPasswordMsg({ type: 'error', text: msg })
         return
       }
 
@@ -102,7 +120,9 @@ export default function ProfilePage() {
       setConfirmPassword('')
       setPasswordMsg({ type: 'success', text: 'Password changed.' })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
+      const message = err instanceof Error
+        ? (err.name === 'AbortError' ? 'Request timed out after 15 seconds' : err.message)
+        : 'Unknown error'
       console.error('[ProfilePage] Password update failed:', message)
       setPasswordMsg({ type: 'error', text: message })
     } finally {
