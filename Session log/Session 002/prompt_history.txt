@@ -49,3 +49,9 @@ record. Auth email is derricktw@protonmail.com.)
 Prompt 8:
 How will adding other users work? Will I need to add each staff account
 through supabase?
+
+Prompt 9:
+Additionally, in the admin home page, I want to start building out company
+settings and staff roles. Let's start with company settings. In company
+settings, I want admins to be able to make changes, so staff that are
+considered admins will have access to the company settings.
