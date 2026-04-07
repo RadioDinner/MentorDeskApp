@@ -60,13 +60,13 @@ export default function OfferingsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/offerings/courses/new')}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
           >
             + Create Course
           </button>
           <button
             onClick={() => navigate('/offerings/engagements/new')}
-            className="rounded-lg border border-indigo-600 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
           >
             + Create Engagement
           </button>
@@ -81,7 +81,7 @@ export default function OfferingsPage() {
             onClick={() => switchTab(tab.value)}
             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
               activeTab === tab.value
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-brand text-brand'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >

@@ -6,6 +6,8 @@ export interface Organization {
   slug: string
   logo_url: string | null
   primary_color: string
+  secondary_color: string
+  tertiary_color: string
   created_at: string
 }
 

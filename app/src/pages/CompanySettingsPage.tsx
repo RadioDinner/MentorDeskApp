@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import type { Organization } from '../types'
 
@@ -46,6 +47,8 @@ export default function CompanySettingsPage() {
   const [slug, setSlug] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
   const [primaryColor, setPrimaryColor] = useState('#4F46E5')
+  const [secondaryColor, setSecondaryColor] = useState('#6366F1')
+  const [tertiaryColor, setTertiaryColor] = useState('#818CF8')
 
   useEffect(() => {
     if (!profile) return
@@ -69,6 +72,8 @@ export default function CompanySettingsPage() {
       setSlug(o.slug)
       setLogoUrl(o.logo_url ?? '')
       setPrimaryColor(o.primary_color)
+      setSecondaryColor(o.secondary_color)
+      setTertiaryColor(o.tertiary_color)
       setLoading(false)
     }
 
@@ -81,14 +86,18 @@ export default function CompanySettingsPage() {
     setMsg(null)
     setSaving(true)
 
+    const updates = {
+      name: name.trim(),
+      slug: slug.trim().toLowerCase(),
+      logo_url: logoUrl.trim() || null,
+      primary_color: primaryColor.trim(),
+      secondary_color: secondaryColor.trim(),
+      tertiary_color: tertiaryColor.trim(),
+    }
+
     const { error } = await supabase
       .from('organizations')
-      .update({
-        name: name.trim(),
-        slug: slug.trim().toLowerCase(),
-        logo_url: logoUrl.trim() || null,
-        primary_color: primaryColor.trim(),
-      })
+      .update(updates)
       .eq('id', org.id)
 
     setSaving(false)
@@ -98,7 +107,9 @@ export default function CompanySettingsPage() {
       return
     }
 
-    setOrg({ ...org, name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null, primary_color: primaryColor.trim() })
+    const updatedOrg = { ...org, ...updates }
+    setOrg(updatedOrg)
+    refreshTheme(updatedOrg)
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 
@@ -134,7 +145,7 @@ export default function CompanySettingsPage() {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition'
+    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-2xl">
@@ -229,27 +240,60 @@ export default function CompanySettingsPage() {
               />
             </div>
 
-            {/* Brand color */}
+            {/* Brand colors */}
             <div>
-              <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Brand color
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="primaryColor"
-                  type="color"
-                  value={primaryColor}
-                  onChange={e => setPrimaryColor(e.target.value)}
-                  className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
-                />
-                <input
-                  type="text"
-                  value={primaryColor}
-                  onChange={e => setPrimaryColor(e.target.value)}
-                  placeholder="#4F46E5"
-                  className={inputClass + ' max-w-32'}
-                />
+              <p className="block text-sm font-medium text-gray-700 mb-3">Brand colors</p>
+              <div className="space-y-3">
+                {/* Primary */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className={inputClass + ' max-w-32'}
+                  />
+                  <span className="text-xs text-gray-400">Primary</span>
+                </div>
+                {/* Secondary */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={secondaryColor}
+                    onChange={e => setSecondaryColor(e.target.value)}
+                    className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={secondaryColor}
+                    onChange={e => setSecondaryColor(e.target.value)}
+                    className={inputClass + ' max-w-32'}
+                  />
+                  <span className="text-xs text-gray-400">Secondary</span>
+                </div>
+                {/* Tertiary */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={tertiaryColor}
+                    onChange={e => setTertiaryColor(e.target.value)}
+                    className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={tertiaryColor}
+                    onChange={e => setTertiaryColor(e.target.value)}
+                    className={inputClass + ' max-w-32'}
+                  />
+                  <span className="text-xs text-gray-400">Tertiary</span>
+                </div>
               </div>
+              <p className="mt-2 text-xs text-gray-400">Primary is used for buttons and active states. Secondary and tertiary are used for accents.</p>
             </div>
           </div>
         </CollapseCard>
@@ -266,7 +310,7 @@ export default function CompanySettingsPage() {
         {/* Save button outside cards */}
         <div className="pt-2">
           <button type="submit" disabled={saving}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+            className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>

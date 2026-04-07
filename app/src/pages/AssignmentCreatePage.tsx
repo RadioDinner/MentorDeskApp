@@ -76,10 +76,10 @@ export default function AssignmentCreatePage() {
   }
 
   const selectClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition bg-white'
+    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition'
+    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-2xl">
@@ -113,7 +113,7 @@ export default function AssignmentCreatePage() {
                 Mentor
               </label>
               {mentors.length === 0 ? (
-                <p className="text-sm text-gray-500">No mentors available. <button type="button" onClick={() => navigate('/mentors/new')} className="text-indigo-600 hover:underline">Create one first.</button></p>
+                <p className="text-sm text-gray-500">No mentors available. <button type="button" onClick={() => navigate('/mentors/new')} className="text-brand hover:underline">Create one first.</button></p>
               ) : (
                 <select id="mentorSelect" required value={mentorId}
                   onChange={e => setMentorId(e.target.value)} className={selectClass}>
@@ -133,7 +133,7 @@ export default function AssignmentCreatePage() {
                 Mentee
               </label>
               {mentees.length === 0 ? (
-                <p className="text-sm text-gray-500">No mentees available. <button type="button" onClick={() => navigate('/mentees/new')} className="text-indigo-600 hover:underline">Create one first.</button></p>
+                <p className="text-sm text-gray-500">No mentees available. <button type="button" onClick={() => navigate('/mentees/new')} className="text-brand hover:underline">Create one first.</button></p>
               ) : (
                 <select id="menteeSelect" required value={menteeId}
                   onChange={e => setMenteeId(e.target.value)} className={selectClass}>
@@ -160,7 +160,7 @@ export default function AssignmentCreatePage() {
 
             <div className="flex items-center gap-3 pt-2">
               <button type="submit" disabled={saving || mentors.length === 0 || mentees.length === 0}
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
                 {saving ? 'Assigning…' : 'Create Assignment'}
               </button>
               <button type="button" onClick={() => navigate('/assignments')}

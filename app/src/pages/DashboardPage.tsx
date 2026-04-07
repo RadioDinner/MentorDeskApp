@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
   const businessItems = [
     { title: 'Offerings', desc: 'Plans, pricing and durations', route: '/offerings', canAdd: true, iconBg: 'bg-violet-50', iconColor: 'text-violet-600' },
-    { title: 'Reports', desc: 'Analytics and program insights', route: '/reports', canAdd: false, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+    { title: 'Reports', desc: 'Analytics and program insights', route: '/reports', canAdd: false, iconBg: 'bg-brand-light', iconColor: 'text-brand' },
   ]
 
   const financeItems = [
@@ -138,7 +138,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {item.canAdd && (
-                    <button className="px-3 py-1.5 text-xs font-medium text-indigo-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <button className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       + Add
                     </button>
                   )}

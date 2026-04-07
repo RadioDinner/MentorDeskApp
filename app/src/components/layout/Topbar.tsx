@@ -32,7 +32,7 @@ export default function Topbar({ title }: TopbarProps) {
             onClick={() => setOpen(!open)}
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-semibold text-indigo-700">
+            <div className="w-7 h-7 rounded-full bg-brand-light flex items-center justify-center text-xs font-semibold text-brand">
               {profile.first_name[0]}{profile.last_name[0]}
             </div>
             <span className="text-sm text-gray-700">{profile.first_name} {profile.last_name}</span>

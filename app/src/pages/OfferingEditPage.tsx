@@ -86,7 +86,7 @@ export default function OfferingEditPage() {
   const backRoute = `/offerings?tab=${offering.type}`
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition'
+    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-4xl">
@@ -142,7 +142,7 @@ export default function OfferingEditPage() {
 
               <div className="pt-2">
                 <button type="submit" disabled={saving}
-                  className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {saving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>

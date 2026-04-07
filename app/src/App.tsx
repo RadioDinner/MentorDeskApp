@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import ProtectedRoute from './router/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/LoginPage'
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ThemeProvider>
         <DebugPanel />
         <Routes>
 
@@ -73,6 +75,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
         </Routes>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   )

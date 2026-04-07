@@ -89,7 +89,7 @@ export default function Sidebar() {
                   className={({ isActive }) =>
                     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-indigo-600 text-white'
+                        ? 'bg-brand text-white'
                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`
                   }

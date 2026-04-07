@@ -147,3 +147,7 @@ Create tables for all features built so far (consolidated migration).
 Make Reports, Finance modules, and Audit Log show "coming soon".
 Redesign Company Settings with collapsible cards, move branding fields
 into a "Branding" card, add logo upload button.
+
+Prompt 33:
+In branding options of company settings, add primary, secondary, and
+tertiary color pickers and make the UI honor their selections.
