@@ -54,3 +54,7 @@ merge to main
 
 Prompt 12:
 Migration run
+
+Prompt 13:
+(User tried password recovery in Supabase but the reset link redirected to
+localhost:3000 instead of the live app. Got connection refused error.)
