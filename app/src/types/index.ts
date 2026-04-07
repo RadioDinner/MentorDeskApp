@@ -73,6 +73,8 @@ export interface Offering {
   lesson_count: number | null
   course_due_date: string | null
   preview_mode: PreviewMode
+  billing_mode: 'one_time' | 'recurring'
+  recurring_price_cents: number
   meeting_count: number | null
   allocation_period: AllocationPeriod
   use_org_default_cancellation: boolean

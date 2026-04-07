@@ -214,3 +214,8 @@ Build staff role-level access control. Role Groups in company settings
 (Admin=all, Operations=People+Business+Finance, Course Builder=Business).
 Add toggleable role group badges to staff list. Sidebar filters by
 the user's assigned role groups.
+
+Prompt 45:
+Fit all course creation settings on single screen. Add billing mode:
+one-time (fixed price, optional due date) or monthly recurring (charged
+until mentee completes all lessons). Setup fee for both modes.

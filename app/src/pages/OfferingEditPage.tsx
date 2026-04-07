@@ -36,7 +36,9 @@ export default function OfferingEditPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [billingMode, setBillingMode] = useState<'one_time' | 'recurring'>('one_time')
   const [price, setPrice] = useState('')
+  const [recurringPrice, setRecurringPrice] = useState('')
   const [setupFee, setSetupFee] = useState('')
   const [dispenseMode, setDispenseMode] = useState<DispenseMode>('completion')
   const [intervalDays, setIntervalDays] = useState('')
@@ -70,7 +72,9 @@ export default function OfferingEditPage() {
       setOffering(o)
       setName(o.name)
       setDescription(o.description ?? '')
+      setBillingMode(o.billing_mode ?? 'one_time')
       setPrice(o.price_cents ? (o.price_cents / 100).toFixed(2) : '')
+      setRecurringPrice(o.recurring_price_cents ? (o.recurring_price_cents / 100).toFixed(2) : '')
       setSetupFee(o.setup_fee_cents ? (o.setup_fee_cents / 100).toFixed(2) : '')
       setDispenseMode(o.dispense_mode)
       setIntervalDays(o.dispense_interval_days ? String(o.dispense_interval_days) : '')
@@ -99,12 +103,14 @@ export default function OfferingEditPage() {
     }
 
     if (offering.type === 'course') {
-      updates.price_cents = price ? Math.round(parseFloat(price) * 100) : 0
+      updates.billing_mode = billingMode
+      updates.price_cents = billingMode === 'one_time' && price ? Math.round(parseFloat(price) * 100) : 0
+      updates.recurring_price_cents = billingMode === 'recurring' && recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
       updates.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
       updates.dispense_mode = dispenseMode
       updates.dispense_interval_days = dispenseMode === 'interval' && intervalDays ? parseInt(intervalDays) : null
       updates.lesson_count = lessonCount ? parseInt(lessonCount) : null
-      updates.course_due_date = dispenseMode === 'all_at_once' && dueDate ? dueDate : null
+      updates.course_due_date = billingMode === 'one_time' && dueDate ? dueDate : null
       updates.preview_mode = previewMode
     }
 
