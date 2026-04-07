@@ -27,3 +27,9 @@ where on earth did you get the inspiration for this bit of the glossary?
 
 Prompt 6:
 No it isn't. You stole/remembered information from other session
+
+Prompt 7:
+(User called out glossary issue - AI used info from other sessions.
+Then reported login working but showing "Welcome back, Alice" instead of
+their own name. Provided staff table data showing user_id linked to Alice's
+record. Auth email is derricktw@protonmail.com.)
