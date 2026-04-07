@@ -112,3 +112,12 @@ I want you to add some modules and organize some existing ones. I want a
 Mentors, Mentees. "Business" group with Offerings and Reports. "Finance"
 group with Billing, Invoicing, Payroll. "System" group with Audit Log
 and Settings.
+
+Prompt 26:
+the https://mentor-desk-app.vercel.app/dashboard just says "Loading..."
+
+Prompt 27:
+In the people group of modules, I want all the modules to start the same
+way. A list of people in that module. Profile picture on left, first and
+last name with email below in smaller type. Edit button on right side of
+each card.

@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import CompanySettingsPage from './pages/CompanySettingsPage'
+import PeopleListPage from './pages/PeopleListPage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -28,6 +29,10 @@ export default function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'staff']} />} />
+            <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} />} />
+            <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} />} />
+            <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CompanySettingsPage />
