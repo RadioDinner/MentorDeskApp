@@ -203,3 +203,8 @@ Cancellation policy: cancel window (X hours/days), outcomes for cancel
 within window (keep credit), cancel outside window (lose credit), and
 no-show (lose credit). Option to use org default or override per
 engagement. Add default cancellation policy to company settings.
+
+Prompt 43:
+Overhaul Pairings module with three views: 1) By Mentor - see who's
+paired to each mentor, 2) Unpaired - view and quickly pair mentees,
+3) By Status - view mentees grouped by flow status with mentor changes.
