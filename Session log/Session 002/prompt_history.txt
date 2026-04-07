@@ -29,6 +29,18 @@ Prompt 6:
 No it isn't. You stole/remembered information from other session
 
 Prompt 7:
+I want to build a way for the person who is logged in currently to edit their
+own profile information like email, change their password, update their
+address etc.
+
+Prompt 5:
+where on earth did you get the inspiration for this bit of the glossary?
+(user pasted the BUSINESS CONCEPTS section from Glossary.txt)
+
+Prompt 6:
+No it isn't. You stole/remembered information from other session
+
+Prompt 7:
 (User called out glossary issue - AI used info from other sessions.
 Then reported login working but showing "Welcome back, Alice" instead of
 their own name. Provided staff table data showing user_id linked to Alice's

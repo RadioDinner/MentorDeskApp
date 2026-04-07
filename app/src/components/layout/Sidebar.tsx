@@ -10,6 +10,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',  to: '/dashboard',  icon: '▦', roles: ['admin', 'mentor', 'staff'] },
+  { label: 'Profile',   to: '/profile',   icon: '◆', roles: ['admin', 'mentor', 'staff'] },
   { label: 'Mentors',    to: '/mentors',    icon: '◉', roles: ['admin'] },
   { label: 'Mentees',    to: '/mentees',    icon: '◎', roles: ['admin', 'mentor'] },
   { label: 'Staff',      to: '/staff',      icon: '◈', roles: ['admin'] },
