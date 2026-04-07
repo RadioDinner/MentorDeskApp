@@ -10,7 +10,8 @@ import CompanySettingsPage from './pages/CompanySettingsPage'
 import PeopleListPage from './pages/PeopleListPage'
 import PersonEditPage from './pages/PersonEditPage'
 import PersonCreatePage from './pages/PersonCreatePage'
-import OfferingsPage from './pages/OfferingsPage'
+import CoursesPage from './pages/CoursesPage'
+import EngagementsPage from './pages/EngagementsPage'
 import OfferingCreatePage from './pages/OfferingCreatePage'
 import OfferingEditPage from './pages/OfferingEditPage'
 import MenteesListPage from './pages/MenteesListPage'
@@ -57,10 +58,13 @@ export default function App() {
             <Route path="/pairings/new" element={<PairingCreatePage />} />
             <Route path="/pairings/:id/edit" element={<PairingEditPage />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
-            <Route path="/offerings" element={<OfferingsPage />} />
-            <Route path="/offerings/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
-            <Route path="/offerings/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
-            <Route path="/offerings/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
+            <Route path="/courses/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/engagements" element={<EngagementsPage />} />
+            <Route path="/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
+            <Route path="/engagements/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
             <Route path="/invoicing" element={<ComingSoonPage title="Invoicing" />} />

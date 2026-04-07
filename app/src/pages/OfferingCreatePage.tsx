@@ -108,13 +108,14 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         }
       }
 
-      navigate(`/offerings/${data[0].id}/edit`)
+      const base = offeringType === 'course' ? '/courses' : '/engagements'
+      navigate(`${base}/${data[0].id}/edit`)
     } else {
-      navigate(`/offerings?tab=${offeringType}`)
+      navigate(offeringType === 'course' ? '/courses' : '/engagements')
     }
   }
 
-  const backRoute = `/offerings?tab=${offeringType}`
+  const backRoute = offeringType === 'course' ? '/courses' : '/engagements'
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
   const selectClass = inputClass + ' bg-white'
   const dollarInput = 'w-full rounded border border-gray-300 pl-7 pr-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'

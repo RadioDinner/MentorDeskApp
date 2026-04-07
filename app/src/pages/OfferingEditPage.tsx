@@ -152,7 +152,7 @@ export default function OfferingEditPage() {
 
   const isCourse = offering.type === 'course'
   const typeLabel = isCourse ? 'Course' : 'Engagement'
-  const backRoute = `/offerings?tab=${offering.type}`
+  const backRoute = isCourse ? '/courses' : '/engagements'
 
   const inputClass =
     'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
