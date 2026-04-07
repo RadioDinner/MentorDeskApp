@@ -86,10 +86,15 @@ export default function ProfilePage() {
 
     setPasswordSaving(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      const result = await Promise.race([
+        supabase.auth.updateUser({ password: newPassword }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out after 15 seconds')), 15000)
+        ),
+      ])
 
-      if (error) {
-        setPasswordMsg({ type: 'error', text: error.message })
+      if (result.error) {
+        setPasswordMsg({ type: 'error', text: result.error.message })
         return
       }
 
@@ -97,7 +102,9 @@ export default function ProfilePage() {
       setConfirmPassword('')
       setPasswordMsg({ type: 'success', text: 'Password changed.' })
     } catch (err) {
-      setPasswordMsg({ type: 'error', text: 'Failed to update password. Please try again.' })
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[ProfilePage] Password update failed:', message)
+      setPasswordMsg({ type: 'error', text: message })
     } finally {
       setPasswordSaving(false)
     }

@@ -63,3 +63,14 @@ Prompt 14:
 When I try to walk through the Change password feature on the profile edit
 screen, when I click the update button it just goes to "Updating..."
 indefinitely. Also, the sign out button doesn't work.
+
+Prompt 15:
+Merge to main, and for the remainder of this session, always push to main
+
+Prompt 16:
+What part of the screen would profile settings typically be found? I feel
+like in most UI's it would be a dropdown in the top right
+
+Prompt 17:
+Update password button still doesn't work. I'd like for you to add a way
+to debug features like this

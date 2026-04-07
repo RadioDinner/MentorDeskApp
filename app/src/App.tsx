@@ -6,11 +6,13 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import CompanySettingsPage from './pages/CompanySettingsPage'
+import DebugPanel from './components/DebugPanel'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <DebugPanel />
         <Routes>
 
           {/* Public */}
