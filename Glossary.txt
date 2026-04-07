@@ -73,15 +73,17 @@ BUSINESS CONCEPTS
 
 Offering
     A product or service provided by an organization. Offerings come in
-    two types: Courses and Arrangements.
+    two types: Courses and Engagements.
 
 Course
-    A structured content program -- may include lessons, modules, videos,
-    and assessments. Can be one-time or recurring.
+    A type of offering. A structured content program -- may include
+    lessons, modules, videos, and assessments. Can be one-time or
+    recurring.
 
-Arrangement
-    A meeting-based mentoring program billed on a recurring basis.
-    Includes credit allocation, cancellation policies, and scheduling.
+Engagement
+    A type of offering. A meeting-based mentoring program, typically
+    involving scheduled sessions between a mentor and mentee. May be
+    billed on a recurring basis.
 
 Meeting
     A scheduled session between a mentor and mentee, typically part of

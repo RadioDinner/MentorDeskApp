@@ -9,6 +9,18 @@ export interface Organization {
   created_at: string
 }
 
+export type OfferingType = 'course' | 'engagement'
+
+export interface Offering {
+  id: string
+  organization_id: string
+  type: OfferingType
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface StaffMember {
   id: string
   user_id: string | null

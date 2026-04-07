@@ -131,3 +131,9 @@ Prompt 29:
 On each of the people modules, I want the ability to add a person. Staff
 module: "Create Staff member". Mentee page: "Create Mentee account". And
 so on for other modules. Module specific edit page changes coming soon.
+
+Prompt 30:
+Build the offerings module. Two kinds: courses and engagements. Add to
+glossary. Two tabs for the two types. List items in each tab. Two create
+buttons at top: "Create Course" and "Create Engagement". Edit option on
+each item. Specifics later.

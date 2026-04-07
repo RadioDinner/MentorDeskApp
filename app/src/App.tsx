@@ -9,6 +9,9 @@ import CompanySettingsPage from './pages/CompanySettingsPage'
 import PeopleListPage from './pages/PeopleListPage'
 import PersonEditPage from './pages/PersonEditPage'
 import PersonCreatePage from './pages/PersonCreatePage'
+import OfferingsPage from './pages/OfferingsPage'
+import OfferingCreatePage from './pages/OfferingCreatePage'
+import OfferingEditPage from './pages/OfferingEditPage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -40,6 +43,10 @@ export default function App() {
             <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} createLabel="Create Mentee Account" createRoute="/mentees/new" />} />
             <Route path="/mentees/new" element={<PersonCreatePage title="Create Mentee Account" defaultRole="staff" backRoute="/mentees" />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
+            <Route path="/offerings" element={<OfferingsPage />} />
+            <Route path="/offerings/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
+            <Route path="/offerings/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
+            <Route path="/offerings/:id/edit" element={<OfferingEditPage />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CompanySettingsPage />
