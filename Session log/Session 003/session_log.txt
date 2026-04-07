@@ -1,0 +1,157 @@
+SESSION 003 - HANDOFF LOG
+==========================
+Date: 2026-04-07
+Branch: main (direct push per user instruction)
+
+
+SUMMARY
+--------
+Feature and infrastructure session focused on staff permissions UX, module
+restructuring, a new pairings data grid, course builder foundation, and a
+navigation bug fix. Merged the staff-roles-permissions feature branch into
+main and continued development directly on main.
+
+
+CHANGES MADE
+-------------
+
+1. STAFF MODULE ACCESS — REDESIGNED DROPDOWN:
+   - Extracted ModuleAccessControl into its own component
+     (app/src/components/ModuleAccessControl.tsx)
+   - Beautiful grouped dropdown with search bar, group headers (People,
+     Business, Finance, System) with colored styling
+   - Group-level toggle checkbox (select/deselect all modules in a group)
+   - Individual module checkboxes with colored icons
+   - Select All / None quick actions
+   - Mini colored dots on the trigger button showing active module count
+
+2. COPY PERMISSIONS FEATURE:
+   - "Copy from another person" expandable section in the access dropdown
+   - Shows all non-admin staff with avatar, name, role, and module count
+   - One click copies the exact module set from source to target
+
+3. PERMISSION GROUPS — COMPANY SETTINGS:
+   - New "Permissions" tab in Company Settings
+   - Full CRUD for role groups (e.g. "Operations", "Finance Team",
+     "Course Builder")
+   - Each group maps to module groups via visual toggle cards
+   - Groups stored in organizations.role_groups (jsonb)
+   - Inline editing: rename groups, toggle module groups, delete
+
+4. PERMISSION GROUP PRESETS ON STAFF LIST:
+   - Permission groups appear as pill buttons under "Quick Apply" in the
+     staff access dropdown
+   - One click applies the group's module set to that staff member
+
+5. PAIRINGS DATA GRID (app/src/components/PairingsGrid.tsx):
+   - New "Grid" tab (now default) on the Pairings page
+   - Spreadsheet-style layout with 5 columns: Mentee, Email, Mentor,
+     Status, Status Step
+   - Drag-and-drop column reordering via native HTML5 DnD API
+   - Column resizing by dragging column borders
+   - Click column headers to sort (asc/desc/none cycle)
+   - Inline mentor reassignment and status change dropdowns
+   - Search bar filtering across all fields
+   - Alternating row colors, hover states, row/column count footer
+
+6. OFFERINGS MODULE SPLIT:
+   - Removed single "Offerings" module from Business group
+   - Created new "Offerings" sidebar group with two modules:
+     - Courses (/courses) — indigo icon
+     - Engagements (/engagements) — rose icon
+   - New CoursesPage.tsx and EngagementsPage.tsx (separate list pages)
+   - Routes: /courses, /courses/new, /courses/:id/edit,
+     /engagements, /engagements/new, /engagements/:id/edit
+   - /offerings redirects to /courses for backwards compatibility
+   - Updated OfferingCreatePage and OfferingEditPage navigation
+
+7. NAVIGATION BUG FIX — STALE LOADING STATE:
+   - Root cause: useEffect dependencies used full `profile` object
+     reference. Supabase token refresh events create new object references
+     with identical data, causing effects to re-fire and race with
+     in-flight fetches, leaving pages stuck on "Loading..."
+   - Fix: Changed all 12 affected pages from [profile] to
+     [profile?.organization_id] (stable string primitive)
+   - Files fixed: DashboardPage, CoursesPage, EngagementsPage,
+     MenteesListPage, PairingCreatePage, CompanySettingsPage,
+     ProfilePage, PairingsPage, AuditLogPage, PeopleListPage,
+     OfferingsPage
+
+8. COURSE BUILDER FOUNDATION (in progress):
+   - TypeScript types: Lesson, LessonQuestion, QuizOption, DueDateMode
+   - Migration 986: lessons table (linked to offerings), lesson_questions
+     table, due_date_mode + expected_completion_days on offerings,
+     enable_lesson_due_dates on organizations
+   - "Courses" tab in Company Settings with per-lesson due dates toggle
+   - "Course Builder" button on each course in the courses list
+   - Course creation redirects to /courses/:id/builder
+
+
+DIRECTIONAL DECISIONS
+----------------------
+
+1. MODULE RESTRUCTURE: Offerings split into Courses and Engagements as
+   separate modules under a new "Offerings" group. This gives each its
+   own sidebar entry, independent permission control, and room to grow
+   (Course Builder is course-specific, not engagement-relevant).
+
+2. PERMISSION GROUPS AS PRESETS: Permission groups are organizational
+   templates that quick-apply module sets, NOT enforced role definitions.
+   Individual staff can still have custom module access that differs from
+   any group. Groups are a convenience, not a constraint.
+
+3. PAIRINGS GRID AS DEFAULT: The spreadsheet grid view is now the default
+   tab on the Pairings page, with the existing By Mentor, Unpaired, and
+   By Status views preserved as alternate tabs.
+
+4. COURSE BUILDER ARCHITECTURE: Lessons are stored in a dedicated
+   `lessons` table linked to offerings via offering_id (where type='course').
+   Questions are in `lesson_questions` with question_type discriminator
+   ('quiz' with options/correct answers, or 'response' for open-ended).
+   Per-lesson due dates are an org-level opt-in feature.
+
+5. AUTH EFFECT STABILIZATION: All page-level data fetching effects now
+   depend on profile?.organization_id instead of the full profile object,
+   preventing spurious re-fetches on Supabase token refresh events.
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- All previous Session 002 functionality intact
+- Staff permission management significantly enhanced (grouped dropdown,
+  copy, presets)
+- Pairings module has a powerful grid view with drag-and-drop columns
+- Offerings split into Courses and Engagements as separate modules
+- Navigation bug (stuck "Loading...") fixed across all pages
+- Course Builder foundation in place (types, migration, settings, UI hooks)
+  but the actual builder page is NOT yet built
+
+DATABASE CHANGES (Migration 986):
+- New table: lessons (id, offering_id, organization_id, title, description,
+  content, video_url, order_index, due_days_offset, timestamps)
+- New table: lesson_questions (id, lesson_id, organization_id, question_text,
+  question_type, options jsonb, order_index, created_at)
+- offerings: added due_date_mode (text), expected_completion_days (integer)
+- organizations: added enable_lesson_due_dates (boolean)
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. COURSE BUILDER PAGE (highest priority — started but not completed):
+   - Build CourseBuilderPage.tsx at /courses/:id/builder
+   - Lesson list panel: add, reorder (drag), delete lessons
+   - Lesson editor: rich text content, video URL embed, per-lesson
+     due date (when org setting enabled)
+   - Question editor: add Quiz questions (with answer options and
+     correct answer marking) or Response questions (open-ended)
+   - Add route in App.tsx for /courses/:id/builder
+   - Wire to Supabase lessons + lesson_questions tables
+
+2. ALL OPEN ITEMS FROM SESSION 002 REMAIN:
+   - Auth flows (invite, forgot password, email change)
+   - Responsive/mobile layouts
+   - Production hardening
+   - Reports, Billing, Invoicing, Payroll modules
+   - Mentee-facing portal
+   - Accessibility audit
