@@ -38,7 +38,7 @@ export default function ProfilePage() {
       setZip(profile.zip ?? '')
       setCountry(profile.country ?? '')
     }
-  }, [profile])
+  }, [profile?.organization_id])
 
   async function handleProfileSubmit(e: FormEvent) {
     e.preventDefault()

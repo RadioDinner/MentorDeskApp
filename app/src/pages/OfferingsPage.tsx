@@ -44,7 +44,7 @@ export default function OfferingsPage() {
     }
 
     fetchOfferings()
-  }, [profile, activeTab])
+  }, [profile?.organization_id, activeTab])
 
   function switchTab(tab: OfferingType) {
     setSearchParams({ tab })

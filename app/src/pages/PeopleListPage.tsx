@@ -76,7 +76,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     }
 
     fetchPeople()
-  }, [profile, roles, showAccessGroups])
+  }, [profile?.organization_id, roles, showAccessGroups])
 
   async function updateModules(personId: string, modules: string[]) {
     if (!profile) return

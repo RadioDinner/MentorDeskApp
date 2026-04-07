@@ -33,7 +33,7 @@ export default function MenteesListPage() {
     }
 
     fetchMentees()
-  }, [profile])
+  }, [profile?.organization_id])
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 

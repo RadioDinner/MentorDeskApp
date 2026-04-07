@@ -26,7 +26,7 @@ export default function EngagementsPage() {
       setLoading(false)
     }
     fetch()
-  }, [profile])
+  }, [profile?.organization_id])
 
   return (
     <div className="max-w-4xl">

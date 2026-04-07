@@ -46,7 +46,7 @@ export default function DashboardPage() {
     }
 
     fetchStats()
-  }, [profile])
+  }, [profile?.organization_id])
 
   if (!profile) return null
 

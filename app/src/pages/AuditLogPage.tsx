@@ -71,7 +71,7 @@ export default function AuditLogPage() {
     }
 
     loadStaff()
-  }, [profile])
+  }, [profile?.organization_id])
 
   useEffect(() => {
     if (!profile) return
@@ -110,7 +110,7 @@ export default function AuditLogPage() {
     }
 
     fetchLog()
-  }, [profile, filterActor, filterType])
+  }, [profile?.organization_id, filterActor, filterType])
 
   const selectClass =
     'rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'

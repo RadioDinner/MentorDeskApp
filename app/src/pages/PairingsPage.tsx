@@ -69,7 +69,7 @@ export default function PairingsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchAll() }, [profile])
+  useEffect(() => { fetchAll() }, [profile?.organization_id])
 
   async function quickPair(menteeId: string, mentorId: string) {
     if (!profile) return

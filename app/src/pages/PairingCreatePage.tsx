@@ -49,7 +49,7 @@ export default function PairingCreatePage() {
     }
 
     fetchOptions()
-  }, [profile])
+  }, [profile?.organization_id])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
