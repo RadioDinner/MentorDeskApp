@@ -68,7 +68,7 @@ export default function ProfilePage() {
     }
 
     await refreshProfile()
-    setProfileMsg({ type: 'success', text: 'Profile updated.' })
+    setProfileMsg({ type: 'success', text: 'Your profile has been updated successfully.' })
   }
 
   async function handlePasswordSubmit(e: FormEvent) {
@@ -117,7 +117,7 @@ export default function ProfilePage() {
 
       setNewPassword('')
       setConfirmPassword('')
-      setPasswordMsg({ type: 'success', text: 'Password changed.' })
+      setPasswordMsg({ type: 'success', text: 'Your password has been updated successfully. Use your new password next time you sign in.' })
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out after 15 seconds' : err.message)
@@ -143,11 +143,12 @@ export default function ProfilePage() {
 
         <form onSubmit={handleProfileSubmit} className="space-y-5">
           {profileMsg && (
-            <div className={`rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
               profileMsg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
             }`}>
+              <span className="mt-0.5">{profileMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
               {profileMsg.text}
             </div>
           )}
@@ -246,11 +247,12 @@ export default function ProfilePage() {
 
         <form onSubmit={handlePasswordSubmit} className="space-y-5">
           {passwordMsg && (
-            <div className={`rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
               passwordMsg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
             }`}>
+              <span className="mt-0.5">{passwordMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
               {passwordMsg.text}
             </div>
           )}

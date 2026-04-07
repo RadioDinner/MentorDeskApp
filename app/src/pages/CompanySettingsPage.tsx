@@ -88,11 +88,12 @@ export default function CompanySettingsPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {msg && (
-            <div className={`rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
               msg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
             }`}>
+              <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
               {msg.text}
             </div>
           )}
