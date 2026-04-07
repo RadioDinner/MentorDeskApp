@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
 export default function ProfilePage() {
-  const { profile, refreshProfile } = useAuth()
+  const { profile, session, refreshProfile } = useAuth()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -86,7 +86,6 @@ export default function ProfilePage() {
 
     setPasswordSaving(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         setPasswordMsg({ type: 'error', text: 'No active session. Please sign in again.' })
         return
