@@ -9,4 +9,6 @@ SESSION 001 - PROMPT HISTORY
 
 3. I want you to add a folder to main called supabase. In that folder, put 3 sub folders. One called functions, where we will save the index.ts files for our edge functions, one called migrations, where we'll store sequenced named files of sql migrations and one called schemas where we'll save any schema files.
 
+4. merge it into main
+
 
