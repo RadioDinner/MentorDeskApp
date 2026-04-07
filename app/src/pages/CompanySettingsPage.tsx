@@ -1,8 +1,35 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Organization } from '../types'
+
+function CollapseCard({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200/80">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-8 py-5 text-left"
+      >
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-8 pb-8 pt-0">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function CompanySettingsPage() {
   const { profile } = useAuth()
@@ -11,6 +38,8 @@ export default function CompanySettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Form state
   const [name, setName] = useState('')
@@ -46,7 +75,7 @@ export default function CompanySettingsPage() {
     fetchOrg()
   }, [profile])
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!org) return
     setMsg(null)
@@ -70,7 +99,34 @@ export default function CompanySettingsPage() {
     }
 
     setOrg({ ...org, name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null, primary_color: primaryColor.trim() })
-    setMsg({ type: 'success', text: 'Company settings saved.' })
+    setMsg({ type: 'success', text: 'Settings saved.' })
+  }
+
+  async function handleLogoUpload(file: File) {
+    if (!org) return
+    setUploading(true)
+    setMsg(null)
+
+    const fileExt = file.name.split('.').pop()
+    const filePath = `${org.id}/logo.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('logos')
+      .upload(filePath, file, { upsert: true })
+
+    if (uploadError) {
+      setMsg({ type: 'error', text: 'Upload failed: ' + uploadError.message })
+      setUploading(false)
+      return
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('logos')
+      .getPublicUrl(filePath)
+
+    setLogoUrl(urlData.publicUrl)
+    setUploading(false)
+    setMsg({ type: 'success', text: 'Logo uploaded. Click "Save changes" to apply.' })
   }
 
   if (loading) {
@@ -81,98 +137,140 @@ export default function CompanySettingsPage() {
     'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition'
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-2xl">
+      <h1 className="text-xl font-semibold text-gray-900 mb-6">Company Settings</h1>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">Company Settings</h2>
+      <form onSubmit={handleSave} className="space-y-4">
+        {msg && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            msg.type === 'success'
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
+            {msg.text}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {msg && (
-            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-              msg.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-              {msg.text}
+        {/* Branding card */}
+        <CollapseCard title="Branding" defaultOpen={true}>
+          <div className="space-y-5">
+            {/* Company name */}
+            <div>
+              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Company name
+              </label>
+              <input id="companyName" type="text" required value={name}
+                onChange={e => setName(e.target.value)} className={inputClass} />
             </div>
-          )}
 
-          {/* Company name */}
-          <div>
-            <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Company name
-            </label>
-            <input id="companyName" type="text" required value={name}
-              onChange={e => setName(e.target.value)} className={inputClass} />
-          </div>
+            {/* Slug */}
+            <div>
+              <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1.5">
+                URL slug
+              </label>
+              <input id="slug" type="text" required value={slug}
+                onChange={e => setSlug(e.target.value)}
+                placeholder="my-company"
+                className={inputClass} />
+              <p className="mt-1 text-xs text-gray-400">Used in URLs. Lowercase, no spaces.</p>
+            </div>
 
-          {/* Slug */}
-          <div>
-            <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1.5">
-              URL slug
-            </label>
-            <input id="slug" type="text" required value={slug}
-              onChange={e => setSlug(e.target.value)}
-              placeholder="my-company"
-              className={inputClass} />
-            <p className="mt-1 text-xs text-gray-400">Used in URLs. Lowercase, no spaces.</p>
-          </div>
+            {/* Logo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Logo
+              </label>
 
-          {/* Logo URL */}
-          <div>
-            <label htmlFor="logoUrl" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Logo URL
-            </label>
-            <input id="logoUrl" type="url" value={logoUrl}
-              onChange={e => setLogoUrl(e.target.value)}
-              placeholder="https://example.com/logo.png"
-              className={inputClass} />
-            {logoUrl && (
-              <div className="mt-3 flex items-center gap-3">
-                <img
-                  src={logoUrl}
-                  alt="Logo preview"
-                  className="h-10 w-10 rounded-lg object-contain border border-gray-200"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              {/* Preview */}
+              {logoUrl && (
+                <div className="mb-3 flex items-center gap-3">
+                  <img
+                    src={logoUrl}
+                    alt="Logo preview"
+                    className="h-12 w-12 rounded-lg object-contain border border-gray-200"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <span className="text-xs text-gray-400">Current logo</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                {/* Upload button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) handleLogoUpload(file)
+                  }}
                 />
-                <span className="text-xs text-gray-400">Preview</span>
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {uploading ? 'Uploading…' : 'Upload logo'}
+                </button>
+                <span className="text-xs text-gray-400">or</span>
               </div>
-            )}
-          </div>
 
-          {/* Brand color */}
-          <div>
-            <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Brand color
-            </label>
-            <div className="flex items-center gap-3">
+              {/* URL input */}
               <input
-                id="primaryColor"
-                type="color"
-                value={primaryColor}
-                onChange={e => setPrimaryColor(e.target.value)}
-                className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
-              />
-              <input
-                type="text"
-                value={primaryColor}
-                onChange={e => setPrimaryColor(e.target.value)}
-                placeholder="#4F46E5"
-                className={inputClass + ' max-w-32'}
+                id="logoUrl"
+                type="url"
+                value={logoUrl}
+                onChange={e => setLogoUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className={inputClass + ' mt-2'}
               />
             </div>
-          </div>
 
-          <div className="pt-2">
-            <button type="submit" disabled={saving}
-              className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            {/* Brand color */}
+            <div>
+              <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Brand color
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="primaryColor"
+                  type="color"
+                  value={primaryColor}
+                  onChange={e => setPrimaryColor(e.target.value)}
+                  className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                />
+                <input
+                  type="text"
+                  value={primaryColor}
+                  onChange={e => setPrimaryColor(e.target.value)}
+                  placeholder="#4F46E5"
+                  className={inputClass + ' max-w-32'}
+                />
+              </div>
+            </div>
           </div>
-        </form>
-      </div>
+        </CollapseCard>
 
+        {/* Placeholder cards for future settings */}
+        <CollapseCard title="Notifications">
+          <p className="text-sm text-gray-500">Notification preferences coming soon.</p>
+        </CollapseCard>
+
+        <CollapseCard title="Integrations">
+          <p className="text-sm text-gray-500">Third-party integrations coming soon.</p>
+        </CollapseCard>
+
+        {/* Save button outside cards */}
+        <div className="pt-2">
+          <button type="submit" disabled={saving}
+            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

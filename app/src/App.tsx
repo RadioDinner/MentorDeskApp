@@ -17,6 +17,7 @@ import MenteeCreatePage from './pages/MenteeCreatePage'
 import AssignmentsPage from './pages/AssignmentsPage'
 import AssignmentCreatePage from './pages/AssignmentCreatePage'
 import AssignmentEditPage from './pages/AssignmentEditPage'
+import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -56,12 +57,16 @@ export default function App() {
             <Route path="/offerings/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
             <Route path="/offerings/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
             <Route path="/offerings/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
+            <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
+            <Route path="/invoicing" element={<ComingSoonPage title="Invoicing" />} />
+            <Route path="/payroll" element={<ComingSoonPage title="Payroll" />} />
+            <Route path="/audit-log" element={<ComingSoonPage title="Audit Log" />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CompanySettingsPage />
               </ProtectedRoute>
             } />
-            {/* Additional routes added here as pages are built */}
           </Route>
 
           {/* Fallback */}

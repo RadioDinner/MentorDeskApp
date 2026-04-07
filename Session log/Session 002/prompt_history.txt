@@ -141,3 +141,9 @@ each item. Specifics later.
 Prompt 31:
 Build a system to assign mentees to mentors in a new module in the Business
 group called "Assignments" or something shorter.
+
+Prompt 32:
+Create tables for all features built so far (consolidated migration).
+Make Reports, Finance modules, and Audit Log show "coming soon".
+Redesign Company Settings with collapsible cards, move branding fields
+into a "Branding" card, add logo upload button.
