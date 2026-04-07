@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
 
 interface MentorOption { id: string; first_name: string; last_name: string }
@@ -12,7 +13,7 @@ interface PairingRow {
   mentee: MenteeRow
 }
 
-type ViewTab = 'by_mentor' | 'unpaired' | 'by_status'
+type ViewTab = 'grid' | 'by_mentor' | 'unpaired' | 'by_status'
 
 const STATUS_STYLES: Record<PairingStatus, string> = {
   active: 'bg-green-50 text-green-700',
@@ -22,7 +23,7 @@ const STATUS_STYLES: Record<PairingStatus, string> = {
 
 export default function PairingsPage() {
   const { profile } = useAuth()
-  const [tab, setTab] = useState<ViewTab>('by_mentor')
+  const [tab, setTab] = useState<ViewTab>('grid')
   const [mentors, setMentors] = useState<MentorOption[]>([])
   const [mentees, setMentees] = useState<MenteeRow[]>([])
   const [pairings, setPairings] = useState<PairingRow[]>([])
@@ -96,6 +97,16 @@ export default function PairingsPage() {
     fetchAll()
   }
 
+  async function changeStatus(pairingId: string, newStatus: PairingStatus) {
+    if (!profile) return
+    const updates: Record<string, unknown> = { status: newStatus }
+    if (newStatus === 'ended') updates.ended_at = new Date().toISOString()
+    const { error } = await supabase.from('assignments').update(updates).eq('id', pairingId)
+    if (error) { setError(error.message); return }
+    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
+    fetchAll()
+  }
+
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
   if (error) return <div className="rounded border bg-red-50 border-red-200 px-3 py-2.5 text-sm text-red-700">{error}</div>
 
@@ -108,6 +119,7 @@ export default function PairingsPage() {
   }
 
   const TABS: { value: ViewTab; label: string; count: number }[] = [
+    { value: 'grid', label: 'Grid', count: pairings.length },
     { value: 'by_mentor', label: 'By Mentor', count: pairings.length },
     { value: 'unpaired', label: 'Unpaired', count: unpairedMentees.length },
     { value: 'by_status', label: 'By Status', count: mentees.length },
@@ -132,6 +144,18 @@ export default function PairingsPage() {
           </button>
         ))}
       </div>
+
+      {/* ========== GRID ========== */}
+      {tab === 'grid' && (
+        <PairingsGrid
+          pairings={pairings}
+          mentors={mentors}
+          mentees={mentees}
+          flowSteps={flowSteps}
+          onChangeMentor={changeMentor}
+          onChangeStatus={changeStatus}
+        />
+      )}
 
       {/* ========== BY MENTOR ========== */}
       {tab === 'by_mentor' && (
