@@ -3,7 +3,26 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
-import type { Organization } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings } from '../types'
+
+const PAY_TYPES: { value: PayType; label: string }[] = [
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'salary', label: 'Salary' },
+  { value: 'pct_monthly_profit', label: 'Percentage of monthly profit' },
+  { value: 'pct_engagement_profit', label: 'Percentage of assigned engagement profit' },
+]
+
+const ROLE_CATEGORIES: { value: RoleCategory; label: string }[] = [
+  { value: 'staff', label: 'Staff' },
+  { value: 'mentor', label: 'Mentors' },
+  { value: 'assistant_mentor', label: 'Asst. Mentors' },
+]
+
+const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
+  staff: ['hourly', 'salary'],
+  mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
+  assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
+}
 
 function CollapseCard({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -49,6 +68,7 @@ export default function CompanySettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#4F46E5')
   const [secondaryColor, setSecondaryColor] = useState('#6366F1')
   const [tertiaryColor, setTertiaryColor] = useState('#818CF8')
+  const [paySettings, setPaySettings] = useState<PayTypeSettings>(DEFAULT_PAY_SETTINGS)
 
   useEffect(() => {
     if (!profile) return
@@ -74,6 +94,7 @@ export default function CompanySettingsPage() {
       setPrimaryColor(o.primary_color)
       setSecondaryColor(o.secondary_color)
       setTertiaryColor(o.tertiary_color)
+      setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
       setLoading(false)
     }
 
@@ -93,6 +114,7 @@ export default function CompanySettingsPage() {
       primary_color: primaryColor.trim(),
       secondary_color: secondaryColor.trim(),
       tertiary_color: tertiaryColor.trim(),
+      pay_type_settings: paySettings,
     }
 
     const { error } = await supabase
@@ -294,6 +316,58 @@ export default function CompanySettingsPage() {
                 </div>
               </div>
               <p className="mt-2 text-xs text-gray-400">Primary is used for buttons and active states. Secondary and tertiary are used for accents.</p>
+            </div>
+          </div>
+        </CollapseCard>
+
+        {/* Payroll Settings */}
+        <CollapseCard title="Payroll Settings" defaultOpen={false}>
+          <div>
+            <p className="text-sm text-gray-500 mb-4">Select which pay types are available for each role.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 pr-4 font-medium text-gray-700">Pay Type</th>
+                    {ROLE_CATEGORIES.map(rc => (
+                      <th key={rc.value} className="text-center py-2 px-3 font-medium text-gray-700">{rc.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PAY_TYPES.map(pt => (
+                    <tr key={pt.value} className="border-b border-gray-100">
+                      <td className="py-3 pr-4 text-gray-900">{pt.label}</td>
+                      {ROLE_CATEGORIES.map(rc => {
+                        const checked = paySettings[rc.value]?.includes(pt.value) ?? false
+                        return (
+                          <td key={rc.value} className="text-center py-3 px-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaySettings(prev => {
+                                  const current = prev[rc.value] ?? []
+                                  const next = checked
+                                    ? current.filter(t => t !== pt.value)
+                                    : [...current, pt.value]
+                                  return { ...prev, [rc.value]: next }
+                                })
+                              }}
+                              className={`w-8 h-8 rounded-lg border-2 transition-colors flex items-center justify-center ${
+                                checked
+                                  ? 'bg-brand border-brand text-white'
+                                  : 'bg-white border-gray-300 text-transparent hover:border-gray-400'
+                              }`}
+                            >
+                              {checked && '\u2713'}
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </CollapseCard>

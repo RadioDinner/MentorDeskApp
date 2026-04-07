@@ -1,5 +1,11 @@
 export type StaffRole = 'admin' | 'mentor' | 'staff'
 
+export type PayType = 'hourly' | 'salary' | 'pct_monthly_profit' | 'pct_engagement_profit'
+
+export type RoleCategory = 'staff' | 'mentor' | 'assistant_mentor'
+
+export type PayTypeSettings = Record<RoleCategory, PayType[]>
+
 export interface Organization {
   id: string
   name: string
@@ -8,6 +14,7 @@ export interface Organization {
   primary_color: string
   secondary_color: string
   tertiary_color: string
+  pay_type_settings: PayTypeSettings
   created_at: string
 }
 
@@ -69,6 +76,8 @@ export interface StaffMember {
   state: string | null
   zip: string | null
   country: string | null
+  pay_type: PayType | null
+  pay_rate: number | null
   created_at: string
   updated_at: string
 }

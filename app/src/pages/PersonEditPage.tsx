@@ -2,7 +2,19 @@ import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import type { StaffMember } from '../types'
+import type { StaffMember, PayType, PayTypeSettings, RoleCategory } from '../types'
+
+const PAY_TYPE_LABELS: Record<PayType, string> = {
+  hourly: 'Hourly',
+  salary: 'Salary',
+  pct_monthly_profit: '% of monthly profit',
+  pct_engagement_profit: '% of engagement profit',
+}
+
+function getRoleCategory(role: string): RoleCategory {
+  if (role === 'mentor') return 'mentor'
+  return 'staff'
+}
 
 export default function PersonEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -24,6 +36,13 @@ export default function PersonEditPage() {
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Compensation
+  const [payType, setPayType] = useState<PayType | ''>('')
+  const [payRate, setPayRate] = useState('')
+  const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
+  const [compensationSaving, setCompensationSaving] = useState(false)
+  const [compensationMsg, setCompensationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // System actions
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -57,6 +76,22 @@ export default function PersonEditPage() {
       setState(p.state ?? '')
       setZip(p.zip ?? '')
       setCountry(p.country ?? '')
+      setPayType(p.pay_type ?? '')
+      setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
+
+      // Fetch org pay settings to determine available types
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('pay_type_settings')
+        .eq('id', p.organization_id)
+        .single()
+
+      if (orgData?.pay_type_settings) {
+        const settings = orgData.pay_type_settings as PayTypeSettings
+        const category = getRoleCategory(p.role)
+        setAvailablePayTypes(settings[category] ?? [])
+      }
+
       setLoading(false)
     }
 
@@ -98,6 +133,33 @@ export default function PersonEditPage() {
       email: email.trim(),
     })
     setProfileMsg({ type: 'success', text: 'Personal information has been updated.' })
+  }
+
+  async function handleCompensationSave(e: FormEvent) {
+    e.preventDefault()
+    if (!person) return
+    setCompensationMsg(null)
+    setCompensationSaving(true)
+
+    const rateNum = payRate ? parseFloat(payRate) : null
+
+    const { error } = await supabase
+      .from('staff')
+      .update({
+        pay_type: payType || null,
+        pay_rate: rateNum,
+      })
+      .eq('id', person.id)
+
+    setCompensationSaving(false)
+
+    if (error) {
+      setCompensationMsg({ type: 'error', text: error.message })
+      return
+    }
+
+    setPerson({ ...person, pay_type: (payType as PayType) || null, pay_rate: rateNum })
+    setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
   }
 
   async function handlePasswordReset() {
@@ -334,6 +396,73 @@ export default function PersonEditPage() {
 
         {/* Right column — System Actions (1/3 width) */}
         <div className="space-y-6">
+
+          {/* Compensation */}
+          {person.role !== 'admin' && availablePayTypes.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Compensation</h2>
+
+              <form onSubmit={handleCompensationSave} className="space-y-4">
+                {compensationMsg && (
+                  <div className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-xs ${
+                    compensationMsg.type === 'success'
+                      ? 'bg-green-50 border-green-200 text-green-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                  }`}>
+                    <span>{compensationMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
+                    {compensationMsg.text}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="payType" className="block text-xs font-medium text-gray-700 mb-1">
+                    Pay type
+                  </label>
+                  <select
+                    id="payType"
+                    value={payType}
+                    onChange={e => setPayType(e.target.value as PayType | '')}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                  >
+                    <option value="">Not set</option>
+                    {availablePayTypes.map(pt => (
+                      <option key={pt} value={pt}>{PAY_TYPE_LABELS[pt]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {payType && (
+                  <div>
+                    <label htmlFor="payRate" className="block text-xs font-medium text-gray-700 mb-1">
+                      {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit'
+                        ? 'Percentage (%)'
+                        : 'Rate ($)'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                        {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit' ? '%' : '$'}
+                      </span>
+                      <input
+                        id="payRate"
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={payRate}
+                        onChange={e => setPayRate(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button type="submit" disabled={compensationSaving}
+                  className="w-full rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  {compensationSaving ? 'Saving…' : 'Save compensation'}
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* Account status */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
