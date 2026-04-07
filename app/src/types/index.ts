@@ -6,6 +6,21 @@ export type RoleCategory = 'staff' | 'mentor' | 'assistant_mentor'
 
 export type PayTypeSettings = Record<RoleCategory, PayType[]>
 
+export type FlowStepType = 'status' | 'course' | 'engagement'
+
+export interface FlowStep {
+  id: string
+  name: string
+  type: FlowStepType
+  offering_id: string | null
+  in_flow: boolean
+  order: number
+}
+
+export interface MenteeFlow {
+  steps: FlowStep[]
+}
+
 export interface Organization {
   id: string
   name: string
@@ -15,6 +30,7 @@ export interface Organization {
   secondary_color: string
   tertiary_color: string
   pay_type_settings: PayTypeSettings
+  mentee_flow: MenteeFlow
   created_at: string
 }
 
@@ -37,6 +53,7 @@ export interface Offering {
   lesson_count: number | null
   course_due_date: string | null
   preview_mode: PreviewMode
+  meeting_count: number | null
   created_at: string
   updated_at: string
 }
@@ -54,6 +71,7 @@ export interface Mentee {
   state: string | null
   zip: string | null
   country: string | null
+  flow_step_id: string | null
   created_at: string
   updated_at: string
 }

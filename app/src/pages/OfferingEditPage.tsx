@@ -36,6 +36,7 @@ export default function OfferingEditPage() {
   const [lessonCount, setLessonCount] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
+  const [meetingCount, setMeetingCount] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -66,6 +67,7 @@ export default function OfferingEditPage() {
       setLessonCount(o.lesson_count ? String(o.lesson_count) : '')
       setDueDate(o.course_due_date ?? '')
       setPreviewMode(o.preview_mode)
+      setMeetingCount(o.meeting_count ? String(o.meeting_count) : '')
       setLoading(false)
     }
 
@@ -91,6 +93,10 @@ export default function OfferingEditPage() {
       updates.lesson_count = lessonCount ? parseInt(lessonCount) : null
       updates.course_due_date = dispenseMode === 'all_at_once' && dueDate ? dueDate : null
       updates.preview_mode = previewMode
+    }
+
+    if (offering.type === 'engagement') {
+      updates.meeting_count = meetingCount ? parseInt(meetingCount) : null
     }
 
     const { error } = await supabase
@@ -273,7 +279,24 @@ export default function OfferingEditPage() {
           </div>
         )}
 
-        {/* Info sidebar for non-course or inline for all */}
+        {/* Engagement settings */}
+        {!isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Engagement Settings</h2>
+            <div>
+              <label htmlFor="editMeetingCount" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Number of meetings
+              </label>
+              <input id="editMeetingCount" type="number" min="1" value={meetingCount}
+                onChange={e => setMeetingCount(e.target.value)}
+                placeholder="e.g. 4"
+                className={inputClass + ' max-w-32'} />
+              <p className="text-xs text-gray-400 mt-1">How many mentoring sessions are included in this engagement.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Info */}
         <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1 text-xs text-gray-500">

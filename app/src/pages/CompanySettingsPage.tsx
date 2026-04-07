@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow } from '../types'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
@@ -70,6 +70,8 @@ export default function CompanySettingsPage() {
   const [secondaryColor, setSecondaryColor] = useState('#6366F1')
   const [tertiaryColor, setTertiaryColor] = useState('#818CF8')
   const [paySettings, setPaySettings] = useState<PayTypeSettings>(DEFAULT_PAY_SETTINGS)
+  const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
+  const [newStepName, setNewStepName] = useState('')
 
   useEffect(() => {
     if (!profile) return
@@ -96,6 +98,7 @@ export default function CompanySettingsPage() {
       setSecondaryColor(o.secondary_color)
       setTertiaryColor(o.tertiary_color)
       setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
+      setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
       setLoading(false)
     }
 
@@ -116,6 +119,7 @@ export default function CompanySettingsPage() {
       secondary_color: secondaryColor.trim(),
       tertiary_color: tertiaryColor.trim(),
       pay_type_settings: paySettings,
+      mentee_flow: { steps: flowSteps },
     }
 
     const { error } = await supabase
@@ -371,6 +375,154 @@ export default function CompanySettingsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </CollapseCard>
+
+        {/* Mentee Flow */}
+        <CollapseCard title="Mentee Flow" defaultOpen={false}>
+          <div>
+            <p className="text-sm text-gray-500 mb-4">
+              Define the expected progression of mentees through your program. Items marked as "In flow" form the main path. Other statuses are available but not part of the sequence.
+            </p>
+
+            {/* Flow list */}
+            {flowSteps.length > 0 && (
+              <div className="space-y-1 mb-4">
+                {flowSteps
+                  .sort((a, b) => {
+                    if (a.in_flow && !b.in_flow) return -1
+                    if (!a.in_flow && b.in_flow) return 1
+                    return a.order - b.order
+                  })
+                  .map((step, _idx, sorted) => {
+                    const flowItems = sorted.filter(s => s.in_flow)
+                    const flowIdx = step.in_flow ? flowItems.indexOf(step) : -1
+
+                    return (
+                      <div key={step.id} className={`flex items-center gap-3 px-3 py-2 rounded border ${
+                        step.in_flow ? 'border-brand/30 bg-brand-light' : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        {/* Order controls */}
+                        {step.in_flow && (
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button type="button" disabled={flowIdx === 0}
+                              onClick={() => {
+                                const prev = flowItems[flowIdx - 1]
+                                setFlowSteps(steps => steps.map(s => {
+                                  if (s.id === step.id) return { ...s, order: prev.order }
+                                  if (s.id === prev.id) return { ...s, order: step.order }
+                                  return s
+                                }))
+                              }}
+                              className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&uarr;</button>
+                            <button type="button" disabled={flowIdx === flowItems.length - 1}
+                              onClick={() => {
+                                const next = flowItems[flowIdx + 1]
+                                setFlowSteps(steps => steps.map(s => {
+                                  if (s.id === step.id) return { ...s, order: next.order }
+                                  if (s.id === next.id) return { ...s, order: step.order }
+                                  return s
+                                }))
+                              }}
+                              className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&darr;</button>
+                          </div>
+                        )}
+                        {!step.in_flow && <div className="w-3" />}
+
+                        {/* Step info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 truncate">{step.name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              step.type === 'course' ? 'bg-violet-50 text-violet-600' :
+                              step.type === 'engagement' ? 'bg-blue-50 text-blue-600' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>
+                              {step.type}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* In flow toggle */}
+                        <button type="button"
+                          onClick={() => {
+                            setFlowSteps(steps => steps.map(s =>
+                              s.id === step.id ? { ...s, in_flow: !s.in_flow } : s
+                            ))
+                          }}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${
+                            step.in_flow ? 'bg-brand' : 'bg-gray-200'
+                          }`}>
+                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                            step.in_flow ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                          }`} />
+                        </button>
+
+                        {/* Delete */}
+                        <button type="button"
+                          onClick={() => setFlowSteps(steps => steps.filter(s => s.id !== step.id))}
+                          className="text-gray-300 hover:text-red-500 transition-colors shrink-0 text-sm">&times;</button>
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
+
+            {flowSteps.length > 0 && (
+              <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-brand inline-block" /> In flow
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Available status (not in flow)
+                </span>
+              </div>
+            )}
+
+            {/* Add custom status */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newStepName}
+                onChange={e => setNewStepName(e.target.value)}
+                placeholder="Add a status (e.g. Lead, Waiting List, Graduated)"
+                className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (!newStepName.trim()) return
+                    const maxOrder = flowSteps.length
+                    setFlowSteps(steps => [...steps, {
+                      id: crypto.randomUUID(),
+                      name: newStepName.trim(),
+                      type: 'status',
+                      offering_id: null,
+                      in_flow: true,
+                      order: maxOrder,
+                    }])
+                    setNewStepName('')
+                  }
+                }}
+              />
+              <button type="button"
+                onClick={() => {
+                  if (!newStepName.trim()) return
+                  const maxOrder = flowSteps.length
+                  setFlowSteps(steps => [...steps, {
+                    id: crypto.randomUUID(),
+                    name: newStepName.trim(),
+                    type: 'status',
+                    offering_id: null,
+                    in_flow: true,
+                    order: maxOrder,
+                  }])
+                  setNewStepName('')
+                }}
+                className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">Courses and engagements are added to this list when you create them with "Add to mentee flow" checked.</p>
           </div>
         </CollapseCard>
 

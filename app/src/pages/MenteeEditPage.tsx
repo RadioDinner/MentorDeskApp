@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee } from '../types'
+import type { Mentee, FlowStep } from '../types'
 
 export default function MenteeEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -26,6 +26,10 @@ export default function MenteeEditPage() {
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
+  const [flowStepId, setFlowStepId] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -54,6 +58,19 @@ export default function MenteeEditPage() {
       setState(m.state ?? '')
       setZip(m.zip ?? '')
       setCountry(m.country ?? '')
+      setFlowStepId(m.flow_step_id ?? '')
+
+      // Fetch org's mentee flow
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('mentee_flow')
+        .eq('id', m.organization_id)
+        .single()
+
+      if (orgData?.mentee_flow) {
+        setFlowSteps((orgData.mentee_flow as { steps: FlowStep[] }).steps ?? [])
+      }
+
       setLoading(false)
     }
 
@@ -205,8 +222,83 @@ export default function MenteeEditPage() {
           </div>
         </div>
 
-        {/* Right — Account */}
-        <div>
+        {/* Right column */}
+        <div className="space-y-6">
+          {/* Program Status */}
+          {flowSteps.length > 0 && (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Program Status</h2>
+
+              {statusMsg && (
+                <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs mb-3 ${
+                  statusMsg.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <span>{statusMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
+                  {statusMsg.text}
+                </div>
+              )}
+
+              {/* Current status display */}
+              {flowStepId && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-400 mb-1">Current status</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {flowSteps.find(s => s.id === flowStepId)?.name ?? 'Unknown'}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="flowStep" className="block text-xs font-medium text-gray-700 mb-1">
+                  {flowStepId ? 'Change status' : 'Set status'}
+                </label>
+                <select id="flowStep" value={flowStepId}
+                  onChange={e => setFlowStepId(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white">
+                  <option value="">No status set</option>
+                  {flowSteps.filter(s => s.in_flow).sort((a, b) => a.order - b.order).length > 0 && (
+                    <optgroup label="Program flow">
+                      {flowSteps.filter(s => s.in_flow).sort((a, b) => a.order - b.order).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {flowSteps.filter(s => !s.in_flow).length > 0 && (
+                    <optgroup label="Other statuses">
+                      {flowSteps.filter(s => !s.in_flow).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <button type="button" disabled={statusSaving}
+                onClick={async () => {
+                  if (!mentee) return
+                  setStatusMsg(null)
+                  setStatusSaving(true)
+                  const { error } = await supabase
+                    .from('mentees')
+                    .update({ flow_step_id: flowStepId || null })
+                    .eq('id', mentee.id)
+                  setStatusSaving(false)
+                  if (error) {
+                    setStatusMsg({ type: 'error', text: error.message })
+                    return
+                  }
+                  if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
+                  setStatusMsg({ type: 'success', text: 'Status updated.' })
+                }}
+                className="mt-3 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                {statusSaving ? 'Saving…' : 'Save status'}
+              </button>
+            </div>
+          )}
+
+          {/* Account */}
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
             <div className="flex items-center gap-2 mb-4">

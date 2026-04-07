@@ -37,6 +37,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const [lessonCount, setLessonCount] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
+  const [meetingCount, setMeetingCount] = useState('')
+  const [addToFlow, setAddToFlow] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -63,6 +65,10 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       record.preview_mode = previewMode
     }
 
+    if (!isCourse) {
+      record.meeting_count = meetingCount ? parseInt(meetingCount) : null
+    }
+
     const { data, error } = await supabase
       .from('offerings')
       .insert(record)
@@ -77,6 +83,31 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
     if (data && data.length > 0) {
       logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
+
+      // Add to mentee flow if requested
+      if (addToFlow) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('mentee_flow')
+          .eq('id', profile.organization_id)
+          .single()
+
+        if (orgData) {
+          const flow = (orgData.mentee_flow as { steps: unknown[] }) ?? { steps: [] }
+          const maxOrder = flow.steps.length
+          const newStep = {
+            id: crypto.randomUUID(),
+            name: name.trim(),
+            type: offeringType,
+            offering_id: data[0].id,
+            in_flow: true,
+            order: maxOrder,
+          }
+          flow.steps.push(newStep)
+          await supabase.from('organizations').update({ mentee_flow: flow }).eq('id', profile.organization_id)
+        }
+      }
+
       navigate(`/offerings/${data[0].id}/edit`)
     } else {
       navigate(`/offerings?tab=${offeringType}`)
@@ -262,6 +293,39 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
             </div>
           </div>
         )}
+
+        {/* Engagement settings */}
+        {!isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Engagement Settings</h2>
+            <div>
+              <label htmlFor="meetingCount" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Number of meetings
+              </label>
+              <input id="meetingCount" type="number" min="1" value={meetingCount}
+                onChange={e => setMeetingCount(e.target.value)}
+                placeholder="e.g. 4"
+                className={inputClass + ' max-w-32'} />
+              <p className="text-xs text-gray-400 mt-1">How many mentoring sessions are included in this engagement.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Add to mentee flow */}
+        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={addToFlow}
+              onChange={e => setAddToFlow(e.target.checked)}
+              className="mt-0.5 accent-brand"
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
+              <p className="text-xs text-gray-500">Include this {isCourse ? 'course' : 'engagement'} as a step in the mentee progression flow. You can reorder it later in Company Settings.</p>
+            </div>
+          </label>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-3">

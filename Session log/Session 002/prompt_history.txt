@@ -187,3 +187,11 @@ Create course and create engagement buttons don't work. Also build out
 course creation with: price, one-time setup fee, course plan settings
 (lesson dispense by interval/completion/all-at-once, lesson count,
 due date, and mentee preview mode for upcoming lessons).
+
+Prompt 41:
+Engagements: set meeting count (e.g. 4x, 2x, 1x Mentoring). Add "Mentee
+Flow" card to company settings: ordered list of statuses/courses/engagements
+that define mentee progression (Lead → Discovery Call → Waiting List →
+Course → 4x → 2x → 1x → Graduated). Support non-flow statuses too.
+Reorderable, toggleable in/out of flow. Mentee edit page: set/change
+status from flow. When creating offerings, option to add to flow.
