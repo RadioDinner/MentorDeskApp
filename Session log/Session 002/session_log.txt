@@ -1,0 +1,249 @@
+SESSION 002 - HANDOFF LOG
+==========================
+Date: 2026-04-07
+Branch: claude/login-page-work-0IZO4 (merged to main during session)
+
+
+SUMMARY
+--------
+Major feature-building session. Connected Supabase, got auth working end-to-end,
+built out the full admin portal UI with 20+ page components, established the
+module/sidebar navigation system, created the database schema for all core
+entities (staff, mentees, pairings, offerings, audit log), and iterated through
+multiple rounds of UI refinement. The app went from a single login page to a
+near-complete Phase 1 admin portal.
+
+
+CHANGES MADE
+-------------
+
+1. SUPABASE CONNECTION & AUTH (Prompts 2-7):
+   - Connected app to Supabase project with env vars (VITE_SUPABASE_URL,
+     VITE_SUPABASE_ANON_KEY) configured in Vercel
+   - Resolved auth.users linking — user_id in staff table now correctly maps
+     to the logged-in Supabase auth user
+   - Fixed "Welcome back, Alice" bug (staff record was linked to wrong user_id)
+
+2. PROFILE & PASSWORD MANAGEMENT (Prompts 9, 14, 17, 20, 23-24):
+   - Built ProfilePage.tsx — editable personal info + password change
+   - Debugged password update timeout: SDK getSession() was hanging before fetch;
+     fixed by calling Supabase auth API directly, then using session from context
+   - Added success/error confirmation messages on all forms
+   - Moved profile access + sign out into topbar avatar dropdown menu
+
+3. COMPANY SETTINGS (Prompts 10, 32-34, 42, 44, 46):
+   - CompanySettingsPage.tsx — admin-only settings page, iterated through
+     three layout approaches:
+       Option A: collapsible cards (initial)
+       Option B: redesigned layout with inline editing
+       Option C: horizontal tabs with sidebar nav (final choice, Prompt 46)
+   - Sections: General Info, Branding, Payroll Settings, Mentee Flow,
+     Default Cancellation Policy, Module Access Control
+   - Branding: logo upload button, primary/secondary/tertiary color pickers
+   - ThemeContext.tsx: org colors applied globally via CSS variables
+   - Payroll Settings: grid of pay types × roles with toggle buttons
+     (Staff default Hourly+Salary; Mentors/Asst Mentors get all four types)
+   - Mentee Flow: ordered list of statuses/courses/engagements defining mentee
+     progression (reorderable, toggleable in/out of flow)
+   - Default Cancellation Policy: cancel window, outcomes for cancel-in-window,
+     cancel-outside-window, and no-show
+
+4. ADMIN DASHBOARD (Prompts 18-19):
+   - DashboardPage.tsx redesigned with greeting, stat cards, People section
+     (Mentors/Mentees/Staff counts), System section
+   - Color scheme overhaul: dark blue sidebar, light gray background, white cards
+
+5. MODULE NAVIGATION SYSTEM (Prompt 25):
+   - lib/modules.ts — module definitions with group organization
+   - Sidebar.tsx — role-filtered nav organized by module groups
+   - Groups: Main (Home), People (Staff, Mentors, Asst. Mentors, Mentees),
+     Business (Pairings, Offerings, Reports), Finance (Billing, Invoicing,
+     Payroll), System (Audit Log, Settings)
+   - Added "Module" and "Module Group" to Glossary.txt
+
+6. PEOPLE MANAGEMENT — STAFF, MENTORS, ASST. MENTORS (Prompts 27-29, 34-35):
+   - PeopleListPage.tsx — list view with profile picture, name, email, edit button
+   - PersonCreatePage.tsx — create new staff with role assignment
+   - PersonEditPage.tsx — two-column layout: personal info (left),
+     system/role settings (right), compensation section with pay type
+     dropdown filtered by org payroll settings + rate input
+   - Fixed role separation between mentors and assistant mentors
+   - Per-module access control: round icons on each staff member with dropdown
+     for granular module-level permissions (replaced role groups approach)
+
+7. MENTEES (Prompts 29, 31, 35, 41):
+   - MenteesListPage.tsx, MenteeCreatePage.tsx, MenteeEditPage.tsx
+   - Fixed "Cannot coerce to single JSON object" error on mentee creation
+   - Mentee edit page: set/change flow status from org's mentee flow definition
+   - mentees table with flow_step_id tracking
+
+8. PAIRINGS MODULE (Prompts 31, 38-39, 43):
+   - Originally "Assignments" — renamed to "Pairings" (Prompt 38)
+   - PairingsPage.tsx — three-tab interface:
+       By Mentor: see who's paired to each mentor
+       Unpaired: view and quickly pair unassigned mentees
+       By Status: mentees grouped by flow status with mentor info
+   - PairingCreatePage.tsx, PairingEditPage.tsx
+   - pairings table (mentor_id, mentee_id, status: active/paused/ended)
+
+9. OFFERINGS MODULE (Prompts 30, 40-42, 45):
+   - OfferingsPage.tsx — two tabs: Courses and Engagements
+   - OfferingCreatePage.tsx — single-screen creation for both types
+   - OfferingEditPage.tsx
+   - COURSES: price, one-time setup fee, billing mode (one-time with optional
+     due date OR monthly recurring until completion), course plan settings
+     (lesson dispense: interval/completion/all-at-once, lesson count,
+     due date, mentee preview mode for upcoming lessons)
+   - ENGAGEMENTS: meeting count (e.g. 4x, 2x, 1x Mentoring), allocation
+     per payment cycle (monthly/weekly/per_cycle), cancellation policy
+     (org default or per-engagement override)
+
+10. AUDIT LOG (Prompt 37):
+    - lib/audit.ts — audit logging functions
+    - AuditLogPage.tsx — filterable report by user and by type of change
+    - audit_log table recording who/what/when for all mutations
+    - Integrated across all create/update/delete operations
+
+11. UI OVERHAUL (Prompts 19, 36):
+    - Dark blue sidebar, light gray page background, white content cards
+    - Removed redundant module names (was showing in both topbar and page)
+    - Reduced border radius throughout — sharper, more professional feel
+    - Cleaner typography and spacing
+
+12. DEVELOPER TOOLING (Prompt 17):
+    - DebugPanel.tsx — toggle with Ctrl+Shift+D, shows auth state and
+      network request debugging info (to be removed before production)
+
+13. DATABASE MIGRATIONS (supabase/migrations/):
+    - 987: Per-module access control
+    - 988: Course billing mode
+    - 989: Role groups
+    - 990: Engagement cancellation policy
+    - 991: Engagement & mentee flow
+    - 992: Course settings
+    - 993: Assistant mentor role
+    - 994: Pay settings
+    - 995: Org brand colors
+    - 996: Consolidated schema (staff, mentees, pairings, offerings,
+           audit_log, invoices — all with RLS)
+    - 997: Mentees and pairings tables
+    - 998: Offerings tables
+    - 999: Admin org update policy
+
+14. COMING SOON PAGES:
+    - ComingSoonPage.tsx placeholder for Reports, Billing, Invoicing, Payroll
+
+15. DOCUMENTATION UPDATES:
+    - Glossary.txt: added Module, Module Group, Offering, Course, Engagement,
+      Pairing, Mentee Flow, Cancellation Policy, and other terms
+    - ROADMAP.txt: updated Phase 0/1 progress
+    - PRE_LAUNCH_CHECKLIST.txt: created with full list of pre-launch items
+
+
+DIRECTIONAL DECISIONS
+----------------------
+
+1. MODULE NAVIGATION: Sidebar organized by groups (Main, People, Business,
+   Finance, System). Each group has a label and collapsible module list.
+
+2. STAFF ACCESS CONTROL (Prompt 46 — final approach): Per-module granular
+   access on each staff member, shown as round icons with dropdown. Replaced
+   the earlier "Role Groups" approach (Prompt 44) which used predefined
+   group templates (Admin=all, Operations=People+Business+Finance, etc.).
+
+3. COMPANY SETTINGS LAYOUT (Prompt 46 — final approach): Horizontal tabs
+   with sidebar navigation (Option C). Replaced collapsible cards (Option A)
+   and redesigned inline layout (Option B).
+
+4. PAIRINGS vs ASSIGNMENTS: Renamed from "Assignments" to "Pairings" to
+   avoid confusion with assigning courses to mentees.
+
+5. COURSE BILLING MODES: Two modes — one-time (fixed price, optional due
+   date) and monthly recurring (charged until mentee completes all lessons).
+   Both support an optional one-time setup fee.
+
+6. ENGAGEMENT CANCELLATION POLICY: Configurable per-engagement or fall back
+   to org default. Defines cancel window, and credit outcomes for: cancel
+   within window, cancel outside window, and no-show.
+
+7. MENTEE FLOW: An ordered sequence of statuses, courses, and engagements
+   that define a mentee's progression through the organization. Statuses
+   can be toggled in/out of the flow. Mentees track their current position.
+
+8. PAY TYPES: Four types (Hourly, Salary, % Monthly Profit, % Engagement
+   Profit). Org admins configure which types are available per role in
+   Company Settings. Individual staff get assigned one type + rate.
+
+9. ASSISTANT MENTOR: Added as a distinct role (admin, mentor,
+   assistant_mentor, staff). Gets its own People module sidebar entry
+   and role-specific pay type options.
+
+10. PUSH TO MAIN: From Prompt 15 onward, all changes were pushed directly
+    to main (user's explicit instruction for the session).
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- App is live at mentor-desk-app.vercel.app
+- Auth working end-to-end with Supabase
+- 20+ page components built covering admin portal Phase 1
+- All CRUD operations wired up for Staff, Mentees, Pairings, Offerings
+- Audit logging active across all mutations
+- Org theming (color pickers) functional
+- Database schema covers: organizations, staff, mentees, pairings,
+  offerings, audit_log, invoices
+- RLS policies in place for multi-tenant data isolation
+- Deployment pipeline: push to main → auto-deploy on Vercel
+
+
+OPEN ITEMS / QUESTIONS FOR NEXT SESSION
+-----------------------------------------
+
+1. SUPABASE AUTH FLOWS:
+   - Admin invite flow: staff creation via UI should trigger Supabase
+     auth invite (currently staff are created without login accounts)
+   - Forgot password: redirect URL points to localhost:3000, needs to be
+     configured to mentor-desk-app.vercel.app in Supabase dashboard
+   - Email change confirmation flow not yet built
+   - SMTP setup for transactional emails (password resets, invites)
+
+2. RESPONSIVE / MOBILE:
+   - Sidebar does not collapse on small screens
+   - No mobile-optimized layouts yet
+
+3. PRODUCTION HARDENING:
+   - Remove DebugPanel.tsx (Ctrl+Shift+D) before shipping
+   - RLS policy audit — verify all tables properly locked down
+   - Rate limiting on auth endpoints
+   - Error monitoring (Sentry or similar)
+   - Form validation across all pages (currently minimal)
+   - Loading states / skeleton loaders
+
+4. DATA INTEGRITY:
+   - Email sync between staff table and auth.users
+   - Seed data cleanup (remove test data before production)
+   - .env.example file for developer onboarding
+
+5. INFRASTRUCTURE:
+   - Custom domain setup
+   - Vercel env vars per environment (staging vs production)
+   - Consider staging environment
+
+6. FEATURES NOT YET BUILT (Phase 2+):
+   - Reports module
+   - Billing module
+   - Invoicing module
+   - Payroll module
+   - Mentee-facing portal (separate auth flow)
+   - Meeting scheduling / calendar integration
+   - Content / course delivery system
+   - Notifications system
+
+7. ACCESSIBILITY:
+   - No a11y audit performed yet
+   - Keyboard navigation not tested
+   - Screen reader support not verified
+
+8. MIGRATION CLEANUP:
+   - 13 migrations accumulated during Session 002 (987-999)
+   - Consider squashing into fewer migrations before production
