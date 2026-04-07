@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 
 export default function ProfilePage() {
   const { profile, session, refreshProfile } = useAuth()
@@ -68,6 +69,7 @@ export default function ProfilePage() {
     }
 
     await refreshProfile()
+    if (profile) logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: profile.id, details: { fields: 'personal_info', self: true } })
     setProfileMsg({ type: 'success', text: 'Your profile has been updated successfully.' })
   }
 

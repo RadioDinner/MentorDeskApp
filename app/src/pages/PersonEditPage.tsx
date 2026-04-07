@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { StaffMember, PayType, PayTypeSettings, RoleCategory } from '../types'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
@@ -19,6 +21,7 @@ function getRoleCategory(role: string): RoleCategory {
 
 export default function PersonEditPage() {
   const { id } = useParams<{ id: string }>()
+  const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
 
   const [person, setPerson] = useState<StaffMember | null>(null)
@@ -133,6 +136,7 @@ export default function PersonEditPage() {
       last_name: lastName.trim(),
       email: email.trim(),
     })
+    if (currentUser) logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' } })
     setProfileMsg({ type: 'success', text: 'Personal information has been updated.' })
   }
 
@@ -160,6 +164,7 @@ export default function PersonEditPage() {
     }
 
     setPerson({ ...person, pay_type: (payType as PayType) || null, pay_rate: rateNum })
+    if (currentUser) logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation', pay_type: payType || null, pay_rate: rateNum } })
     setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
   }
 

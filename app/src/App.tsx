@@ -19,6 +19,7 @@ import MenteeEditPage from './pages/MenteeEditPage'
 import AssignmentsPage from './pages/AssignmentsPage'
 import AssignmentCreatePage from './pages/AssignmentCreatePage'
 import AssignmentEditPage from './pages/AssignmentEditPage'
+import AuditLogPage from './pages/AuditLogPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
@@ -64,7 +65,7 @@ export default function App() {
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
             <Route path="/invoicing" element={<ComingSoonPage title="Invoicing" />} />
             <Route path="/payroll" element={<ComingSoonPage title="Payroll" />} />
-            <Route path="/audit-log" element={<ComingSoonPage title="Audit Log" />} />
+            <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CompanySettingsPage />

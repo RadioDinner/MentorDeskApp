@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { Mentee } from '../types'
 
 export default function MenteeEditPage() {
   const { id } = useParams<{ id: string }>()
+  const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
 
   const [mentee, setMentee] = useState<Mentee | null>(null)
@@ -86,6 +89,7 @@ export default function MenteeEditPage() {
     }
 
     setMentee({ ...mentee, first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim() })
+    if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
     setMsg({ type: 'success', text: 'Mentee information has been updated.' })
   }
 

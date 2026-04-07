@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { Offering } from '../types'
 
 export default function OfferingEditPage() {
   const { id } = useParams<{ id: string }>()
+  const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
 
   const [offering, setOffering] = useState<Offering | null>(null)
@@ -65,6 +68,7 @@ export default function OfferingEditPage() {
     }
 
     setOffering({ ...offering, name: name.trim(), description: description.trim() || null })
+    if (currentUser) logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() } })
     setMsg({ type: 'success', text: 'Offering has been updated.' })
   }
 

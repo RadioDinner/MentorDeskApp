@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { Organization, PayType, RoleCategory, PayTypeSettings } from '../types'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
@@ -132,6 +133,7 @@ export default function CompanySettingsPage() {
     const updatedOrg = { ...org, ...updates }
     setOrg(updatedOrg)
     refreshTheme(updatedOrg)
+    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { fields: Object.keys(updates) } })
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 

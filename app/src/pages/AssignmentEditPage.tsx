@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { AssignmentStatus } from '../types'
 
 interface AssignmentDetail {
   id: string
+  organization_id: string
   status: AssignmentStatus
   started_at: string
   ended_at: string | null
@@ -23,6 +26,7 @@ const STATUSES: { value: AssignmentStatus; label: string }[] = [
 
 export default function AssignmentEditPage() {
   const { id } = useParams<{ id: string }>()
+  const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
 
   const [assignment, setAssignment] = useState<AssignmentDetail | null>(null)
@@ -41,7 +45,7 @@ export default function AssignmentEditPage() {
       const { data, error } = await supabase
         .from('assignments')
         .select(`
-          id, status, started_at, ended_at, notes, created_at,
+          id, organization_id, status, started_at, ended_at, notes, created_at,
           mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name, email ),
           mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email )
         `)
@@ -94,6 +98,7 @@ export default function AssignmentEditPage() {
       return
     }
 
+    if (currentUser && assignment) logAudit({ organization_id: assignment.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'assignment', entity_id: assignment.id, details: { status, mentor: `${assignment.mentor.first_name} ${assignment.mentor.last_name}`, mentee: `${assignment.mentee.first_name} ${assignment.mentee.last_name}` } })
     setMsg({ type: 'success', text: 'Assignment updated.' })
   }
 

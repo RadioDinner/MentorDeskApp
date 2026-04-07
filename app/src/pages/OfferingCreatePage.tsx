@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import type { OfferingType } from '../types'
 
 interface OfferingCreatePageProps {
@@ -43,6 +44,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
     }
 
     if (data && data.length > 0) {
+      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
       navigate(`/offerings/${data[0].id}/edit`)
     } else {
       navigate(`/offerings?tab=${offeringType}`)

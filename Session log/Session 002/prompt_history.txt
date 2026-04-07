@@ -169,3 +169,8 @@ Prompt 36:
 UI overhaul request. Redundant module names (topbar + page). Everything
 too "round". Payroll grid is "gross". Want professional, clean, official
 feel. Less round, sharper UI.
+
+Prompt 37:
+Add audit trails to the company. Record who, what, when for every change
+in the system — staff added, reports created, courses updated, engagements
+deleted, etc. Build a filterable report by user and by type of change.

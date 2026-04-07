@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 
 interface PersonOption {
   id: string
@@ -72,6 +73,9 @@ export default function AssignmentCreatePage() {
       return
     }
 
+    const mentor = mentors.find(m => m.id === mentorId)
+    const mentee = mentees.find(m => m.id === menteeId)
+    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'assignment', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
     navigate('/assignments')
   }
 
