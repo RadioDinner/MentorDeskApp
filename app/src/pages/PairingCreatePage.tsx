@@ -12,7 +12,7 @@ interface PersonOption {
   email: string
 }
 
-export default function AssignmentCreatePage() {
+export default function PairingCreatePage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
 
@@ -75,8 +75,8 @@ export default function AssignmentCreatePage() {
 
     const mentor = mentors.find(m => m.id === mentorId)
     const mentee = mentees.find(m => m.id === menteeId)
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'assignment', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
-    navigate('/assignments')
+    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
+    navigate('/pairings')
   }
 
   const selectClass =
@@ -88,11 +88,11 @@ export default function AssignmentCreatePage() {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/assignments')}
+        <button onClick={() => navigate('/pairings')}
           className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
           &larr; Back
         </button>
-        <h1 className="text-lg font-semibold text-gray-900">Assign Mentee to Mentor</h1>
+        <h1 className="text-lg font-semibold text-gray-900">Pair Mentee to Mentor</h1>
       </div>
 
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
@@ -158,16 +158,16 @@ export default function AssignmentCreatePage() {
               </label>
               <textarea id="assignNotes" rows={3} value={notes}
                 onChange={e => setNotes(e.target.value)}
-                placeholder="Optional — any context about this assignment"
+                placeholder="Optional — any context about this pairing"
                 className={inputClass + ' resize-none'} />
             </div>
 
             <div className="flex items-center gap-3 pt-2">
               <button type="submit" disabled={saving || mentors.length === 0 || mentees.length === 0}
                 className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-                {saving ? 'Assigning…' : 'Create Assignment'}
+                {saving ? 'Pairing…' : 'Create Pairing'}
               </button>
-              <button type="button" onClick={() => navigate('/assignments')}
+              <button type="button" onClick={() => navigate('/pairings')}
                 className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
                 Cancel
               </button>

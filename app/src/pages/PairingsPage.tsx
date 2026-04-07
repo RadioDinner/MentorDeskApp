@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { AssignmentStatus } from '../types'
+import type { PairingStatus } from '../types'
 
-interface AssignmentRow {
+interface PairingRow {
   id: string
-  status: AssignmentStatus
+  status: PairingStatus
   started_at: string
   ended_at: string | null
   notes: string | null
@@ -14,23 +14,23 @@ interface AssignmentRow {
   mentee: { id: string; first_name: string; last_name: string; email: string }
 }
 
-const STATUS_STYLES: Record<AssignmentStatus, string> = {
+const STATUS_STYLES: Record<PairingStatus, string> = {
   active: 'bg-green-50 text-green-700',
   paused: 'bg-yellow-50 text-yellow-700',
   ended: 'bg-gray-100 text-gray-500',
 }
 
-export default function AssignmentsPage() {
+export default function PairingsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [pairings, setPairings] = useState<PairingRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profile) return
 
-    async function fetchAssignments() {
+    async function fetchPairings() {
       setLoading(true)
       const { data, error: fetchError } = await supabase
         .from('assignments')
@@ -48,11 +48,11 @@ export default function AssignmentsPage() {
         return
       }
 
-      setAssignments(data as unknown as AssignmentRow[])
+      setPairings(data as unknown as PairingRow[])
       setLoading(false)
     }
 
-    fetchAssignments()
+    fetchPairings()
   }, [profile])
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
@@ -60,7 +60,7 @@ export default function AssignmentsPage() {
   if (error) {
     return (
       <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-        Failed to load assignments: {error}
+        Failed to load pairings: {error}
       </div>
     )
   }
@@ -71,24 +71,24 @@ export default function AssignmentsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Assignments</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {assignments.length} {assignments.length === 1 ? 'assignment' : 'assignments'}
+            {pairings.length} {pairings.length === 1 ? 'pairing' : 'pairings'}
           </p>
         </div>
         <button
-          onClick={() => navigate('/assignments/new')}
+          onClick={() => navigate('/pairings/new')}
           className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
         >
-          + Assign Mentee
+          + Pair Mentee
         </button>
       </div>
 
-      {assignments.length === 0 ? (
+      {pairings.length === 0 ? (
         <div className="bg-white rounded-md border border-gray-200/80  px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">No assignments yet. Assign a mentee to a mentor to get started.</p>
+          <p className="text-sm text-gray-500">No pairings yet. Assign a mentee to a mentor to get started.</p>
         </div>
       ) : (
         <div className="bg-white rounded-md border border-gray-200/80  divide-y divide-gray-100">
-          {assignments.map(a => (
+          {pairings.map(a => (
             <div key={a.id} className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-5 min-w-0">
                 {/* Mentor */}
@@ -126,7 +126,7 @@ export default function AssignmentsPage() {
                   {a.status}
                 </span>
                 <button
-                  onClick={() => navigate(`/assignments/${a.id}/edit`)}
+                  onClick={() => navigate(`/pairings/${a.id}/edit`)}
                   className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                 >
                   Edit

@@ -85,10 +85,10 @@ Engagement
     involving scheduled sessions between a mentor and mentee. May be
     billed on a recurring basis.
 
-Assignment
-    A pairing of a mentor to a mentee within an organization. Assignments
+Pairing
+    A link between a mentor and a mentee within an organization. Pairings
     track the relationship status (active, paused, ended) and are managed
-    by admins through the Assignments module.
+    by admins through the Pairings module in the Business group.
 
 Meeting
     A scheduled session between a mentor and mentee, typically part of

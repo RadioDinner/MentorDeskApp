@@ -4,12 +4,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { AssignmentStatus } from '../types'
+import type { PairingStatus } from '../types'
 
-interface AssignmentDetail {
+interface PairingDetail {
   id: string
   organization_id: string
-  status: AssignmentStatus
+  status: PairingStatus
   started_at: string
   ended_at: string | null
   notes: string | null
@@ -18,22 +18,22 @@ interface AssignmentDetail {
   mentee: { id: string; first_name: string; last_name: string; email: string }
 }
 
-const STATUSES: { value: AssignmentStatus; label: string }[] = [
+const STATUSES: { value: PairingStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
   { value: 'paused', label: 'Paused' },
   { value: 'ended', label: 'Ended' },
 ]
 
-export default function AssignmentEditPage() {
+export default function PairingEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
 
-  const [assignment, setAssignment] = useState<AssignmentDetail | null>(null)
+  const [pairing, setPairing] = useState<PairingDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  const [status, setStatus] = useState<AssignmentStatus>('active')
+  const [status, setStatus] = useState<PairingStatus>('active')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -41,7 +41,7 @@ export default function AssignmentEditPage() {
   useEffect(() => {
     if (!id) return
 
-    async function fetchAssignment() {
+    async function fetchPairing() {
       const { data, error } = await supabase
         .from('assignments')
         .select(`
@@ -58,19 +58,19 @@ export default function AssignmentEditPage() {
         return
       }
 
-      const a = data as unknown as AssignmentDetail
-      setAssignment(a)
+      const a = data as unknown as PairingDetail
+      setPairing(a)
       setStatus(a.status)
       setNotes(a.notes ?? '')
       setLoading(false)
     }
 
-    fetchAssignment()
+    fetchPairing()
   }, [id])
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
-    if (!assignment) return
+    if (!pairing) return
     setMsg(null)
     setSaving(true)
 
@@ -79,7 +79,7 @@ export default function AssignmentEditPage() {
       notes: notes.trim() || null,
     }
 
-    if (status === 'ended' && !assignment.ended_at) {
+    if (status === 'ended' && !pairing.ended_at) {
       updates.ended_at = new Date().toISOString()
     }
     if (status !== 'ended') {
@@ -89,7 +89,7 @@ export default function AssignmentEditPage() {
     const { error } = await supabase
       .from('assignments')
       .update(updates)
-      .eq('id', assignment.id)
+      .eq('id', pairing.id)
 
     setSaving(false)
 
@@ -98,13 +98,13 @@ export default function AssignmentEditPage() {
       return
     }
 
-    if (currentUser && assignment) logAudit({ organization_id: assignment.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'assignment', entity_id: assignment.id, details: { status, mentor: `${assignment.mentor.first_name} ${assignment.mentor.last_name}`, mentee: `${assignment.mentee.first_name} ${assignment.mentee.last_name}` } })
-    setMsg({ type: 'success', text: 'Assignment updated.' })
+    if (currentUser && pairing) logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
+    setMsg({ type: 'success', text: 'Pairing updated.' })
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 
-  if (fetchError || !assignment) {
+  if (fetchError || !pairing) {
     return (
       <div className="max-w-4xl">
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
@@ -123,18 +123,18 @@ export default function AssignmentEditPage() {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/assignments')}
+        <button onClick={() => navigate('/pairings')}
           className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
           &larr; Back
         </button>
-        <h1 className="text-lg font-semibold text-gray-900">Edit Assignment</h1>
+        <h1 className="text-lg font-semibold text-gray-900">Edit Pairing</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left — Edit */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
-            <h2 className="text-base font-semibold text-gray-900 mb-6">Assignment Details</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-6">Pairing Details</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
               {msg && (
@@ -153,7 +153,7 @@ export default function AssignmentEditPage() {
                   Status
                 </label>
                 <select id="editStatus" value={status}
-                  onChange={e => setStatus(e.target.value as AssignmentStatus)} className={selectClass}>
+                  onChange={e => setStatus(e.target.value as PairingStatus)} className={selectClass}>
                   {STATUSES.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
@@ -187,13 +187,13 @@ export default function AssignmentEditPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Mentor</p>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-xs font-semibold text-blue-600 shrink-0">
-                {assignment.mentor.first_name[0]}{assignment.mentor.last_name[0]}
+                {pairing.mentor.first_name[0]}{pairing.mentor.last_name[0]}
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {assignment.mentor.first_name} {assignment.mentor.last_name}
+                  {pairing.mentor.first_name} {pairing.mentor.last_name}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{assignment.mentor.email}</p>
+                <p className="text-xs text-gray-500 truncate">{pairing.mentor.email}</p>
               </div>
             </div>
           </div>
@@ -203,13 +203,13 @@ export default function AssignmentEditPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Mentee</p>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-xs font-semibold text-green-600 shrink-0">
-                {assignment.mentee.first_name[0]}{assignment.mentee.last_name[0]}
+                {pairing.mentee.first_name[0]}{pairing.mentee.last_name[0]}
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {assignment.mentee.first_name} {assignment.mentee.last_name}
+                  {pairing.mentee.first_name} {pairing.mentee.last_name}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{assignment.mentee.email}</p>
+                <p className="text-xs text-gray-500 truncate">{pairing.mentee.email}</p>
               </div>
             </div>
           </div>
@@ -218,11 +218,11 @@ export default function AssignmentEditPage() {
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Info</p>
             <div className="space-y-1.5 text-xs text-gray-500">
-              <p>Started: <span className="font-medium text-gray-700">{new Date(assignment.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
-              {assignment.ended_at && (
-                <p>Ended: <span className="font-medium text-gray-700">{new Date(assignment.ended_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+              <p>Started: <span className="font-medium text-gray-700">{new Date(pairing.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+              {pairing.ended_at && (
+                <p>Ended: <span className="font-medium text-gray-700">{new Date(pairing.ended_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
               )}
-              <p>Created: <span className="font-medium text-gray-700">{new Date(assignment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+              <p>Created: <span className="font-medium text-gray-700">{new Date(pairing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
             </div>
           </div>
         </div>

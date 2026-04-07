@@ -4,7 +4,7 @@ export type EntityType =
   | 'staff'
   | 'mentee'
   | 'offering'
-  | 'assignment'
+  | 'pairing'
   | 'organization'
 
 export interface AuditEntry {

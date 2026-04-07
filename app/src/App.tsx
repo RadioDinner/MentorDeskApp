@@ -16,9 +16,9 @@ import OfferingEditPage from './pages/OfferingEditPage'
 import MenteesListPage from './pages/MenteesListPage'
 import MenteeCreatePage from './pages/MenteeCreatePage'
 import MenteeEditPage from './pages/MenteeEditPage'
-import AssignmentsPage from './pages/AssignmentsPage'
-import AssignmentCreatePage from './pages/AssignmentCreatePage'
-import AssignmentEditPage from './pages/AssignmentEditPage'
+import PairingsPage from './pages/PairingsPage'
+import PairingCreatePage from './pages/PairingCreatePage'
+import PairingEditPage from './pages/PairingEditPage'
 import AuditLogPage from './pages/AuditLogPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -53,9 +53,9 @@ export default function App() {
             <Route path="/mentees" element={<MenteesListPage />} />
             <Route path="/mentees/new" element={<MenteeCreatePage />} />
             <Route path="/mentees/:id/edit" element={<MenteeEditPage />} />
-            <Route path="/assignments" element={<AssignmentsPage />} />
-            <Route path="/assignments/new" element={<AssignmentCreatePage />} />
-            <Route path="/assignments/:id/edit" element={<AssignmentEditPage />} />
+            <Route path="/pairings" element={<PairingsPage />} />
+            <Route path="/pairings/new" element={<PairingCreatePage />} />
+            <Route path="/pairings/:id/edit" element={<PairingEditPage />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
             <Route path="/offerings" element={<OfferingsPage />} />
             <Route path="/offerings/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />

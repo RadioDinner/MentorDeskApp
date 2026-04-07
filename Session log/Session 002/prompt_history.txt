@@ -174,3 +174,10 @@ Prompt 37:
 Add audit trails to the company. Record who, what, when for every change
 in the system — staff added, reports created, courses updated, engagements
 deleted, etc. Build a filterable report by user and by type of change.
+
+Prompt 38:
+Rename "Assignments" to "Pairings" everywhere — could be confused with
+assigning courses to mentees.
+
+Prompt 39:
+User loved "Pairings" as the name.

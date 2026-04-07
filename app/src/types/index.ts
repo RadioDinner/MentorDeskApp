@@ -47,14 +47,14 @@ export interface Mentee {
   updated_at: string
 }
 
-export type AssignmentStatus = 'active' | 'paused' | 'ended'
+export type PairingStatus = 'active' | 'paused' | 'ended'
 
-export interface Assignment {
+export interface Pairing {
   id: string
   organization_id: string
   mentor_id: string
   mentee_id: string
-  status: AssignmentStatus
+  status: PairingStatus
   started_at: string
   ended_at: string | null
   notes: string | null
