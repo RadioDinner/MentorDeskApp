@@ -29,18 +29,6 @@ Prompt 6:
 No it isn't. You stole/remembered information from other session
 
 Prompt 7:
-I want to build a way for the person who is logged in currently to edit their
-own profile information like email, change their password, update their
-address etc.
-
-Prompt 5:
-where on earth did you get the inspiration for this bit of the glossary?
-(user pasted the BUSINESS CONCEPTS section from Glossary.txt)
-
-Prompt 6:
-No it isn't. You stole/remembered information from other session
-
-Prompt 7:
 (User called out glossary issue - AI used info from other sessions.
 Then reported login working but showing "Welcome back, Alice" instead of
 their own name. Provided staff table data showing user_id linked to Alice's
@@ -51,7 +39,18 @@ How will adding other users work? Will I need to add each staff account
 through supabase?
 
 Prompt 9:
+I want to build a way for the person who is logged in currently to edit their
+own profile information like email, change their password, update their
+address etc.
+
+Prompt 10:
 Additionally, in the admin home page, I want to start building out company
 settings and staff roles. Let's start with company settings. In company
 settings, I want admins to be able to make changes, so staff that are
 considered admins will have access to the company settings.
+
+Prompt 11:
+merge to main
+
+Prompt 12:
+Migration run
