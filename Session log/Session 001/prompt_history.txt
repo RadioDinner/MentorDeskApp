@@ -7,4 +7,6 @@ SESSION 001 - PROMPT HISTORY
 
    The first thing I want to start working on for this session is making so I have a login page for the app. I want to add some stuff to the staff table, like their first and last name, role, email, phone, address split by street, city, state, zip and country, a unique UUID for the staff member AND make sure you include the organization_id in this table.
 
+3. I want you to add a folder to main called supabase. In that folder, put 3 sub folders. One called functions, where we will save the index.ts files for our edge functions, one called migrations, where we'll store sequenced named files of sql migrations and one called schemas where we'll save any schema files.
+
 
