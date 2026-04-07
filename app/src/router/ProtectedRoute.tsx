@@ -1,9 +1,10 @@
+import React from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { StaffRole } from '../types'
+import type { StaffRole } from '../types'
 
 interface ProtectedRouteProps {
-  children: JSX.Element
+  children: React.ReactElement
   allowedRoles?: StaffRole[]
 }
 
