@@ -1,0 +1,137 @@
+SESSION 001 - HANDOFF LOG
+==========================
+Date: 2026-04-07
+Branch: claude/staff-login-system-pERoJ (merged to main at session end)
+
+
+SUMMARY
+--------
+First development session. We made the key tech stack decisions, scaffolded
+the entire React application, built the staff login system, set up the
+database schema, fixed Vercel deployment issues, and got a working
+deployment pipeline to mentor-desk-app.vercel.app.
+
+
+CHANGES MADE
+-------------
+
+1. Tech stack decisions (resolved open items from Session 000):
+   - Language: TypeScript
+   - Styling: Tailwind CSS v4
+   - Supabase: fresh project (schema built from scratch)
+
+2. Glossary.txt updated:
+   - "Staff / Org Staff" definition clarified: refers exclusively to
+     personnel within the client organization (not MentorDesk platform
+     team). Roles: admin, mentor, staff.
+
+3. React + Vite app scaffolded at app/:
+   - React 19 + Vite 8 + TypeScript 6
+   - Tailwind CSS v4 via @tailwindcss/vite plugin
+   - @supabase/supabase-js, react-router-dom v7
+
+4. app/src/ file structure:
+   - lib/supabase.ts           Supabase client (safe init with placeholder fallback)
+   - types/index.ts            TypeScript types: Organization, StaffMember, StaffRole
+   - context/AuthContext.tsx   Auth state, session management, profile fetch, signIn/signOut
+   - pages/LoginPage.tsx       Staff login form (email + password)
+   - pages/DashboardPage.tsx   Placeholder dashboard (role + name display)
+   - router/ProtectedRoute.tsx Auth guard + optional role guard
+   - components/layout/AppLayout.tsx   Sidebar + topbar shell with <Outlet />
+   - components/layout/Sidebar.tsx     Role-filtered nav links, sign out
+   - components/layout/Topbar.tsx      Page title + user avatar initials
+   - components/ErrorBoundary.tsx      Top-level error boundary (shows error vs blank page)
+
+5. Supabase schema (supabase/schemas/schema.sql):
+   - organizations table (id, name, slug, logo_url, primary_color)
+   - staff table:
+       id              UUID PK (standalone, independent of auth.users)
+       user_id         nullable FK to auth.users (populated when login granted)
+       organization_id FK to organizations
+       first_name, last_name
+       role            enum: admin | mentor | staff
+       email, phone
+       street, city, state, zip, country
+       created_at, updated_at (with auto-update trigger)
+   - helper functions: my_organization_id(), my_staff_role()
+   - RLS policies:
+       staff can read own org and own org's staff
+       admins can manage all staff in their org
+       staff can update their own record
+
+6. Seed data (supabase/schemas/seed.sql):
+   - TechBeans org (id: aaaaaaaa-0000-0000-0000-000000000001)
+   - 3 sample staff: Alice Admin, Marcus Mentor, Sara Staff
+   - user_id is null — must be linked after creating auth.users manually
+
+7. supabase/ folder structure (added to main, then merged):
+   - supabase/functions/    edge function index.ts files
+   - supabase/migrations/   sequenced named SQL migrations
+   - supabase/schemas/      schema + seed SQL files
+
+8. vercel.json (repo root):
+   - buildCommand: cd app && npm run build
+   - installCommand: cd app && npm install
+   - outputDirectory: app/dist
+   - rewrites: all routes → /index.html (SPA routing)
+
+9. Vercel build fixes applied across multiple deploys:
+   - import type for all type-only imports (verbatimModuleSyntax compliance)
+   - JSX.Element replaced with React.ReactElement in ProtectedRoute
+   - supabase.ts: replaced throw with console.error + valid placeholder URL
+     so the app renders even when env vars aren't configured yet
+   - ErrorBoundary added so crashes show an error message, not a blank page
+   - index.html title changed from 'app' to 'MentorDesk'
+
+
+DIRECTIONAL DECISIONS
+----------------------
+
+1. STAFF TABLE DESIGN: staff.id is a standalone UUID, not the same as
+   auth.users.id. user_id is a nullable FK that gets populated separately
+   when login access is granted. This allows staff to exist in the system
+   without a login account.
+
+2. ROLE SCOPE: Three staff roles in scope for now: admin, mentor, staff.
+   Mentee is a separate concept, handled separately later (Phase 2+).
+
+3. TAILWIND v4: Using the new @tailwindcss/vite plugin (not the legacy
+   tailwind.config.js approach). CSS entry is just `@import "tailwindcss"`.
+
+4. VERCEL CONFIG: Managed via vercel.json at repo root rather than Vercel
+   dashboard settings, so it's version-controlled.
+
+5. SUPABASE INIT SAFETY: The Supabase client uses a placeholder URL/key
+   fallback so the app renders even before env vars are set. Once the
+   Supabase project is connected, real values go in Vercel env vars.
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- App is live at mentor-desk-app.vercel.app
+- Login page renders (confirmed working deploy pipeline)
+- Auth will not function until Supabase env vars are set in Vercel:
+    VITE_SUPABASE_URL
+    VITE_SUPABASE_ANON_KEY
+- Supabase project has NOT been created yet — schema.sql and seed.sql
+  are ready to run once a project is set up
+- Only one route is wired: /dashboard (placeholder). No other pages built.
+- Feature branch claude/staff-login-system-pERoJ merged and deleted.
+
+
+OPEN ITEMS / QUESTIONS FOR NEXT SESSION
+-----------------------------------------
+1. SUPABASE SETUP: Create the Supabase project, run schema.sql then
+   seed.sql, and add env vars to Vercel. Auth won't work until this is done.
+
+2. STAFF AUTH FLOW: After Supabase is set up, create auth.users for the
+   seed staff and link user_id in the staff table.
+
+3. NEXT FEATURES (Phase 0 remaining, then Phase 1):
+   - Role-based dashboard (different views for admin / mentor / staff)
+   - Staff management CRUD (list, add, edit, delete)
+   - Org settings page (logo, brand color)
+   - Theming engine (apply org primary_color to the UI)
+
+4. MENTEE ROLE: Not yet in scope — will need a separate table and auth
+   flow when we get to Phase 2.

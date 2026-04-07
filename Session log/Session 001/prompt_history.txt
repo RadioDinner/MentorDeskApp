@@ -13,4 +13,10 @@ SESSION 001 - PROMPT HISTORY
 
 5. My vercel deployment is failing. I understand this is a side project but we need to fix it. [error: vite: command not found, Command "vite build" exited with 127]
 
+6. [Second Vercel error] TS verbatimModuleSyntax errors: ReactNode, Session, User, StaffMember, FormEvent must use import type.
+
+7. still blank [blank page on mentor-desk-app.vercel.app]
+
+8. Wrap this session, build the session log, merge everything to main and delete the stale branches. I'll see you next time.
+
 
