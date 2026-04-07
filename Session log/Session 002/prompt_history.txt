@@ -24,3 +24,6 @@ Write up the steps to get me a test user for my test org "TechBeans"
 Prompt 5:
 where on earth did you get the inspiration for this bit of the glossary?
 (user pasted the BUSINESS CONCEPTS section from Glossary.txt)
+
+Prompt 6:
+No it isn't. You stole/remembered information from other session
