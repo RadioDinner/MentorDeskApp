@@ -74,3 +74,9 @@ like in most UI's it would be a dropdown in the top right
 Prompt 17:
 Update password button still doesn't work. I'd like for you to add a way
 to debug features like this
+
+Prompt 18:
+Can you see images? I want to start building the admin homepage dashboard
+to look similar to this (provided screenshot of admin dashboard with
+greeting, stat cards, People section with Mentors/Mentees/Staff rows,
+and System section)
