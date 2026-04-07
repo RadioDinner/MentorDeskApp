@@ -37,17 +37,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id)
-        setProfile(p)
+    let didInit = false
+
+    // The SDK's getSession() can hang in some Supabase configurations.
+    // Use onAuthStateChange as the primary init path, with a timeout fallback.
+    const initTimeout = setTimeout(() => {
+      if (!didInit) {
+        didInit = true
+        console.warn('[AuthContext] Session init timed out — continuing without session')
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    }, 5000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!didInit) {
+        didInit = true
+        clearTimeout(initTimeout)
+      }
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -56,9 +62,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null)
       }
+      setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    // Trigger the initial session check
+    supabase.auth.getSession().catch((err) => {
+      console.error('[AuthContext] getSession failed:', err)
+      if (!didInit) {
+        didInit = true
+        clearTimeout(initTimeout)
+        setLoading(false)
+      }
+    })
+
+    return () => {
+      clearTimeout(initTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
