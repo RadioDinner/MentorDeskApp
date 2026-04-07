@@ -8,6 +8,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/mentors':            'Mentors',
   '/assistant-mentors':  'Assistant Mentors',
   '/mentees':            'Mentees',
+  '/assignments':        'Assignments',
   '/offerings':          'Offerings',
   '/reports':            'Reports',
   '/billing':            'Billing',

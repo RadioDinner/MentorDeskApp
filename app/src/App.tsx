@@ -12,6 +12,11 @@ import PersonCreatePage from './pages/PersonCreatePage'
 import OfferingsPage from './pages/OfferingsPage'
 import OfferingCreatePage from './pages/OfferingCreatePage'
 import OfferingEditPage from './pages/OfferingEditPage'
+import MenteesListPage from './pages/MenteesListPage'
+import MenteeCreatePage from './pages/MenteeCreatePage'
+import AssignmentsPage from './pages/AssignmentsPage'
+import AssignmentCreatePage from './pages/AssignmentCreatePage'
+import AssignmentEditPage from './pages/AssignmentEditPage'
 import DebugPanel from './components/DebugPanel'
 
 export default function App() {
@@ -40,8 +45,12 @@ export default function App() {
             <Route path="/mentors/new" element={<PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />} />
             <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />
             <Route path="/assistant-mentors/new" element={<PersonCreatePage title="Create Assistant Mentor" defaultRole="mentor" backRoute="/assistant-mentors" />} />
-            <Route path="/mentees" element={<PeopleListPage title="Mentees" roles={[]} createLabel="Create Mentee Account" createRoute="/mentees/new" />} />
-            <Route path="/mentees/new" element={<PersonCreatePage title="Create Mentee Account" defaultRole="staff" backRoute="/mentees" />} />
+            <Route path="/mentees" element={<MenteesListPage />} />
+            <Route path="/mentees/new" element={<MenteeCreatePage />} />
+            <Route path="/mentees/:id/edit" element={<PersonEditPage />} />
+            <Route path="/assignments" element={<AssignmentsPage />} />
+            <Route path="/assignments/new" element={<AssignmentCreatePage />} />
+            <Route path="/assignments/:id/edit" element={<AssignmentEditPage />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
             <Route path="/offerings" element={<OfferingsPage />} />
             <Route path="/offerings/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />

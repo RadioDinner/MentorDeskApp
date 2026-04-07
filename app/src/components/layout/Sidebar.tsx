@@ -32,8 +32,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Business',
     items: [
-      { label: 'Offerings', to: '/offerings', icon: '◇', roles: ['admin'] },
-      { label: 'Reports',   to: '/reports',   icon: '▤', roles: ['admin'] },
+      { label: 'Assignments', to: '/assignments', icon: '⇄', roles: ['admin'] },
+      { label: 'Offerings',   to: '/offerings',   icon: '◇', roles: ['admin'] },
+      { label: 'Reports',     to: '/reports',     icon: '▤', roles: ['admin'] },
     ],
   },
   {
