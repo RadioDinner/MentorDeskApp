@@ -58,3 +58,8 @@ Migration run
 Prompt 13:
 (User tried password recovery in Supabase but the reset link redirected to
 localhost:3000 instead of the live app. Got connection refused error.)
+
+Prompt 14:
+When I try to walk through the Change password feature on the profile edit
+screen, when I click the update button it just goes to "Updating..."
+indefinitely. Also, the sign out button doesn't work.

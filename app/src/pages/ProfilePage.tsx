@@ -85,17 +85,22 @@ export default function ProfilePage() {
     }
 
     setPasswordSaving(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    setPasswordSaving(false)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
 
-    if (error) {
-      setPasswordMsg({ type: 'error', text: error.message })
-      return
+      if (error) {
+        setPasswordMsg({ type: 'error', text: error.message })
+        return
+      }
+
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordMsg({ type: 'success', text: 'Password changed.' })
+    } catch (err) {
+      setPasswordMsg({ type: 'error', text: 'Failed to update password. Please try again.' })
+    } finally {
+      setPasswordSaving(false)
     }
-
-    setNewPassword('')
-    setConfirmPassword('')
-    setPasswordMsg({ type: 'success', text: 'Password changed.' })
   }
 
   if (!profile) return null
