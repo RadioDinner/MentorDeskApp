@@ -85,3 +85,10 @@ Prompt 19:
 I don't like the colors you have chosen for the page. I want a dark blueish
 side bar, like the picture I sent, with a light grey background and then you
 can use white or a very very light gray for the modules
+
+Prompt 20:
+(User pasted console error confirming password update times out after 15s)
+
+Prompt 21:
+Ok, I'll go option A, but put together a list of things we need to change
+before shipping

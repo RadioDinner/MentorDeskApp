@@ -1,0 +1,140 @@
+PRE-LAUNCH CHECKLIST
+=====================
+
+Things that are currently in a "dev shortcut" state and must be
+changed before shipping to real users.
+
+Last updated: Session 002 (2026-04-07)
+
+
+========================================================================
+SUPABASE / AUTH CONFIGURATION
+========================================================================
+
+[ ] Re-enable "Secure password change"
+    Currently disabled so password updates work without SMTP.
+    Location: Supabase → Authentication → Settings → Security
+    Requires: SMTP configured (see below)
+
+[ ] Configure SMTP for transactional emails
+    Supabase → Project Settings → Authentication → SMTP Settings
+    Needed for: password reset, email confirmation, secure password
+    change, invite flows
+    Providers: Resend, SendGrid, Mailgun, etc.
+
+[ ] Update Supabase Site URL
+    Currently may still reference localhost:3000.
+    Location: Supabase → Authentication → URL Configuration → Site URL
+    Set to: production URL (e.g. https://mentor-desk-app.vercel.app
+    or custom domain)
+
+[ ] Add production Redirect URLs
+    Location: Supabase → Authentication → URL Configuration → Redirect URLs
+    Add: https://your-production-domain.com/**
+
+[ ] Remove Supabase placeholder fallback in supabase.ts
+    Currently app renders with a placeholder URL/key if env vars are
+    missing. In production this should fail explicitly.
+    File: app/src/lib/supabase.ts
+
+
+========================================================================
+SECURITY
+========================================================================
+
+[ ] Remove or gate the Debug Panel
+    Currently accessible to all logged-in users via Ctrl+Shift+D.
+    Options: remove entirely, or restrict to a dev/admin flag.
+    File: app/src/components/DebugPanel.tsx, app/src/App.tsx
+
+[ ] Audit RLS policies
+    Confirm all tables have appropriate RLS. Currently only
+    organizations and staff have policies. New tables will need them.
+
+[ ] Add rate limiting on auth endpoints
+    Supabase has built-in rate limiting but verify it's configured
+    appropriately for your expected traffic.
+
+[ ] Review Supabase anon key exposure
+    The anon key is in the client bundle (expected), but confirm
+    RLS policies are airtight since this key is public.
+
+
+========================================================================
+AUTH / USER MANAGEMENT
+========================================================================
+
+[ ] Build admin invite flow for adding staff
+    Currently staff must be created manually in Supabase dashboard.
+    Need: admin UI that calls Supabase admin API (via Edge Function)
+    to create auth users and link them to staff records.
+
+[ ] Build password reset flow in the app
+    Currently relies on Supabase dashboard "send recovery" button.
+    Need: "Forgot password?" link on login page that calls
+    supabase.auth.resetPasswordForEmail()
+
+[ ] Handle auth recovery/reset redirect in the app
+    When user clicks a password reset link, the app needs to detect
+    the recovery session and show a "set new password" form.
+
+[ ] Email change confirmation flow
+    If a user changes their email on the profile page, the staff
+    table updates but the auth email doesn't change without
+    supabase.auth.updateUser({ email }) + confirmation flow.
+
+
+========================================================================
+DATA / FEATURES
+========================================================================
+
+[ ] Seed data cleanup
+    Remove test seed data (Alice Admin, Marcus Mentor, Sara Staff)
+    or make seeding environment-aware.
+
+[ ] Staff table: sync email between auth.users and staff table
+    Currently these are independent. Changing email in profile only
+    updates the staff table, not the auth login email.
+
+[ ] Add .env.example file
+    Document required environment variables for other developers.
+    VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY at minimum.
+
+
+========================================================================
+INFRASTRUCTURE
+========================================================================
+
+[ ] Set up custom domain (if applicable)
+    Currently deployed to mentor-desk-app.vercel.app
+
+[ ] Configure Vercel environment variables per environment
+    Separate Supabase projects for staging vs production, with
+    different env vars for each Vercel environment.
+
+[ ] Set up error monitoring (Sentry or similar)
+    Currently errors only show in browser console or the debug panel.
+
+[ ] Add logging/monitoring for production
+    Server-side logging for Edge Functions, client-side error tracking.
+
+
+========================================================================
+UI / UX
+========================================================================
+
+[ ] Responsive / mobile layout
+    Sidebar doesn't collapse on mobile. Need hamburger menu or
+    responsive sidebar behavior.
+
+[ ] Loading states
+    Some pages show blank while data loads. Add skeleton loaders
+    or spinners for better UX.
+
+[ ] Form validation
+    Profile and settings forms have minimal validation. Add proper
+    client-side validation before shipping.
+
+[ ] Accessibility audit
+    Keyboard navigation, screen reader support, focus management,
+    ARIA labels on interactive elements.
