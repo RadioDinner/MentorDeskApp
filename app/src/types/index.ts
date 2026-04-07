@@ -21,6 +21,18 @@ export interface MenteeFlow {
   steps: FlowStep[]
 }
 
+export type CancelWindowUnit = 'hours' | 'days'
+export type CancelOutcome = 'keep_credit' | 'lose_credit'
+export type AllocationPeriod = 'monthly' | 'weekly' | 'per_cycle'
+
+export interface CancellationPolicy {
+  cancel_window_value: number
+  cancel_window_unit: CancelWindowUnit
+  cancelled_in_window: CancelOutcome
+  cancelled_outside_window: CancelOutcome
+  no_show: CancelOutcome
+}
+
 export interface Organization {
   id: string
   name: string
@@ -31,6 +43,7 @@ export interface Organization {
   tertiary_color: string
   pay_type_settings: PayTypeSettings
   mentee_flow: MenteeFlow
+  default_cancellation_policy: CancellationPolicy
   created_at: string
 }
 
@@ -54,6 +67,9 @@ export interface Offering {
   course_due_date: string | null
   preview_mode: PreviewMode
   meeting_count: number | null
+  allocation_period: AllocationPeriod
+  use_org_default_cancellation: boolean
+  cancellation_policy: CancellationPolicy | null
   created_at: string
   updated_at: string
 }

@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy } from '../types'
+import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
@@ -72,6 +73,7 @@ export default function CompanySettingsPage() {
   const [paySettings, setPaySettings] = useState<PayTypeSettings>(DEFAULT_PAY_SETTINGS)
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [newStepName, setNewStepName] = useState('')
+  const [cancellationPolicy, setCancellationPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
 
   useEffect(() => {
     if (!profile) return
@@ -99,6 +101,7 @@ export default function CompanySettingsPage() {
       setTertiaryColor(o.tertiary_color)
       setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
       setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
+      setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       setLoading(false)
     }
 
@@ -120,6 +123,7 @@ export default function CompanySettingsPage() {
       tertiary_color: tertiaryColor.trim(),
       pay_type_settings: paySettings,
       mentee_flow: { steps: flowSteps },
+      default_cancellation_policy: cancellationPolicy,
     }
 
     const { error } = await supabase
@@ -523,6 +527,16 @@ export default function CompanySettingsPage() {
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-2">Courses and engagements are added to this list when you create them with "Add to mentee flow" checked.</p>
+          </div>
+        </CollapseCard>
+
+        {/* Default Cancellation Policy */}
+        <CollapseCard title="Default Cancellation Policy" defaultOpen={false}>
+          <div>
+            <p className="text-sm text-gray-500 mb-4">
+              Set the default cancellation policy for engagements. Individual engagements can override this.
+            </p>
+            <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
           </div>
         </CollapseCard>
 

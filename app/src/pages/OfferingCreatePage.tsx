@@ -4,7 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { OfferingType, DispenseMode, PreviewMode } from '../types'
+import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
+import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
+
+const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'per_cycle', label: 'Per billing cycle' },
+]
 
 interface OfferingCreatePageProps {
   title: string
@@ -38,6 +45,9 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const [dueDate, setDueDate] = useState('')
   const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
   const [meetingCount, setMeetingCount] = useState('')
+  const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
+  const [useOrgDefault, setUseOrgDefault] = useState(true)
+  const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
   const [addToFlow, setAddToFlow] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -67,6 +77,9 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
     if (!isCourse) {
       record.meeting_count = meetingCount ? parseInt(meetingCount) : null
+      record.allocation_period = allocationPeriod
+      record.use_org_default_cancellation = useOrgDefault
+      record.cancellation_policy = useOrgDefault ? null : cancelPolicy
     }
 
     const { data, error } = await supabase
@@ -298,16 +311,57 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         {!isCourse && (
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Engagement Settings</h2>
-            <div>
-              <label htmlFor="meetingCount" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Number of meetings
-              </label>
-              <input id="meetingCount" type="number" min="1" value={meetingCount}
-                onChange={e => setMeetingCount(e.target.value)}
-                placeholder="e.g. 4"
-                className={inputClass + ' max-w-32'} />
-              <p className="text-xs text-gray-400 mt-1">How many mentoring sessions are included in this engagement.</p>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="meetingCount" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Meetings per cycle
+                  </label>
+                  <input id="meetingCount" type="number" min="1" value={meetingCount}
+                    onChange={e => setMeetingCount(e.target.value)}
+                    placeholder="e.g. 4"
+                    className={inputClass + ' max-w-32'} />
+                  <p className="text-xs text-gray-400 mt-1">Credits allocated per payment cycle.</p>
+                </div>
+                <div>
+                  <label htmlFor="allocPeriod" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Allocation period
+                  </label>
+                  <select id="allocPeriod" value={allocationPeriod}
+                    onChange={e => setAllocationPeriod(e.target.value as AllocationPeriod)}
+                    className={selectClass}>
+                    {ALLOCATION_PERIODS.map(p => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">How often credits are refreshed.</p>
+                </div>
+              </div>
             </div>
+          </div>
+        )}
+
+        {/* Cancellation Policy — engagements only */}
+        {!isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Cancellation Policy</h2>
+
+            <label className="flex items-start gap-3 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useOrgDefault}
+                onChange={e => setUseOrgDefault(e.target.checked)}
+                className="mt-0.5 accent-brand"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Use organization default</p>
+                <p className="text-xs text-gray-500">Apply the default cancellation policy set in Company Settings.</p>
+              </div>
+            </label>
+
+            {!useOrgDefault && (
+              <CancellationPolicyEditor policy={cancelPolicy} onChange={setCancelPolicy} />
+            )}
           </div>
         )}
 

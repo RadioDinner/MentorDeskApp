@@ -195,3 +195,11 @@ that define mentee progression (Lead → Discovery Call → Waiting List →
 Course → 4x → 2x → 1x → Graduated). Support non-flow statuses too.
 Reorderable, toggleable in/out of flow. Mentee edit page: set/change
 status from flow. When creating offerings, option to add to flow.
+
+Prompt 42:
+Engagement allocation and cancellation policy. Meetings allocated per
+payment cycle with configurable period (monthly/weekly/per_cycle).
+Cancellation policy: cancel window (X hours/days), outcomes for cancel
+within window (keep credit), cancel outside window (lose credit), and
+no-show (lose credit). Option to use org default or override per
+engagement. Add default cancellation policy to company settings.
