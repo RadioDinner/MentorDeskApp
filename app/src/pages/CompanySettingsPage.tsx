@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
+import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
@@ -26,16 +27,24 @@ const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
   assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
 }
 
-type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'notifications' | 'integrations'
+type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'permissions' | 'notifications' | 'integrations'
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'branding', label: 'Branding' },
   { key: 'payroll', label: 'Payroll' },
   { key: 'mentee_flow', label: 'Mentee Flow' },
   { key: 'cancellation', label: 'Cancellation' },
+  { key: 'permissions', label: 'Permissions' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'integrations', label: 'Integrations' },
 ]
+
+const GROUP_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  People:   { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400' },
+  Business: { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-400' },
+  Finance:  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+  System:   { bg: 'bg-slate-50',   text: 'text-slate-700',   dot: 'bg-slate-400' },
+}
 
 export default function CompanySettingsPage() {
   const { profile } = useAuth()
@@ -58,6 +67,9 @@ export default function CompanySettingsPage() {
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [newStepName, setNewStepName] = useState('')
   const [cancellationPolicy, setCancellationPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>([])
+  const [editingGroup, setEditingGroup] = useState<RoleGroup | null>(null)
+  const [newGroupName, setNewGroupName] = useState('')
 
   useEffect(() => {
     if (!profile) return
@@ -71,6 +83,7 @@ export default function CompanySettingsPage() {
       setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
       setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
       setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
+      setRoleGroups(o.role_groups ?? [])
       setLoading(false)
     }
     fetchOrg()
@@ -84,6 +97,7 @@ export default function CompanySettingsPage() {
       name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null,
       primary_color: primaryColor.trim(), secondary_color: secondaryColor.trim(), tertiary_color: tertiaryColor.trim(),
       pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
+      role_groups: roleGroups,
     }
     const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
     setSaving(false)
@@ -296,6 +310,160 @@ export default function CompanySettingsPage() {
             <div className="space-y-4">
               <p className="text-sm text-gray-500">Default cancellation policy for engagements. Individual engagements can override.</p>
               <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
+            </div>
+          )}
+
+          {/* ====== PERMISSIONS ====== */}
+          {activeTab === 'permissions' && (
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">
+                Create permission groups to quickly assign module access to staff. These appear as presets in the staff module access dropdown.
+              </p>
+
+              {/* Existing groups */}
+              {roleGroups.length > 0 && (
+                <div className="space-y-3">
+                  {roleGroups.map(group => {
+                    const isEditing = editingGroup?.id === group.id
+                    const current = isEditing ? editingGroup! : group
+                    const allGroups = modulesByGroup().filter(g => g.group !== 'Main')
+                    const moduleCount = ALL_MODULES.filter(m => !ALWAYS_VISIBLE.includes(m.key) && current.module_groups.includes(m.group)).length
+
+                    return (
+                      <div key={group.id} className={`rounded-lg border transition-all ${isEditing ? 'border-brand shadow-sm' : 'border-gray-200'}`}>
+                        {/* Group header */}
+                        <div className={`flex items-center justify-between px-4 py-3 ${isEditing ? 'bg-brand-light/30' : 'bg-gray-50/50'} rounded-t-lg`}>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={current.name}
+                              onChange={e => setEditingGroup({ ...current, name: e.target.value })}
+                              className="text-sm font-semibold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
+                              autoFocus
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{group.name}</span>
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{moduleCount} modules</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            {isEditing ? (
+                              <>
+                                <button type="button" onClick={() => {
+                                  setRoleGroups(gs => gs.map(g => g.id === current.id ? current : g))
+                                  setEditingGroup(null)
+                                }} className="px-2.5 py-1 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition">
+                                  Save
+                                </button>
+                                <button type="button" onClick={() => setEditingGroup(null)}
+                                  className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition">
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => setEditingGroup({ ...group })}
+                                  className="px-2 py-1 text-xs font-medium text-gray-500 hover:text-brand transition">
+                                  Edit
+                                </button>
+                                <button type="button" onClick={() => setRoleGroups(gs => gs.filter(g => g.id !== group.id))}
+                                  className="px-2 py-1 text-xs font-medium text-gray-400 hover:text-red-500 transition">
+                                  Remove
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Module group toggles */}
+                        <div className="px-4 py-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            {allGroups.map(mg => {
+                              const active = current.module_groups.includes(mg.group)
+                              const style = GROUP_COLORS[mg.group] ?? { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-400' }
+                              return (
+                                <button
+                                  key={mg.group}
+                                  type="button"
+                                  disabled={!isEditing}
+                                  onClick={() => {
+                                    if (!isEditing) return
+                                    const next = active
+                                      ? current.module_groups.filter(g => g !== mg.group)
+                                      : [...current.module_groups, mg.group]
+                                    setEditingGroup({ ...current, module_groups: next })
+                                  }}
+                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-md border text-left transition-all ${
+                                    active
+                                      ? `${style.bg} border-current/10 ${style.text}`
+                                      : 'bg-white border-gray-200 text-gray-400'
+                                  } ${isEditing ? 'cursor-pointer hover:shadow-sm' : 'cursor-default'}`}
+                                >
+                                  <span className={`w-2.5 h-2.5 rounded-full transition-colors ${active ? style.dot : 'bg-gray-200'}`} />
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`text-xs font-semibold block ${active ? style.text : 'text-gray-400'}`}>{mg.group}</span>
+                                    <span className="text-[10px] text-gray-400">
+                                      {mg.modules.map(m => m.label).join(', ')}
+                                    </span>
+                                  </div>
+                                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
+                                    active ? 'bg-brand border-brand' : 'border-gray-300 bg-white'
+                                  }`}>
+                                    {active && (
+                                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Add new group */}
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  placeholder="New group name (e.g. Operations, Course Builder)"
+                  className={inputClass + ' flex-1'}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (!newGroupName.trim()) return
+                      const newGroup: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }
+                      setRoleGroups(gs => [...gs, newGroup])
+                      setEditingGroup(newGroup)
+                      setNewGroupName('')
+                    }
+                  }}
+                />
+                <button type="button" onClick={() => {
+                  if (!newGroupName.trim()) return
+                  const newGroup: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }
+                  setRoleGroups(gs => [...gs, newGroup])
+                  setEditingGroup(newGroup)
+                  setNewGroupName('')
+                }}
+                  className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
+                  Add Group
+                </button>
+              </div>
+
+              {roleGroups.length === 0 && (
+                <div className="bg-gray-50 rounded-lg border border-dashed border-gray-200 px-6 py-8 text-center">
+                  <p className="text-sm text-gray-500 mb-1">No permission groups yet</p>
+                  <p className="text-xs text-gray-400">Create groups like "Operations", "Finance Team", or "Course Builder" to quickly assign module access to staff.</p>
+                </div>
+              )}
             </div>
           )}
 

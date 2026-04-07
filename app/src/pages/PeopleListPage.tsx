@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
-import type { StaffMember, StaffRole } from '../types'
+import ModuleAccessControl from '../components/ModuleAccessControl'
+import type { StaffMember, StaffRole, RoleGroup } from '../types'
 
 interface PeopleListPageProps {
   title: string
@@ -14,77 +14,12 @@ interface PeopleListPageProps {
   showAccessGroups?: boolean
 }
 
-function ModuleAccessControl({ person, onUpdate }: { person: StaffMember; onUpdate: (modules: string[]) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  const allowed = person.allowed_modules ?? []
-  const assignable = ALL_MODULES.filter(m => !ALWAYS_VISIBLE.includes(m.key))
-  const groups = modulesByGroup().filter(g => g.group !== 'Main')
-
-  function toggle(key: string) {
-    const next = allowed.includes(key) ? allowed.filter(k => k !== key) : [...allowed, key]
-    onUpdate(next)
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      {/* Icon row */}
-      <div className="flex items-center gap-0.5">
-        {assignable.map(mod => {
-          const active = allowed.includes(mod.key)
-          return (
-            <button key={mod.key} type="button"
-              onClick={() => setOpen(!open)}
-              title={mod.label}
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] transition-all ${
-                active ? `${mod.color} text-white` : 'bg-gray-200 text-gray-400'
-              }`}>
-              {mod.icon}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute right-0 top-7 z-50 w-56 bg-white rounded-md shadow-md border border-gray-200 py-1 max-h-80 overflow-y-auto">
-          {groups.map(g => (
-            <div key={g.group}>
-              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{g.group}</p>
-              {g.modules.map(mod => {
-                const active = allowed.includes(mod.key)
-                return (
-                  <button key={mod.key} type="button"
-                    onClick={() => toggle(mod.key)}
-                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left hover:bg-gray-50 transition-colors">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] ${active ? `${mod.color} text-white` : 'bg-gray-200 text-gray-400'}`}>
-                      {mod.icon}
-                    </span>
-                    <span className={`text-sm ${active ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>{mod.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function PeopleListPage({ title, roles, createLabel, createRoute, showAccessGroups }: PeopleListPageProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
+  const [allStaff, setAllStaff] = useState<StaffMember[]>([])
+  const [permissionGroups, setPermissionGroups] = useState<RoleGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,6 +36,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
         return
       }
 
+      // Fetch the people for this page
       let query = supabase
         .from('staff')
         .select('*')
@@ -113,7 +49,17 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
         query = query.in('role', roles)
       }
 
-      const { data, error: fetchError } = await query
+      const [{ data, error: fetchError }, allStaffRes, orgRes] = await Promise.all([
+        query,
+        // Fetch all staff for "copy from" feature
+        showAccessGroups
+          ? supabase.from('staff').select('*').eq('organization_id', profile!.organization_id).order('first_name')
+          : Promise.resolve({ data: [], error: null }),
+        // Fetch org permission groups
+        showAccessGroups
+          ? supabase.from('organizations').select('role_groups').eq('id', profile!.organization_id).single()
+          : Promise.resolve({ data: null, error: null }),
+      ])
 
       if (fetchError) {
         setError(fetchError.message)
@@ -122,11 +68,15 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       }
 
       setPeople(data as StaffMember[])
+      if (showAccessGroups) {
+        setAllStaff((allStaffRes.data ?? []) as StaffMember[])
+        setPermissionGroups((orgRes.data?.role_groups as RoleGroup[]) ?? [])
+      }
       setLoading(false)
     }
 
     fetchPeople()
-  }, [profile, roles])
+  }, [profile, roles, showAccessGroups])
 
   async function updateModules(personId: string, modules: string[]) {
     if (!profile) return
@@ -138,6 +88,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     if (updateError) return
 
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, allowed_modules: modules } : p))
+    setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, allowed_modules: modules } : p))
     logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: personId, details: { fields: 'allowed_modules', allowed_modules: modules } })
   }
 
@@ -192,6 +143,8 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
                 {showAccessGroups && person.role !== 'admin' && (
                   <ModuleAccessControl
                     person={person}
+                    allPeople={allStaff}
+                    permissionGroups={permissionGroups}
                     onUpdate={(modules) => updateModules(person.id, modules)}
                   />
                 )}

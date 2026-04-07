@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome to MentorDesk</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;padding:40px 16px;">
+    <tr>
+      <td align="center">
+
+        <!-- Outer card -->
+        <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+          <!-- ── Header ── -->
+          <tr>
+            <td style="background:linear-gradient(145deg,#0f172a 0%,#1e3a5f 50%,#1e293b 100%);padding:40px 40px 32px;text-align:center;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 16px;">
+                <tr>
+                  <td style="width:56px;height:56px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:14px;text-align:center;vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:26px;line-height:56px;">&#9650;</span>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0 0 8px;color:#f1f5f9;font-size:26px;font-weight:800;letter-spacing:-0.02em;">MentorDesk</h1>
+              <p style="margin:0;color:#94a3b8;font-size:14px;">Empowering mentors. Transforming lives.</p>
+            </td>
+          </tr>
+
+          <!-- ── Body ── -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h2 style="margin:0 0 10px;color:#0f172a;font-size:22px;font-weight:700;letter-spacing:-0.01em;">
+                You&#39;ve been added to the program!
+              </h2>
+              <p style="margin:0 0 28px;color:#475569;font-size:15px;line-height:1.7;">
+                Welcome! Your mentor has created your MentorDesk account.
+                This platform is where you&#39;ll track your lessons, view your progress,
+                and connect with your mentor. Follow the steps below to confirm your
+                account and set your password.
+              </p>
+
+              <!-- Steps box -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin:0 0 32px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <p style="margin:0 0 14px;color:#374151;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">Getting started — 3 easy steps</p>
+
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <!-- Step 1 -->
+                      <tr>
+                        <td style="vertical-align:top;padding:0 12px 14px 0;width:32px;">
+                          <div style="width:28px;height:28px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:50%;text-align:center;line-height:28px;color:#fff;font-size:13px;font-weight:700;">1</div>
+                        </td>
+                        <td style="vertical-align:top;padding-bottom:14px;">
+                          <p style="margin:4px 0 2px;color:#111827;font-size:14px;font-weight:600;">Confirm your account</p>
+                          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">Click the <strong>Confirm My Account</strong> button below. This verifies your email and activates your login.</p>
+                        </td>
+                      </tr>
+                      <!-- Step 2 -->
+                      <tr>
+                        <td style="vertical-align:top;padding:0 12px 14px 0;width:32px;">
+                          <div style="width:28px;height:28px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:50%;text-align:center;line-height:28px;color:#fff;font-size:13px;font-weight:700;">2</div>
+                        </td>
+                        <td style="vertical-align:top;padding-bottom:14px;">
+                          <p style="margin:4px 0 2px;color:#111827;font-size:14px;font-weight:600;">Set your password</p>
+                          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">After confirming, click <strong>Forgot Password?</strong> on the login page and enter your email. You&#39;ll receive a link to create your password.</p>
+                        </td>
+                      </tr>
+                      <!-- Step 3 -->
+                      <tr>
+                        <td style="vertical-align:top;padding:0 12px 0 0;width:32px;">
+                          <div style="width:28px;height:28px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:50%;text-align:center;line-height:28px;color:#fff;font-size:13px;font-weight:700;">3</div>
+                        </td>
+                        <td style="vertical-align:top;">
+                          <p style="margin:4px 0 2px;color:#111827;font-size:14px;font-weight:600;">Log in and explore</p>
+                          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">Sign in to view your lessons, track your progress, and connect with your mentor.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:inline-block;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#ffffff;text-decoration:none;padding:15px 40px;border-radius:10px;font-size:15px;font-weight:600;box-shadow:0 4px 14px rgba(99,102,241,0.35);letter-spacing:0.01em;">
+                      Confirm My Account &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Small print -->
+              <p style="margin:28px 0 0;color:#94a3b8;font-size:12px;text-align:center;line-height:1.7;">
+                This link expires in 24 hours. If you didn&#39;t expect this email, you can safely ignore it.<br />
+                Questions? Reply to this email or contact your program administrator.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- ── Footer ── -->
+          <tr>
+            <td style="background-color:#f8fafc;border-top:1px solid #f1f5f9;padding:20px 40px;text-align:center;">
+              <p style="margin:0 0 4px;color:#94a3b8;font-size:12px;font-weight:600;">MentorDesk</p>
+              <p style="margin:0;color:#cbd5e1;font-size:11px;font-style:italic;">
+                &ldquo;Iron sharpens iron, and one man sharpens another.&rdquo; &mdash; Proverbs 27:17
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

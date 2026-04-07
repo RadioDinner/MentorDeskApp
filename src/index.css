@@ -1,0 +1,73 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f7;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+}
+
+button, input, select, textarea { font-family: inherit; }
+a { text-decoration: none; color: inherit; }
+button { cursor: pointer; }
+
+button:focus, button:active {
+  outline: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+:root {
+  --sidebar-width: 256px;
+  --sidebar-bg: #0d1117;
+  --primary: #6366f1;
+  --primary-light: #818cf8;
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --accent: #f59e0b;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --bg: #f0f2f7;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-subtle: #9ca3af;
+  --radius-sm: 6px;
+  --radius: 9px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.07), 0 12px 32px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 16px rgba(0,0,0,0.08), 0 24px 64px rgba(0,0,0,0.1);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+
+/* Tiptap rich text editor */
+.tiptap { outline: none; }
+.tiptap h1 { font-size: 1.75rem; font-weight: 800; margin: 0.75rem 0 0.5rem; color: #111827; }
+.tiptap h2 { font-size: 1.35rem; font-weight: 700; margin: 0.6rem 0 0.4rem; color: #111827; }
+.tiptap h3 { font-size: 1.1rem; font-weight: 700; margin: 0.5rem 0 0.3rem; color: #374151; }
+.tiptap p { margin: 0.3rem 0; }
+.tiptap ul, .tiptap ol { padding-left: 1.5rem; margin: 0.4rem 0; }
+.tiptap li { margin: 0.15rem 0; }
+.tiptap blockquote { border-left: 3px solid #6366f1; margin: 0.6rem 0; padding: 0.4rem 0 0.4rem 1rem; color: #6b7280; font-style: italic; }
+.tiptap hr { border: none; border-top: 1.5px solid #e5e7eb; margin: 1rem 0; }
+.tiptap code { background: #f3f4f6; padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.88em; color: #e11d48; }
+.tiptap a { color: #6366f1; text-decoration: underline; cursor: pointer; }
+.tiptap img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.5rem 0; }
+.tiptap .ProseMirror-placeholder::before { color: #9ca3af; content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
+.tiptap div[data-youtube-video] { margin: 0.75rem 0; }
+.tiptap div[data-youtube-video] iframe { border-radius: 6px; max-width: 100%; }
