@@ -59,7 +59,7 @@ export default function AssignmentsPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
+      <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
         Failed to load assignments: {error}
       </div>
     )
@@ -76,18 +76,18 @@ export default function AssignmentsPage() {
         </div>
         <button
           onClick={() => navigate('/assignments/new')}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
         >
           + Assign Mentee
         </button>
       </div>
 
       {assignments.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-6 py-12 text-center">
+        <div className="bg-white rounded-md border border-gray-200/80  px-6 py-12 text-center">
           <p className="text-sm text-gray-500">No assignments yet. Assign a mentee to a mentor to get started.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
+        <div className="bg-white rounded-md border border-gray-200/80  divide-y divide-gray-100">
           {assignments.map(a => (
             <div key={a.id} className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-5 min-w-0">
@@ -127,7 +127,7 @@ export default function AssignmentsPage() {
                 </span>
                 <button
                   onClick={() => navigate(`/assignments/${a.id}/edit`)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                 >
                   Edit
                 </button>

@@ -251,7 +251,7 @@ export default function PersonEditPage() {
   if (fetchError || !person) {
     return (
       <div className="max-w-4xl">
-        <div className="rounded-lg border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           {fetchError || 'Person not found.'}
         </div>
       </div>
@@ -259,7 +259,7 @@ export default function PersonEditPage() {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   const hasAuthAccount = person.user_id !== null
 
@@ -291,12 +291,12 @@ export default function PersonEditPage() {
 
         {/* Left column — Personal Information (2/3 width) */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+          <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
             <h2 className="text-base font-semibold text-gray-900 mb-6">Personal Information</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
               {profileMsg && (
-                <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
                   profileMsg.type === 'success'
                     ? 'bg-green-50 border-green-200 text-green-700'
                     : 'bg-red-50 border-red-200 text-red-700'
@@ -387,7 +387,7 @@ export default function PersonEditPage() {
 
               <div className="pt-2">
                 <button type="submit" disabled={saving}
-                  className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {saving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -400,12 +400,12 @@ export default function PersonEditPage() {
 
           {/* Compensation */}
           {person.role !== 'admin' && availablePayTypes.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
               <h2 className="text-base font-semibold text-gray-900 mb-4">Compensation</h2>
 
               <form onSubmit={handleCompensationSave} className="space-y-4">
                 {compensationMsg && (
-                  <div className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-xs ${
+                  <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs ${
                     compensationMsg.type === 'success'
                       ? 'bg-green-50 border-green-200 text-green-700'
                       : 'bg-red-50 border-red-200 text-red-700'
@@ -423,7 +423,7 @@ export default function PersonEditPage() {
                     id="payType"
                     value={payType}
                     onChange={e => setPayType(e.target.value as PayType | '')}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                    className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
                   >
                     <option value="">Not set</option>
                     {availablePayTypes.map(pt => (
@@ -451,14 +451,14 @@ export default function PersonEditPage() {
                         value={payRate}
                         onChange={e => setPayRate(e.target.value)}
                         placeholder="0"
-                        className="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                        className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
                       />
                     </div>
                   </div>
                 )}
 
                 <button type="submit" disabled={compensationSaving}
-                  className="w-full rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {compensationSaving ? 'Saving…' : 'Save compensation'}
                 </button>
               </form>
@@ -466,7 +466,7 @@ export default function PersonEditPage() {
           )}
 
           {/* Account status */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
 
             <div className="flex items-center gap-2 mb-4">
@@ -485,11 +485,11 @@ export default function PersonEditPage() {
           </div>
 
           {/* System emails */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">System Emails</h2>
 
             {actionMsg && (
-              <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm mb-4 ${
+              <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
                 actionMsg.type === 'success'
                   ? 'bg-green-50 border-green-200 text-green-700'
                   : 'bg-red-50 border-red-200 text-red-700'
@@ -505,7 +505,7 @@ export default function PersonEditPage() {
                 <button
                   onClick={handlePasswordReset}
                   disabled={sendingReset || !hasAuthAccount}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                  className="w-full rounded border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
                 >
                   {sendingReset ? 'Sending…' : 'Send password reset'}
                 </button>
@@ -521,7 +521,7 @@ export default function PersonEditPage() {
                 <button
                   onClick={handleInvite}
                   disabled={sendingInvite || hasAuthAccount}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                  className="w-full rounded border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
                 >
                   {sendingInvite ? 'Sending…' : 'Send org invitation'}
                 </button>

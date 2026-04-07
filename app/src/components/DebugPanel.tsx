@@ -65,7 +65,7 @@ export default function DebugPanel() {
   }[supabaseStatus]
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 bg-white border border-gray-300 rounded-xl shadow-2xl z-[100] text-xs font-mono">
+    <div className="fixed bottom-4 right-4 w-96 bg-white border border-gray-300 rounded-md shadow-2xl z-[100] text-xs font-mono">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50 rounded-t-xl">
         <span className="font-semibold text-gray-700">Debug Panel</span>
         <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
@@ -106,7 +106,7 @@ export default function DebugPanel() {
         {/* Log */}
         <div>
           <p className="text-gray-500 mb-1">Log</p>
-          <div className="bg-gray-900 text-green-400 rounded-lg p-2 max-h-32 overflow-y-auto">
+          <div className="bg-gray-900 text-green-400 rounded p-2 max-h-32 overflow-y-auto">
             {logs.length === 0 && <p className="text-gray-600">No logs yet</p>}
             {logs.map((log, i) => (
               <p key={i}>{log}</p>

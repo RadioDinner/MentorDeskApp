@@ -164,3 +164,8 @@ Prompt 35:
 Mentors and assistant mentors are mixed together - need clean role
 separation. Also got "Cannot coerce the result to a single JSON object"
 error when creating a mentee.
+
+Prompt 36:
+UI overhaul request. Redundant module names (topbar + page). Everything
+too "round". Payroll grid is "gross". Want professional, clean, official
+feel. Less round, sharper UI.

@@ -52,7 +52,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const backRoute = `/offerings?tab=${offeringType}`
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-2xl">
@@ -64,10 +64,10 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+      <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           {msg && (
-            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
               msg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
@@ -99,11 +99,11 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
           <div className="flex items-center gap-3 pt-2">
             <button type="submit" disabled={saving}
-              className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
               {saving ? 'Creating…' : title}
             </button>
             <button type="button" onClick={() => navigate(backRoute)}
-              className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+              className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
               Cancel
             </button>
           </div>

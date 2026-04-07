@@ -102,7 +102,7 @@ export default function AssignmentEditPage() {
   if (fetchError || !assignment) {
     return (
       <div className="max-w-4xl">
-        <div className="rounded-lg border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           {fetchError || 'Assignment not found.'}
         </div>
       </div>
@@ -110,10 +110,10 @@ export default function AssignmentEditPage() {
   }
 
   const selectClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-4xl">
@@ -128,12 +128,12 @@ export default function AssignmentEditPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left — Edit */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+          <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
             <h2 className="text-base font-semibold text-gray-900 mb-6">Assignment Details</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
               {msg && (
-                <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
                   msg.type === 'success'
                     ? 'bg-green-50 border-green-200 text-green-700'
                     : 'bg-red-50 border-red-200 text-red-700'
@@ -167,7 +167,7 @@ export default function AssignmentEditPage() {
 
               <div className="pt-2">
                 <button type="submit" disabled={saving}
-                  className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {saving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -178,7 +178,7 @@ export default function AssignmentEditPage() {
         {/* Right — Pairing info */}
         <div className="space-y-6">
           {/* Mentor card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Mentor</p>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-xs font-semibold text-blue-600 shrink-0">
@@ -194,7 +194,7 @@ export default function AssignmentEditPage() {
           </div>
 
           {/* Mentee card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Mentee</p>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-xs font-semibold text-green-600 shrink-0">
@@ -210,7 +210,7 @@ export default function AssignmentEditPage() {
           </div>
 
           {/* Info */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Info</p>
             <div className="space-y-1.5 text-xs text-gray-500">
               <p>Started: <span className="font-medium text-gray-700">{new Date(assignment.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>

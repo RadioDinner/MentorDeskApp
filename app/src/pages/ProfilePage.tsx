@@ -132,18 +132,18 @@ export default function ProfilePage() {
   if (!profile) return null
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-2xl space-y-8">
 
       {/* --- Profile Info --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+      <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
 
         <form onSubmit={handleProfileSubmit} className="space-y-5">
           {profileMsg && (
-            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
               profileMsg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
@@ -234,7 +234,7 @@ export default function ProfilePage() {
 
           <div className="pt-2">
             <button type="submit" disabled={profileSaving}
-              className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
               {profileSaving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
@@ -242,12 +242,12 @@ export default function ProfilePage() {
       </div>
 
       {/* --- Change Password --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+      <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Change Password</h2>
 
         <form onSubmit={handlePasswordSubmit} className="space-y-5">
           {passwordMsg && (
-            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
               passwordMsg.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-700'
                 : 'bg-red-50 border-red-200 text-red-700'
@@ -279,7 +279,7 @@ export default function ProfilePage() {
 
           <div className="pt-2">
             <button type="submit" disabled={passwordSaving}
-              className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
               {passwordSaving ? 'Updating…' : 'Update password'}
             </button>
           </div>

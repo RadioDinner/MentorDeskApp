@@ -87,7 +87,7 @@ export default function Sidebar() {
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-brand text-white'
                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'

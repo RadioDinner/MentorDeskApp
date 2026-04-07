@@ -94,7 +94,7 @@ export default function MenteeEditPage() {
   if (fetchError || !mentee) {
     return (
       <div className="max-w-4xl">
-        <div className="rounded-lg border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           {fetchError || 'Mentee not found.'}
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function MenteeEditPage() {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   const hasAuthAccount = mentee.user_id !== null
 
@@ -129,12 +129,12 @@ export default function MenteeEditPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left — Personal Info */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
+          <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
             <h2 className="text-base font-semibold text-gray-900 mb-6">Personal Information</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
               {msg && (
-                <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
                   msg.type === 'success'
                     ? 'bg-green-50 border-green-200 text-green-700'
                     : 'bg-red-50 border-red-200 text-red-700'
@@ -193,7 +193,7 @@ export default function MenteeEditPage() {
 
               <div className="pt-2">
                 <button type="submit" disabled={saving}
-                  className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {saving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -203,7 +203,7 @@ export default function MenteeEditPage() {
 
         {/* Right — Account */}
         <div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
             <div className="flex items-center gap-2 mb-4">
               <span className={`inline-block w-2 h-2 rounded-full ${hasAuthAccount ? 'bg-green-500' : 'bg-gray-300'}`} />

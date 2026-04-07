@@ -93,9 +93,9 @@ export default function DashboardPage() {
       {isAdmin && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {statCards.map(card => (
-            <div key={card.label} className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-5 py-4">
+            <div key={card.label} className="bg-white rounded-md border border-gray-200/80  px-5 py-4">
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center`}>
+                <div className={`w-8 h-8 rounded ${card.iconBg} flex items-center justify-center`}>
                   <svg className={`w-4 h-4 ${card.iconColor}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                   </svg>
@@ -122,11 +122,11 @@ export default function DashboardPage() {
       ].map(section => (
         <div key={section.label}>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{section.label}</h3>
-          <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
+          <div className="bg-white rounded-md border border-gray-200/80  divide-y divide-gray-100">
             {section.items.map(item => (
               <div key={item.title} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">
-                  <div className={`w-9 h-9 rounded-lg ${item.iconBg} flex items-center justify-center`}>
+                  <div className={`w-9 h-9 rounded ${item.iconBg} flex items-center justify-center`}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                       <path className={item.iconColor} strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                     </svg>
@@ -138,13 +138,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {item.canAdd && (
-                    <button className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <button className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded hover:bg-gray-50 transition-colors">
                       + Add
                     </button>
                   )}
                   <button
                     onClick={() => navigate(item.route)}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                   >
                     Manage &rarr;
                   </button>
@@ -157,7 +157,7 @@ export default function DashboardPage() {
 
       {/* Non-admin fallback */}
       {!isAdmin && (
-        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-6 py-8 text-center">
+        <div className="bg-white rounded-md border border-gray-200/80  px-6 py-8 text-center">
           <p className="text-sm text-gray-500">
             Welcome back, {profile.first_name}. You are signed in as <span className="font-medium capitalize">{profile.role}</span>.
           </p>
