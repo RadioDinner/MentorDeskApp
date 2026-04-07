@@ -58,13 +58,25 @@ export default function DashboardPage() {
   ]
 
   const peopleItems = [
-    { title: 'Mentors', desc: 'Manage your mentoring team', route: '/mentors', canAdd: true, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-    { title: 'Mentees', desc: 'Track program participants', route: '/mentees', canAdd: true, iconBg: 'bg-green-50', iconColor: 'text-green-600' },
     { title: 'Staff', desc: 'Organization team members', route: '/staff', canAdd: true, iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
+    { title: 'Mentors', desc: 'Manage your mentoring team', route: '/mentors', canAdd: true, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
+    { title: 'Assistant Mentors', desc: 'Mentors in training', route: '/assistant-mentors', canAdd: true, iconBg: 'bg-teal-50', iconColor: 'text-teal-600' },
+    { title: 'Mentees', desc: 'Track program participants', route: '/mentees', canAdd: true, iconBg: 'bg-green-50', iconColor: 'text-green-600' },
+  ]
+
+  const businessItems = [
+    { title: 'Offerings', desc: 'Plans, pricing and durations', route: '/offerings', canAdd: true, iconBg: 'bg-violet-50', iconColor: 'text-violet-600' },
+    { title: 'Reports', desc: 'Analytics and program insights', route: '/reports', canAdd: false, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+  ]
+
+  const financeItems = [
+    { title: 'Billing', desc: 'Manage billing and payments', route: '/billing', canAdd: false, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+    { title: 'Invoicing', desc: 'Create and track invoices', route: '/invoicing', canAdd: true, iconBg: 'bg-cyan-50', iconColor: 'text-cyan-600' },
+    { title: 'Payroll', desc: 'Staff compensation tracking', route: '/payroll', canAdd: false, iconBg: 'bg-lime-50', iconColor: 'text-lime-600' },
   ]
 
   const systemItems = [
-    { title: 'Staff Roles', desc: 'Manage permissions and access', route: '/staff-roles', canAdd: false, iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
+    { title: 'Audit Log', desc: 'Track actions and changes', route: '/audit-log', canAdd: false, iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
     { title: 'Settings', desc: 'Company and app configuration', route: '/settings', canAdd: false, iconBg: 'bg-gray-100', iconColor: 'text-gray-600' },
   ]
 
@@ -101,17 +113,22 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* People Section */}
-      {isAdmin && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">People</h3>
+      {/* Module Sections */}
+      {isAdmin && [
+        { label: 'People', items: peopleItems },
+        { label: 'Business', items: businessItems },
+        { label: 'Finance', items: financeItems },
+        { label: 'System', items: systemItems },
+      ].map(section => (
+        <div key={section.label}>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{section.label}</h3>
           <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
-            {peopleItems.map(item => (
+            {section.items.map(item => (
               <div key={item.title} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">
                   <div className={`w-9 h-9 rounded-lg ${item.iconBg} flex items-center justify-center`}>
-                    <svg className={`w-4.5 h-4.5 ${item.iconColor}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path className={item.iconColor} strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                     </svg>
                   </div>
                   <div>
@@ -136,40 +153,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-      )}
-
-      {/* System Section */}
-      {isAdmin && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">System</h3>
-          <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
-            {systemItems.map(item => (
-              <div key={item.title} className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-4">
-                  <div className={`w-9 h-9 rounded-lg ${item.iconBg} flex items-center justify-center`}>
-                    <svg className={`w-4.5 h-4.5 ${item.iconColor}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                    <p className="text-xs text-gray-500">{item.desc}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate(item.route)}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Manage &rarr;
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      ))}
 
       {/* Non-admin fallback */}
       {!isAdmin && (

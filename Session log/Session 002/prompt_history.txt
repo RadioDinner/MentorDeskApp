@@ -92,3 +92,23 @@ Prompt 20:
 Prompt 21:
 Ok, I'll go option A, but put together a list of things we need to change
 before shipping
+
+Prompt 22:
+emails are all turned off already
+
+Prompt 23:
+(User pasted network response showing 200 OK for password change - it was
+actually working. The SDK getSession() call was hanging before the fetch.)
+
+Prompt 24:
+Aight, seems to be working. you should write some sort of confirmation
+message so people aren't left in the dark
+
+Prompt 25:
+Ok, I want to start building features. I'll call the buttons, or list of
+options on the left sidebar, modules. Add this information to the glossary.
+I want you to add some modules and organize some existing ones. I want a
+"Main" group with "Home". "People" group with Staff, Mentors, Assistant
+Mentors, Mentees. "Business" group with Offerings and Reports. "Finance"
+group with Billing, Invoicing, Payroll. "System" group with Audit Log
+and Settings.

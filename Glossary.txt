@@ -97,6 +97,20 @@ Invoice
     status for enrolled offerings.
 
 
+UI CONCEPTS
+------------
+
+Module
+    A top-level navigation item in the left sidebar of the app. Modules
+    are organized into groups (e.g. Main, People, Business, Finance,
+    System). Each module corresponds to a page or feature area in the
+    application.
+
+Module Group
+    A labeled section in the sidebar that contains related modules.
+    Current groups: Main, People, Business, Finance, System.
+
+
 BRANDING & CUSTOMIZATION
 -------------------------
 

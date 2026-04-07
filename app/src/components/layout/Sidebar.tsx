@@ -8,21 +8,62 @@ interface NavItem {
   roles: string[]
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',  to: '/dashboard',  icon: '▦', roles: ['admin', 'mentor', 'staff'] },
-  { label: 'Mentors',    to: '/mentors',    icon: '◉', roles: ['admin'] },
-  { label: 'Mentees',    to: '/mentees',    icon: '◎', roles: ['admin', 'mentor'] },
-  { label: 'Staff',      to: '/staff',      icon: '◈', roles: ['admin'] },
-  { label: 'Offerings',  to: '/offerings',  icon: '◇', roles: ['admin'] },
-  { label: 'Settings',   to: '/settings',   icon: '⚙', roles: ['admin'] },
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Main',
+    items: [
+      { label: 'Home', to: '/dashboard', icon: '▦', roles: ['admin', 'mentor', 'staff'] },
+    ],
+  },
+  {
+    label: 'People',
+    items: [
+      { label: 'Staff',              to: '/staff',              icon: '◈', roles: ['admin'] },
+      { label: 'Mentors',            to: '/mentors',            icon: '◉', roles: ['admin'] },
+      { label: 'Assistant Mentors',  to: '/assistant-mentors',  icon: '◎', roles: ['admin'] },
+      { label: 'Mentees',            to: '/mentees',            icon: '◎', roles: ['admin', 'mentor'] },
+    ],
+  },
+  {
+    label: 'Business',
+    items: [
+      { label: 'Offerings', to: '/offerings', icon: '◇', roles: ['admin'] },
+      { label: 'Reports',   to: '/reports',   icon: '▤', roles: ['admin'] },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { label: 'Billing',    to: '/billing',    icon: '▧', roles: ['admin'] },
+      { label: 'Invoicing',  to: '/invoicing',  icon: '▨', roles: ['admin'] },
+      { label: 'Payroll',    to: '/payroll',     icon: '▩', roles: ['admin'] },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { label: 'Audit Log', to: '/audit-log', icon: '▤', roles: ['admin'] },
+      { label: 'Settings',  to: '/settings',   icon: '⚙', roles: ['admin'] },
+    ],
+  },
 ]
 
 export default function Sidebar() {
   const { profile } = useAuth()
 
-  const visible = NAV_ITEMS.filter(item =>
-    profile ? item.roles.includes(profile.role) : false
-  )
+  const visibleGroups = NAV_GROUPS
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item =>
+        profile ? item.roles.includes(profile.role) : false
+      ),
+    }))
+    .filter(group => group.items.length > 0)
 
   return (
     <aside className="w-56 shrink-0 flex flex-col bg-slate-900 min-h-screen">
@@ -33,22 +74,31 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {visible.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <span className="text-base leading-none">{item.icon}</span>
-            {item.label}
-          </NavLink>
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {visibleGroups.map(group => (
+          <div key={group.label}>
+            <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {group.label}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
+                >
+                  <span className="text-base leading-none">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

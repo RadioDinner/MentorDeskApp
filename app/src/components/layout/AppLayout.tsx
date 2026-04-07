@@ -3,12 +3,19 @@ import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/mentors':   'Mentors',
-  '/mentees':   'Mentees',
-  '/staff':     'Staff',
-  '/offerings': 'Offerings',
-  '/settings':  'Settings',
+  '/dashboard':          'Home',
+  '/staff':              'Staff',
+  '/mentors':            'Mentors',
+  '/assistant-mentors':  'Assistant Mentors',
+  '/mentees':            'Mentees',
+  '/offerings':          'Offerings',
+  '/reports':            'Reports',
+  '/billing':            'Billing',
+  '/invoicing':          'Invoicing',
+  '/payroll':            'Payroll',
+  '/audit-log':          'Audit Log',
+  '/settings':           'Settings',
+  '/profile':            'Profile Settings',
 }
 
 export default function AppLayout() {
