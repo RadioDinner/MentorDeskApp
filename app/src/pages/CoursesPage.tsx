@@ -26,7 +26,7 @@ export default function CoursesPage() {
       setLoading(false)
     }
     fetch()
-  }, [profile])
+  }, [profile?.organization_id])
 
   return (
     <div className="max-w-4xl">
@@ -63,12 +63,20 @@ export default function CoursesPage() {
                   <p className="text-xs text-gray-500 truncate mt-0.5">{item.description}</p>
                 )}
               </div>
-              <button
-                onClick={() => navigate(`/courses/${item.id}/edit`)}
-                className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-              >
-                Edit
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => navigate(`/courses/${item.id}/builder`)}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition-colors"
+                >
+                  Course Builder
+                </button>
+                <button
+                  onClick={() => navigate(`/courses/${item.id}/edit`)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           ))}
         </div>

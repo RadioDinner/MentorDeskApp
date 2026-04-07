@@ -27,13 +27,14 @@ const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
   assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
 }
 
-type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'permissions' | 'notifications' | 'integrations'
+type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'courses' | 'permissions' | 'notifications' | 'integrations'
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'branding', label: 'Branding' },
   { key: 'payroll', label: 'Payroll' },
   { key: 'mentee_flow', label: 'Mentee Flow' },
   { key: 'cancellation', label: 'Cancellation' },
+  { key: 'courses', label: 'Courses' },
   { key: 'permissions', label: 'Permissions' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'integrations', label: 'Integrations' },
@@ -70,6 +71,7 @@ export default function CompanySettingsPage() {
   const [roleGroups, setRoleGroups] = useState<RoleGroup[]>([])
   const [editingGroup, setEditingGroup] = useState<RoleGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
+  const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
 
   useEffect(() => {
     if (!profile) return
@@ -84,10 +86,11 @@ export default function CompanySettingsPage() {
       setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
       setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       setRoleGroups(o.role_groups ?? [])
+      setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
       setLoading(false)
     }
     fetchOrg()
-  }, [profile])
+  }, [profile?.organization_id])
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
@@ -98,6 +101,7 @@ export default function CompanySettingsPage() {
       primary_color: primaryColor.trim(), secondary_color: secondaryColor.trim(), tertiary_color: tertiaryColor.trim(),
       pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
       role_groups: roleGroups,
+      enable_lesson_due_dates: enableLessonDueDates,
     }
     const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
     setSaving(false)
@@ -310,6 +314,30 @@ export default function CompanySettingsPage() {
             <div className="space-y-4">
               <p className="text-sm text-gray-500">Default cancellation policy for engagements. Individual engagements can override.</p>
               <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
+            </div>
+          )}
+
+          {/* ====== COURSES ====== */}
+          {activeTab === 'courses' && (
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">Configure advanced course features for your organization.</p>
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Per-lesson due dates</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Allow courses to have individual due dates for each lesson, calculated as days from enrollment.
+                    When disabled, courses can only have a single overall due date.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableLessonDueDates(!enableLessonDueDates)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${enableLessonDueDates ? 'bg-brand' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${enableLessonDueDates ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
+                </button>
+              </div>
             </div>
           )}
 

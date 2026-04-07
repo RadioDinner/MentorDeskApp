@@ -51,6 +51,7 @@ export interface Organization {
   mentee_flow: MenteeFlow
   default_cancellation_policy: CancellationPolicy
   role_groups: RoleGroup[]
+  enable_lesson_due_dates: boolean
   created_at: string
 }
 
@@ -79,6 +80,8 @@ export interface Offering {
   allocation_period: AllocationPeriod
   use_org_default_cancellation: boolean
   cancellation_policy: CancellationPolicy | null
+  due_date_mode: DueDateMode
+  expected_completion_days: number | null
   created_at: string
   updated_at: string
 }
@@ -115,6 +118,40 @@ export interface Pairing {
   created_at: string
   updated_at: string
 }
+
+export type QuestionType = 'quiz' | 'response'
+
+export interface QuizOption {
+  text: string
+  is_correct: boolean
+}
+
+export interface LessonQuestion {
+  id: string
+  lesson_id: string
+  organization_id: string
+  question_text: string
+  question_type: QuestionType
+  options: QuizOption[] | null
+  order_index: number
+  created_at: string
+}
+
+export interface Lesson {
+  id: string
+  offering_id: string
+  organization_id: string
+  title: string
+  description: string | null
+  content: string | null
+  video_url: string | null
+  order_index: number
+  due_days_offset: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type DueDateMode = 'none' | 'course' | 'lesson'
 
 export interface StaffMember {
   id: string

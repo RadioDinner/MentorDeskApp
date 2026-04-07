@@ -108,8 +108,11 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         }
       }
 
-      const base = offeringType === 'course' ? '/courses' : '/engagements'
-      navigate(`${base}/${data[0].id}/edit`)
+      if (offeringType === 'course') {
+        navigate(`/courses/${data[0].id}/builder`)
+      } else {
+        navigate(`/engagements/${data[0].id}/edit`)
+      }
     } else {
       navigate(offeringType === 'course' ? '/courses' : '/engagements')
     }
