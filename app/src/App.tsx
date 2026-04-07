@@ -15,6 +15,7 @@ import OfferingCreatePage from './pages/OfferingCreatePage'
 import OfferingEditPage from './pages/OfferingEditPage'
 import MenteesListPage from './pages/MenteesListPage'
 import MenteeCreatePage from './pages/MenteeCreatePage'
+import MenteeEditPage from './pages/MenteeEditPage'
 import AssignmentsPage from './pages/AssignmentsPage'
 import AssignmentCreatePage from './pages/AssignmentCreatePage'
 import AssignmentEditPage from './pages/AssignmentEditPage'
@@ -46,11 +47,11 @@ export default function App() {
             <Route path="/staff/new" element={<PersonCreatePage title="Create Staff Member" defaultRole="staff" backRoute="/staff" />} />
             <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} createLabel="Create Mentor" createRoute="/mentors/new" />} />
             <Route path="/mentors/new" element={<PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />} />
-            <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={[]} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />
-            <Route path="/assistant-mentors/new" element={<PersonCreatePage title="Create Assistant Mentor" defaultRole="mentor" backRoute="/assistant-mentors" />} />
+            <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={['assistant_mentor']} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />
+            <Route path="/assistant-mentors/new" element={<PersonCreatePage title="Create Assistant Mentor" defaultRole="assistant_mentor" backRoute="/assistant-mentors" />} />
             <Route path="/mentees" element={<MenteesListPage />} />
             <Route path="/mentees/new" element={<MenteeCreatePage />} />
-            <Route path="/mentees/:id/edit" element={<PersonEditPage />} />
+            <Route path="/mentees/:id/edit" element={<MenteeEditPage />} />
             <Route path="/assignments" element={<AssignmentsPage />} />
             <Route path="/assignments/new" element={<AssignmentCreatePage />} />
             <Route path="/assignments/:id/edit" element={<AssignmentEditPage />} />

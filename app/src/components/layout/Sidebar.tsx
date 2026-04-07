@@ -17,7 +17,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Main',
     items: [
-      { label: 'Home', to: '/dashboard', icon: '▦', roles: ['admin', 'mentor', 'staff'] },
+      { label: 'Home', to: '/dashboard', icon: '▦', roles: ['admin', 'mentor', 'assistant_mentor', 'staff'] },
     ],
   },
   {
@@ -26,7 +26,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Staff',              to: '/staff',              icon: '◈', roles: ['admin'] },
       { label: 'Mentors',            to: '/mentors',            icon: '◉', roles: ['admin'] },
       { label: 'Assistant Mentors',  to: '/assistant-mentors',  icon: '◎', roles: ['admin'] },
-      { label: 'Mentees',            to: '/mentees',            icon: '◎', roles: ['admin', 'mentor'] },
+      { label: 'Mentees',            to: '/mentees',            icon: '◎', roles: ['admin', 'mentor', 'assistant_mentor'] },
     ],
   },
   {

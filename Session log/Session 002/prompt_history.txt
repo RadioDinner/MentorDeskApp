@@ -159,3 +159,8 @@ In company settings, make a payroll settings grid with pay type rows
 Hourly+Salary, Mentors/Asst Mentors get all four. Then on each person's
 edit page, add compensation section with pay type dropdown (filtered by
 org settings for their role) and rate input ($ or %).
+
+Prompt 35:
+Mentors and assistant mentors are mixed together - need clean role
+separation. Also got "Cannot coerce the result to a single JSON object"
+error when creating a mentee.

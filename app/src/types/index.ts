@@ -1,4 +1,4 @@
-export type StaffRole = 'admin' | 'mentor' | 'staff'
+export type StaffRole = 'admin' | 'mentor' | 'assistant_mentor' | 'staff'
 
 export type PayType = 'hourly' | 'salary' | 'pct_monthly_profit' | 'pct_engagement_profit'
 

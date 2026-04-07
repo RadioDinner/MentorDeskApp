@@ -41,7 +41,6 @@ export default function MenteeCreatePage() {
         country: country.trim() || null,
       })
       .select('id')
-      .single()
 
     setSaving(false)
 
@@ -50,7 +49,11 @@ export default function MenteeCreatePage() {
       return
     }
 
-    navigate(`/mentees/${data.id}/edit`)
+    if (data && data.length > 0) {
+      navigate(`/mentees/${data[0].id}/edit`)
+    } else {
+      navigate('/mentees')
+    }
   }
 
   const inputClass =

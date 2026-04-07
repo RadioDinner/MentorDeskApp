@@ -13,6 +13,7 @@ const PAY_TYPE_LABELS: Record<PayType, string> = {
 
 function getRoleCategory(role: string): RoleCategory {
   if (role === 'mentor') return 'mentor'
+  if (role === 'assistant_mentor') return 'assistant_mentor'
   return 'staff'
 }
 

@@ -49,7 +49,6 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
         country: country.trim() || null,
       })
       .select('id')
-      .single()
 
     setSaving(false)
 
@@ -58,8 +57,11 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
       return
     }
 
-    // Navigate to the edit page for the newly created person
-    navigate(`/people/${data.id}/edit`)
+    if (data && data.length > 0) {
+      navigate(`/people/${data[0].id}/edit`)
+    } else {
+      navigate(backRoute)
+    }
   }
 
   const inputClass =

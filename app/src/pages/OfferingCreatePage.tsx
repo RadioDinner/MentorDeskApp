@@ -34,7 +34,6 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         description: description.trim() || null,
       })
       .select('id')
-      .single()
 
     setSaving(false)
 
@@ -43,7 +42,11 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       return
     }
 
-    navigate(`/offerings/${data.id}/edit`)
+    if (data && data.length > 0) {
+      navigate(`/offerings/${data[0].id}/edit`)
+    } else {
+      navigate(`/offerings?tab=${offeringType}`)
+    }
   }
 
   const backRoute = `/offerings?tab=${offeringType}`
