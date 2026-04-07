@@ -1,136 +1,38 @@
-import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
-import type { RoleGroup } from '../../types'
-
-interface NavItem {
-  label: string
-  to: string
-  icon: string
-  roles: string[]
-  group: string
-}
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Main',
-    items: [
-      { label: 'Home', to: '/dashboard', icon: '▦', roles: ['admin', 'mentor', 'assistant_mentor', 'staff'], group: 'Main' },
-    ],
-  },
-  {
-    label: 'People',
-    items: [
-      { label: 'Staff',              to: '/staff',              icon: '◈', roles: ['admin', 'staff'], group: 'People' },
-      { label: 'Mentors',            to: '/mentors',            icon: '◉', roles: ['admin', 'staff'], group: 'People' },
-      { label: 'Assistant Mentors',  to: '/assistant-mentors',  icon: '◎', roles: ['admin', 'staff'], group: 'People' },
-      { label: 'Mentees',            to: '/mentees',            icon: '◎', roles: ['admin', 'mentor', 'assistant_mentor', 'staff'], group: 'People' },
-    ],
-  },
-  {
-    label: 'Business',
-    items: [
-      { label: 'Pairings',   to: '/pairings',   icon: '⇄', roles: ['admin', 'staff'], group: 'Business' },
-      { label: 'Offerings',  to: '/offerings',   icon: '◇', roles: ['admin', 'staff'], group: 'Business' },
-      { label: 'Reports',    to: '/reports',     icon: '▤', roles: ['admin', 'staff'], group: 'Business' },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
-      { label: 'Billing',    to: '/billing',    icon: '▧', roles: ['admin', 'staff'], group: 'Finance' },
-      { label: 'Invoicing',  to: '/invoicing',  icon: '▨', roles: ['admin', 'staff'], group: 'Finance' },
-      { label: 'Payroll',    to: '/payroll',     icon: '▩', roles: ['admin', 'staff'], group: 'Finance' },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { label: 'Audit Log', to: '/audit-log', icon: '▤', roles: ['admin', 'staff'], group: 'System' },
-      { label: 'Settings',  to: '/settings',   icon: '⚙', roles: ['admin', 'staff'], group: 'System' },
-    ],
-  },
-]
+import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../../lib/modules'
 
 export default function Sidebar() {
   const { profile } = useAuth()
-  const [allowedGroups, setAllowedGroups] = useState<Set<string>>(new Set())
-  const [loaded, setLoaded] = useState(false)
 
-  useEffect(() => {
-    if (!profile) return
+  if (!profile) return null
 
+  const isAdmin = profile.role === 'admin'
+  const isMentor = profile.role === 'mentor' || profile.role === 'assistant_mentor'
+  const allowedKeys = new Set(profile.allowed_modules ?? [])
+
+  // Build visible modules
+  const visibleKeys = new Set<string>(ALWAYS_VISIBLE)
+
+  if (isAdmin) {
     // Admins see everything
-    if (profile.role === 'admin') {
-      setAllowedGroups(new Set(['Main', 'People', 'Business', 'Finance', 'System']))
-      setLoaded(true)
-      return
-    }
+    for (const mod of ALL_MODULES) visibleKeys.add(mod.key)
+  } else if (isMentor) {
+    // Mentors see Home + Mentees by default
+    visibleKeys.add('mentees')
+    // Plus any explicitly granted
+    for (const key of allowedKeys) visibleKeys.add(key)
+  } else {
+    // Staff see what's explicitly granted
+    for (const key of allowedKeys) visibleKeys.add(key)
+  }
 
-    // Mentors/assistant_mentors see Main + limited items based on role
-    if (profile.role === 'mentor' || profile.role === 'assistant_mentor') {
-      setAllowedGroups(new Set(['Main', 'People']))
-      setLoaded(true)
-      return
-    }
-
-    // Staff: check access_groups against org role_groups
-    async function loadAccess() {
-      const userGroups = profile!.access_groups ?? []
-      if (userGroups.length === 0) {
-        setAllowedGroups(new Set(['Main']))
-        setLoaded(true)
-        return
-      }
-
-      const { data } = await supabase
-        .from('organizations')
-        .select('role_groups')
-        .eq('id', profile!.organization_id)
-        .single()
-
-      if (data?.role_groups) {
-        const orgGroups = data.role_groups as RoleGroup[]
-        const moduleGroups = new Set<string>()
-        for (const rg of orgGroups) {
-          if (userGroups.includes(rg.id)) {
-            for (const mg of rg.module_groups) {
-              moduleGroups.add(mg)
-            }
-          }
-        }
-        if (moduleGroups.size === 0) moduleGroups.add('Main')
-        setAllowedGroups(moduleGroups)
-      } else {
-        setAllowedGroups(new Set(['Main']))
-      }
-      setLoaded(true)
-    }
-
-    loadAccess()
-  }, [profile])
-
-  if (!loaded) return null
-
-  const visibleGroups = NAV_GROUPS
-    .map(group => ({
-      ...group,
-      items: group.items.filter(item => {
-        if (!profile) return false
-        // Must have the role
-        if (!item.roles.includes(profile.role)) return false
-        // Must have access to the module group
-        if (!allowedGroups.has(item.group)) return false
-        return true
-      }),
+  const groups = modulesByGroup()
+    .map(g => ({
+      ...g,
+      modules: g.modules.filter(m => visibleKeys.has(m.key)),
     }))
-    .filter(group => group.items.length > 0)
+    .filter(g => g.modules.length > 0)
 
   return (
     <aside className="w-56 shrink-0 flex flex-col bg-slate-900 min-h-screen">
@@ -142,16 +44,16 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-        {visibleGroups.map(group => (
-          <div key={group.label}>
+        {groups.map(group => (
+          <div key={group.group}>
             <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              {group.label}
+              {group.group}
             </p>
             <div className="space-y-0.5">
-              {group.items.map(item => (
+              {group.modules.map(mod => (
                 <NavLink
-                  key={item.to}
-                  to={item.to}
+                  key={mod.path}
+                  to={mod.path}
                   className={({ isActive }) =>
                     `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
                       isActive
@@ -160,8 +62,8 @@ export default function Sidebar() {
                     }`
                   }
                 >
-                  <span className="text-base leading-none">{item.icon}</span>
-                  {item.label}
+                  <span className="text-base leading-none">{mod.icon}</span>
+                  {mod.label}
                 </NavLink>
               ))}
             </div>
@@ -170,14 +72,12 @@ export default function Sidebar() {
       </nav>
 
       {/* User info */}
-      {profile && (
-        <div className="px-4 py-4 border-t border-slate-700/50">
-          <p className="text-xs font-medium text-slate-200 truncate">
-            {profile.first_name} {profile.last_name}
-          </p>
-          <p className="text-xs text-slate-400 capitalize">{profile.role}</p>
-        </div>
-      )}
+      <div className="px-4 py-4 border-t border-slate-700/50">
+        <p className="text-xs font-medium text-slate-200 truncate">
+          {profile.first_name} {profile.last_name}
+        </p>
+        <p className="text-xs text-slate-400 capitalize">{profile.role}</p>
+      </div>
 
     </aside>
   )

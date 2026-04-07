@@ -4,14 +4,14 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 const PAY_TYPES: { value: PayType; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
   { value: 'salary', label: 'Salary' },
-  { value: 'pct_monthly_profit', label: 'Percentage of monthly profit' },
-  { value: 'pct_engagement_profit', label: 'Percentage of assigned engagement profit' },
+  { value: 'pct_monthly_profit', label: '% of monthly profit' },
+  { value: 'pct_engagement_profit', label: '% of engagement profit' },
 ]
 
 const ROLE_CATEGORIES: { value: RoleCategory; label: string }[] = [
@@ -20,49 +20,26 @@ const ROLE_CATEGORIES: { value: RoleCategory; label: string }[] = [
   { value: 'assistant_mentor', label: 'Asst. Mentors' },
 ]
 
-const MODULE_GROUPS = ['Main', 'People', 'Business', 'Finance', 'System']
-
-const DEFAULT_ROLE_GROUPS: RoleGroup[] = [
-  { id: 'rg-admin', name: 'Admin', module_groups: ['Main', 'People', 'Business', 'Finance', 'System'] },
-  { id: 'rg-operations', name: 'Operations', module_groups: ['Main', 'People', 'Business', 'Finance'] },
-  { id: 'rg-course-builder', name: 'Course Builder', module_groups: ['Main', 'Business'] },
-]
-
 const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
   staff: ['hourly', 'salary'],
   mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
   assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
 }
 
-function CollapseCard({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen)
+type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'notifications' | 'integrations'
 
-  return (
-    <div className="bg-white rounded-md border border-gray-200/80">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-8 py-5 text-left"
-      >
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-        <svg
-          className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-        </svg>
-      </button>
-      {open && (
-        <div className="px-8 pb-8 pt-0">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
+const TABS: { key: SettingsTab; label: string }[] = [
+  { key: 'branding', label: 'Branding' },
+  { key: 'payroll', label: 'Payroll' },
+  { key: 'mentee_flow', label: 'Mentee Flow' },
+  { key: 'cancellation', label: 'Cancellation Policy' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'integrations', label: 'Integrations' },
+]
 
 export default function CompanySettingsPage() {
   const { profile } = useAuth()
+  const [activeTab, setActiveTab] = useState<SettingsTab>('branding')
 
   const [org, setOrg] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
@@ -71,7 +48,6 @@ export default function CompanySettingsPage() {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Form state
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
@@ -82,575 +58,274 @@ export default function CompanySettingsPage() {
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [newStepName, setNewStepName] = useState('')
   const [cancellationPolicy, setCancellationPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
-  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>(DEFAULT_ROLE_GROUPS)
-  const [newGroupName, setNewGroupName] = useState('')
 
   useEffect(() => {
     if (!profile) return
-
     async function fetchOrg() {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', profile!.organization_id)
-        .single()
-
-      if (error) {
-        setMsg({ type: 'error', text: 'Failed to load organization: ' + error.message })
-        setLoading(false)
-        return
-      }
-
+      const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()
+      if (error) { setMsg({ type: 'error', text: 'Failed to load: ' + error.message }); setLoading(false); return }
       const o = data as Organization
       setOrg(o)
-      setName(o.name)
-      setSlug(o.slug)
-      setLogoUrl(o.logo_url ?? '')
-      setPrimaryColor(o.primary_color)
-      setSecondaryColor(o.secondary_color)
-      setTertiaryColor(o.tertiary_color)
+      setName(o.name); setSlug(o.slug); setLogoUrl(o.logo_url ?? '')
+      setPrimaryColor(o.primary_color); setSecondaryColor(o.secondary_color); setTertiaryColor(o.tertiary_color)
       setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
       setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
       setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
-      setRoleGroups(o.role_groups ?? DEFAULT_ROLE_GROUPS)
       setLoading(false)
     }
-
     fetchOrg()
   }, [profile])
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!org) return
-    setMsg(null)
-    setSaving(true)
-
+    setMsg(null); setSaving(true)
     const updates = {
-      name: name.trim(),
-      slug: slug.trim().toLowerCase(),
-      logo_url: logoUrl.trim() || null,
-      primary_color: primaryColor.trim(),
-      secondary_color: secondaryColor.trim(),
-      tertiary_color: tertiaryColor.trim(),
-      pay_type_settings: paySettings,
-      mentee_flow: { steps: flowSteps },
-      default_cancellation_policy: cancellationPolicy,
-      role_groups: roleGroups,
+      name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null,
+      primary_color: primaryColor.trim(), secondary_color: secondaryColor.trim(), tertiary_color: tertiaryColor.trim(),
+      pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
     }
-
-    const { error } = await supabase
-      .from('organizations')
-      .update(updates)
-      .eq('id', org.id)
-
+    const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
     setSaving(false)
-
-    if (error) {
-      setMsg({ type: 'error', text: error.message })
-      return
-    }
-
+    if (error) { setMsg({ type: 'error', text: error.message }); return }
     const updatedOrg = { ...org, ...updates }
     setOrg(updatedOrg)
     refreshTheme(updatedOrg)
-    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { fields: Object.keys(updates) } })
+    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab } })
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 
   async function handleLogoUpload(file: File) {
     if (!org) return
-    setUploading(true)
-    setMsg(null)
-
+    setUploading(true); setMsg(null)
     const fileExt = file.name.split('.').pop()
     const filePath = `${org.id}/logo.${fileExt}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('logos')
-      .upload(filePath, file, { upsert: true })
-
-    if (uploadError) {
-      setMsg({ type: 'error', text: 'Upload failed: ' + uploadError.message })
-      setUploading(false)
-      return
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('logos')
-      .getPublicUrl(filePath)
-
-    setLogoUrl(urlData.publicUrl)
-    setUploading(false)
-    setMsg({ type: 'success', text: 'Logo uploaded. Click "Save changes" to apply.' })
+    const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file, { upsert: true })
+    if (uploadError) { setMsg({ type: 'error', text: 'Upload failed: ' + uploadError.message }); setUploading(false); return }
+    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(filePath)
+    setLogoUrl(urlData.publicUrl); setUploading(false)
+    setMsg({ type: 'success', text: 'Logo uploaded. Click Save to apply.' })
   }
 
-  if (loading) {
-    return <div className="text-sm text-gray-500">Loading…</div>
-  }
+  if (loading) return <div className="text-sm text-gray-500">Loading…</div>
 
-  const inputClass =
-    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+  const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold text-gray-900 mb-6">Company Settings</h1>
+    <div className="max-w-5xl">
+      <h1 className="text-xl font-semibold text-gray-900 mb-5">Company Settings</h1>
 
-      <form onSubmit={handleSave} className="space-y-4">
-        {msg && (
-          <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-            msg.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}>
-            <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {msg.text}
+      {msg && (
+        <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
+          {msg.text}
+        </div>
+      )}
+
+      <form onSubmit={handleSave}>
+        <div className="flex gap-6">
+          {/* Left nav */}
+          <div className="w-48 shrink-0">
+            <nav className="space-y-0.5 sticky top-6">
+              {TABS.map(tab => (
+                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
+                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                    activeTab === tab.key ? 'bg-brand text-white font-medium' : 'text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+            <div className="mt-6 sticky top-72">
+              <button type="submit" disabled={saving}
+                className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
           </div>
-        )}
 
-        {/* Branding card */}
-        <CollapseCard title="Branding" defaultOpen={true}>
-          <div className="space-y-5">
-            {/* Company name */}
-            <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Company name
-              </label>
-              <input id="companyName" type="text" required value={name}
-                onChange={e => setName(e.target.value)} className={inputClass} />
-            </div>
+          {/* Right content */}
+          <div className="flex-1 min-w-0">
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
 
-            {/* Slug */}
-            <div>
-              <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1.5">
-                URL slug
-              </label>
-              <input id="slug" type="text" required value={slug}
-                onChange={e => setSlug(e.target.value)}
-                placeholder="my-company"
-                className={inputClass} />
-              <p className="mt-1 text-xs text-gray-400">Used in URLs. Lowercase, no spaces.</p>
-            </div>
+              {/* ====== BRANDING ====== */}
+              {activeTab === 'branding' && (
+                <div className="space-y-5">
+                  <h2 className="text-base font-semibold text-gray-900">Branding</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Company name</label>
+                      <input type="text" required value={name} onChange={e => setName(e.target.value)} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">URL slug</label>
+                      <input type="text" required value={slug} onChange={e => setSlug(e.target.value)} placeholder="my-company" className={inputClass} />
+                    </div>
+                  </div>
 
-            {/* Logo */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Logo
-              </label>
+                  {/* Logo */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Logo</label>
+                    <div className="flex items-center gap-4">
+                      {logoUrl && (
+                        <img src={logoUrl} alt="Logo" className="h-10 w-10 rounded object-contain border border-gray-200"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      )}
+                      <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f) }} />
+                      <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}
+                        className="rounded border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                        {uploading ? 'Uploading…' : 'Upload'}
+                      </button>
+                      <span className="text-xs text-gray-400">or</span>
+                      <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." className={inputClass} />
+                    </div>
+                  </div>
 
-              {/* Preview */}
-              {logoUrl && (
-                <div className="mb-3 flex items-center gap-3">
-                  <img
-                    src={logoUrl}
-                    alt="Logo preview"
-                    className="h-12 w-12 rounded object-contain border border-gray-200"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                  />
-                  <span className="text-xs text-gray-400">Current logo</span>
+                  {/* Colors */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Brand colors</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { label: 'Primary', value: primaryColor, set: setPrimaryColor },
+                        { label: 'Secondary', value: secondaryColor, set: setSecondaryColor },
+                        { label: 'Tertiary', value: tertiaryColor, set: setTertiaryColor },
+                      ].map(c => (
+                        <div key={c.label} className="flex items-center gap-2">
+                          <input type="color" value={c.value} onChange={e => c.set(e.target.value)}
+                            className="h-8 w-8 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0" />
+                          <div>
+                            <input type="text" value={c.value} onChange={e => c.set(e.target.value)}
+                              className="w-24 rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand transition" />
+                            <p className="text-[10px] text-gray-400 mt-0.5">{c.label}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-3">
-                {/* Upload button */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0]
-                    if (file) handleLogoUpload(file)
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={uploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  {uploading ? 'Uploading…' : 'Upload logo'}
-                </button>
-                <span className="text-xs text-gray-400">or</span>
-              </div>
-
-              {/* URL input */}
-              <input
-                id="logoUrl"
-                type="url"
-                value={logoUrl}
-                onChange={e => setLogoUrl(e.target.value)}
-                placeholder="https://example.com/logo.png"
-                className={inputClass + ' mt-2'}
-              />
-            </div>
-
-            {/* Brand colors */}
-            <div>
-              <p className="block text-sm font-medium text-gray-700 mb-3">Brand colors</p>
-              <div className="space-y-3">
-                {/* Primary */}
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={primaryColor}
-                    onChange={e => setPrimaryColor(e.target.value)}
-                    className="h-10 w-10 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={primaryColor}
-                    onChange={e => setPrimaryColor(e.target.value)}
-                    className={inputClass + ' max-w-32'}
-                  />
-                  <span className="text-xs text-gray-400">Primary</span>
+              {/* ====== PAYROLL ====== */}
+              {activeTab === 'payroll' && (
+                <div className="space-y-5">
+                  <h2 className="text-base font-semibold text-gray-900">Payroll Settings</h2>
+                  <p className="text-sm text-gray-500">Configure which compensation methods are available for each role.</p>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="text-left pb-3 pr-6 text-xs font-semibold uppercase tracking-wider text-gray-400">Type</th>
+                        {ROLE_CATEGORIES.map(rc => (
+                          <th key={rc.value} className="pb-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 text-center">{rc.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PAY_TYPES.map((pt, i) => (
+                        <tr key={pt.value} className={i < PAY_TYPES.length - 1 ? 'border-b border-gray-100' : ''}>
+                          <td className="py-3 pr-6 text-sm text-gray-900">{pt.label}</td>
+                          {ROLE_CATEGORIES.map(rc => {
+                            const checked = paySettings[rc.value]?.includes(pt.value) ?? false
+                            return (
+                              <td key={rc.value} className="py-3 px-4 text-center">
+                                <button type="button" onClick={() => {
+                                  setPaySettings(prev => {
+                                    const current = prev[rc.value] ?? []
+                                    const next = checked ? current.filter(t => t !== pt.value) : [...current, pt.value]
+                                    return { ...prev, [rc.value]: next }
+                                  })
+                                }} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-brand' : 'bg-gray-200'}`}>
+                                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                {/* Secondary */}
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={secondaryColor}
-                    onChange={e => setSecondaryColor(e.target.value)}
-                    className="h-10 w-10 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={secondaryColor}
-                    onChange={e => setSecondaryColor(e.target.value)}
-                    className={inputClass + ' max-w-32'}
-                  />
-                  <span className="text-xs text-gray-400">Secondary</span>
-                </div>
-                {/* Tertiary */}
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={tertiaryColor}
-                    onChange={e => setTertiaryColor(e.target.value)}
-                    className="h-10 w-10 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={tertiaryColor}
-                    onChange={e => setTertiaryColor(e.target.value)}
-                    className={inputClass + ' max-w-32'}
-                  />
-                  <span className="text-xs text-gray-400">Tertiary</span>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-gray-400">Primary is used for buttons and active states. Secondary and tertiary are used for accents.</p>
-            </div>
-          </div>
-        </CollapseCard>
+              )}
 
-        {/* Payroll Settings */}
-        <CollapseCard title="Payroll Settings" defaultOpen={false}>
-          <div>
-            <p className="text-sm text-gray-500 mb-5">Configure which compensation methods are available for each role.</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left pb-3 pr-6 text-xs font-semibold uppercase tracking-wider text-gray-400">Compensation Type</th>
-                    {ROLE_CATEGORIES.map(rc => (
-                      <th key={rc.value} className="pb-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 text-center">{rc.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {PAY_TYPES.map((pt, i) => (
-                    <tr key={pt.value} className={i < PAY_TYPES.length - 1 ? 'border-b border-gray-100' : ''}>
-                      <td className="py-3 pr-6 text-sm text-gray-900">{pt.label}</td>
-                      {ROLE_CATEGORIES.map(rc => {
-                        const checked = paySettings[rc.value]?.includes(pt.value) ?? false
-                        return (
-                          <td key={rc.value} className="py-3 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPaySettings(prev => {
-                                  const current = prev[rc.value] ?? []
-                                  const next = checked
-                                    ? current.filter(t => t !== pt.value)
-                                    : [...current, pt.value]
-                                  return { ...prev, [rc.value]: next }
-                                })
-                              }}
-                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                checked ? 'bg-brand' : 'bg-gray-200'
-                              }`}
-                            >
-                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-                                checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                              }`} />
-                            </button>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </CollapseCard>
+              {/* ====== MENTEE FLOW ====== */}
+              {activeTab === 'mentee_flow' && (
+                <div className="space-y-5">
+                  <h2 className="text-base font-semibold text-gray-900">Mentee Flow</h2>
+                  <p className="text-sm text-gray-500">Define the expected progression of mentees through your program.</p>
 
-        {/* Mentee Flow */}
-        <CollapseCard title="Mentee Flow" defaultOpen={false}>
-          <div>
-            <p className="text-sm text-gray-500 mb-4">
-              Define the expected progression of mentees through your program. Items marked as "In flow" form the main path. Other statuses are available but not part of the sequence.
-            </p>
-
-            {/* Flow list */}
-            {flowSteps.length > 0 && (
-              <div className="space-y-1 mb-4">
-                {flowSteps
-                  .sort((a, b) => {
-                    if (a.in_flow && !b.in_flow) return -1
-                    if (!a.in_flow && b.in_flow) return 1
-                    return a.order - b.order
-                  })
-                  .map((step, _idx, sorted) => {
-                    const flowItems = sorted.filter(s => s.in_flow)
-                    const flowIdx = step.in_flow ? flowItems.indexOf(step) : -1
-
-                    return (
-                      <div key={step.id} className={`flex items-center gap-3 px-3 py-2 rounded border ${
-                        step.in_flow ? 'border-brand/30 bg-brand-light' : 'border-gray-200 bg-gray-50'
-                      }`}>
-                        {/* Order controls */}
-                        {step.in_flow && (
-                          <div className="flex flex-col gap-0.5 shrink-0">
-                            <button type="button" disabled={flowIdx === 0}
-                              onClick={() => {
-                                const prev = flowItems[flowIdx - 1]
-                                setFlowSteps(steps => steps.map(s => {
-                                  if (s.id === step.id) return { ...s, order: prev.order }
-                                  if (s.id === prev.id) return { ...s, order: step.order }
-                                  return s
-                                }))
-                              }}
-                              className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&uarr;</button>
-                            <button type="button" disabled={flowIdx === flowItems.length - 1}
-                              onClick={() => {
-                                const next = flowItems[flowIdx + 1]
-                                setFlowSteps(steps => steps.map(s => {
-                                  if (s.id === step.id) return { ...s, order: next.order }
-                                  if (s.id === next.id) return { ...s, order: step.order }
-                                  return s
-                                }))
-                              }}
-                              className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&darr;</button>
-                          </div>
-                        )}
-                        {!step.in_flow && <div className="w-3" />}
-
-                        {/* Step info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900 truncate">{step.name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                              step.type === 'course' ? 'bg-violet-50 text-violet-600' :
-                              step.type === 'engagement' ? 'bg-blue-50 text-blue-600' :
-                              'bg-gray-100 text-gray-500'
-                            }`}>
-                              {step.type}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* In flow toggle */}
-                        <button type="button"
-                          onClick={() => {
-                            setFlowSteps(steps => steps.map(s =>
-                              s.id === step.id ? { ...s, in_flow: !s.in_flow } : s
-                            ))
-                          }}
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${
-                            step.in_flow ? 'bg-brand' : 'bg-gray-200'
-                          }`}>
-                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-                            step.in_flow ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                          }`} />
-                        </button>
-
-                        {/* Delete */}
-                        <button type="button"
-                          onClick={() => setFlowSteps(steps => steps.filter(s => s.id !== step.id))}
-                          className="text-gray-300 hover:text-red-500 transition-colors shrink-0 text-sm">&times;</button>
-                      </div>
-                    )
-                  })}
-              </div>
-            )}
-
-            {flowSteps.length > 0 && (
-              <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-brand inline-block" /> In flow
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Available status (not in flow)
-                </span>
-              </div>
-            )}
-
-            {/* Add custom status */}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newStepName}
-                onChange={e => setNewStepName(e.target.value)}
-                placeholder="Add a status (e.g. Lead, Waiting List, Graduated)"
-                className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    if (!newStepName.trim()) return
-                    const maxOrder = flowSteps.length
-                    setFlowSteps(steps => [...steps, {
-                      id: crypto.randomUUID(),
-                      name: newStepName.trim(),
-                      type: 'status',
-                      offering_id: null,
-                      in_flow: true,
-                      order: maxOrder,
-                    }])
-                    setNewStepName('')
-                  }
-                }}
-              />
-              <button type="button"
-                onClick={() => {
-                  if (!newStepName.trim()) return
-                  const maxOrder = flowSteps.length
-                  setFlowSteps(steps => [...steps, {
-                    id: crypto.randomUUID(),
-                    name: newStepName.trim(),
-                    type: 'status',
-                    offering_id: null,
-                    in_flow: true,
-                    order: maxOrder,
-                  }])
-                  setNewStepName('')
-                }}
-                className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
-                Add
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">Courses and engagements are added to this list when you create them with "Add to mentee flow" checked.</p>
-          </div>
-        </CollapseCard>
-
-        {/* Role Groups */}
-        <CollapseCard title="Role Groups" defaultOpen={false}>
-          <div>
-            <p className="text-sm text-gray-500 mb-4">
-              Define access groups that control which modules staff members can see. Assign groups to staff from the Staff module.
-            </p>
-
-            {roleGroups.map(group => (
-              <div key={group.id} className="mb-4 border border-gray-200 rounded-md p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <input
-                    type="text"
-                    value={group.name}
-                    onChange={e => setRoleGroups(gs => gs.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
-                    className="text-sm font-semibold text-gray-900 border-0 outline-none bg-transparent p-0 focus:ring-0"
-                  />
-                  {group.id !== 'rg-admin' && (
-                    <button type="button"
-                      onClick={() => setRoleGroups(gs => gs.filter(g => g.id !== group.id))}
-                      className="text-xs text-gray-300 hover:text-red-500 transition-colors">&times;</button>
+                  {flowSteps.length > 0 && (
+                    <div className="space-y-1">
+                      {flowSteps
+                        .sort((a, b) => { if (a.in_flow && !b.in_flow) return -1; if (!a.in_flow && b.in_flow) return 1; return a.order - b.order })
+                        .map((_step, _idx, sorted) => {
+                          const step = _step
+                          const flowItems = sorted.filter(s => s.in_flow)
+                          const flowIdx = step.in_flow ? flowItems.indexOf(step) : -1
+                          return (
+                            <div key={step.id} className={`flex items-center gap-3 px-3 py-2 rounded border ${step.in_flow ? 'border-brand/30 bg-brand-light' : 'border-gray-200 bg-gray-50'}`}>
+                              {step.in_flow ? (
+                                <div className="flex flex-col gap-0.5 shrink-0">
+                                  <button type="button" disabled={flowIdx === 0} onClick={() => {
+                                    const prev = flowItems[flowIdx - 1]
+                                    setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, order: prev.order } : x.id === prev.id ? { ...x, order: step.order } : x))
+                                  }} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&uarr;</button>
+                                  <button type="button" disabled={flowIdx === flowItems.length - 1} onClick={() => {
+                                    const next = flowItems[flowIdx + 1]
+                                    setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, order: next.order } : x.id === next.id ? { ...x, order: step.order } : x))
+                                  }} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&darr;</button>
+                                </div>
+                              ) : <div className="w-3" />}
+                              <div className="flex-1 flex items-center gap-2 min-w-0">
+                                <span className="text-sm font-medium text-gray-900 truncate">{step.name}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${step.type === 'course' ? 'bg-violet-50 text-violet-600' : step.type === 'engagement' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>{step.type}</span>
+                              </div>
+                              <button type="button" onClick={() => setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, in_flow: !x.in_flow } : x))}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${step.in_flow ? 'bg-brand' : 'bg-gray-200'}`}>
+                                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${step.in_flow ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+                              </button>
+                              <button type="button" onClick={() => setFlowSteps(s => s.filter(x => x.id !== step.id))} className="text-gray-300 hover:text-red-500 transition-colors text-sm">&times;</button>
+                            </div>
+                          )
+                        })}
+                    </div>
                   )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {MODULE_GROUPS.map(mg => {
-                    const active = group.module_groups.includes(mg)
-                    return (
-                      <button key={mg} type="button"
-                        disabled={group.id === 'rg-admin'}
-                        onClick={() => {
-                          setRoleGroups(gs => gs.map(g => {
-                            if (g.id !== group.id) return g
-                            const next = active
-                              ? g.module_groups.filter(m => m !== mg)
-                              : [...g.module_groups, mg]
-                            return { ...g, module_groups: next }
-                          }))
-                        }}
-                        className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
-                          active
-                            ? 'bg-brand text-white border-brand'
-                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                        } ${group.id === 'rg-admin' ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        {mg}
-                      </button>
-                    )
-                  })}
-                </div>
-                {group.id === 'rg-admin' && (
-                  <p className="text-[10px] text-gray-400 mt-2">Admin group always has full access.</p>
-                )}
-              </div>
-            ))}
 
-            {/* Add new group */}
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="text"
-                value={newGroupName}
-                onChange={e => setNewGroupName(e.target.value)}
-                placeholder="New group name"
-                className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    if (!newGroupName.trim()) return
-                    setRoleGroups(gs => [...gs, { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: ['Main'] }])
-                    setNewGroupName('')
-                  }
-                }}
-              />
-              <button type="button"
-                onClick={() => {
-                  if (!newGroupName.trim()) return
-                  setRoleGroups(gs => [...gs, { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: ['Main'] }])
-                  setNewGroupName('')
-                }}
-                className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
-                Add
-              </button>
+                  <div className="flex items-center gap-2">
+                    <input type="text" value={newStepName} onChange={e => setNewStepName(e.target.value)} placeholder="Add a status (e.g. Lead, Graduated)" className={inputClass + ' flex-1'}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!newStepName.trim()) return; setFlowSteps(s => [...s, { id: crypto.randomUUID(), name: newStepName.trim(), type: 'status', offering_id: null, in_flow: true, order: flowSteps.length }]); setNewStepName('') } }} />
+                    <button type="button" onClick={() => { if (!newStepName.trim()) return; setFlowSteps(s => [...s, { id: crypto.randomUUID(), name: newStepName.trim(), type: 'status', offering_id: null, in_flow: true, order: flowSteps.length }]); setNewStepName('') }}
+                      className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ====== CANCELLATION POLICY ====== */}
+              {activeTab === 'cancellation' && (
+                <div className="space-y-5">
+                  <h2 className="text-base font-semibold text-gray-900">Default Cancellation Policy</h2>
+                  <p className="text-sm text-gray-500">Set the default cancellation policy for engagements. Individual engagements can override this.</p>
+                  <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
+                </div>
+              )}
+
+              {/* ====== NOTIFICATIONS ====== */}
+              {activeTab === 'notifications' && (
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 mb-2">Notifications</h2>
+                  <p className="text-sm text-gray-500">Notification preferences coming soon.</p>
+                </div>
+              )}
+
+              {/* ====== INTEGRATIONS ====== */}
+              {activeTab === 'integrations' && (
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 mb-2">Integrations</h2>
+                  <p className="text-sm text-gray-500">Third-party integrations coming soon.</p>
+                </div>
+              )}
+
             </div>
           </div>
-        </CollapseCard>
-
-        {/* Default Cancellation Policy */}
-        <CollapseCard title="Default Cancellation Policy" defaultOpen={false}>
-          <div>
-            <p className="text-sm text-gray-500 mb-4">
-              Set the default cancellation policy for engagements. Individual engagements can override this.
-            </p>
-            <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
-          </div>
-        </CollapseCard>
-
-        {/* Placeholder cards for future settings */}
-        <CollapseCard title="Notifications">
-          <p className="text-sm text-gray-500">Notification preferences coming soon.</p>
-        </CollapseCard>
-
-        <CollapseCard title="Integrations">
-          <p className="text-sm text-gray-500">Third-party integrations coming soon.</p>
-        </CollapseCard>
-
-        {/* Save button outside cards */}
-        <div className="pt-2">
-          <button type="submit" disabled={saving}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
         </div>
       </form>
     </div>

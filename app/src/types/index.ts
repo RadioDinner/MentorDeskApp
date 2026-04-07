@@ -133,6 +133,7 @@ export interface StaffMember {
   pay_type: PayType | null
   pay_rate: number | null
   access_groups: string[]
+  allowed_modules: string[]
   created_at: string
   updated_at: string
 }

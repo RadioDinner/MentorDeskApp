@@ -219,3 +219,9 @@ Prompt 45:
 Fit all course creation settings on single screen. Add billing mode:
 one-time (fixed price, optional due date) or monthly recurring (charged
 until mentee completes all lessons). Setup fee for both modes.
+
+Prompt 46:
+Unsatisfied with company settings layout (collapsible cards). Switch to
+sidebar nav layout. Also redesign staff access: per-module round icons
+on each staff member with dropdown for granular module-level control
+instead of role groups.

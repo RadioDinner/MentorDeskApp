@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { StaffMember, StaffRole, RoleGroup } from '../types'
+import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
+import type { StaffMember, StaffRole } from '../types'
 
 interface PeopleListPageProps {
   title: string
@@ -13,11 +14,77 @@ interface PeopleListPageProps {
   showAccessGroups?: boolean
 }
 
+function ModuleAccessControl({ person, onUpdate }: { person: StaffMember; onUpdate: (modules: string[]) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const allowed = person.allowed_modules ?? []
+  const assignable = ALL_MODULES.filter(m => !ALWAYS_VISIBLE.includes(m.key))
+  const groups = modulesByGroup().filter(g => g.group !== 'Main')
+
+  function toggle(key: string) {
+    const next = allowed.includes(key) ? allowed.filter(k => k !== key) : [...allowed, key]
+    onUpdate(next)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      {/* Icon row */}
+      <div className="flex items-center gap-0.5">
+        {assignable.map(mod => {
+          const active = allowed.includes(mod.key)
+          return (
+            <button key={mod.key} type="button"
+              onClick={() => setOpen(!open)}
+              title={mod.label}
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] transition-all ${
+                active ? `${mod.color} text-white` : 'bg-gray-200 text-gray-400'
+              }`}>
+              {mod.icon}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute right-0 top-7 z-50 w-56 bg-white rounded-md shadow-md border border-gray-200 py-1 max-h-80 overflow-y-auto">
+          {groups.map(g => (
+            <div key={g.group}>
+              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{g.group}</p>
+              {g.modules.map(mod => {
+                const active = allowed.includes(mod.key)
+                return (
+                  <button key={mod.key} type="button"
+                    onClick={() => toggle(mod.key)}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left hover:bg-gray-50 transition-colors">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] ${active ? `${mod.color} text-white` : 'bg-gray-200 text-gray-400'}`}>
+                      {mod.icon}
+                    </span>
+                    <span className={`text-sm ${active ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>{mod.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PeopleListPage({ title, roles, createLabel, createRoute, showAccessGroups }: PeopleListPageProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
-  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,7 +95,6 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       setLoading(true)
       setError(null)
 
-      // No roles means this module doesn't have a data source yet
       if (roles.length === 0) {
         setPeople([])
         setLoading(false)
@@ -56,43 +122,26 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       }
 
       setPeople(data as StaffMember[])
-
-      if (showAccessGroups) {
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('role_groups')
-          .eq('id', profile!.organization_id)
-          .single()
-        if (orgData?.role_groups) setRoleGroups(orgData.role_groups as RoleGroup[])
-      }
-
       setLoading(false)
     }
 
     fetchPeople()
   }, [profile, roles])
 
-  async function toggleGroup(person: StaffMember, groupId: string) {
+  async function updateModules(personId: string, modules: string[]) {
     if (!profile) return
-    const current = person.access_groups ?? []
-    const next = current.includes(groupId)
-      ? current.filter(g => g !== groupId)
-      : [...current, groupId]
-
     const { error: updateError } = await supabase
       .from('staff')
-      .update({ access_groups: next })
-      .eq('id', person.id)
+      .update({ allowed_modules: modules })
+      .eq('id', personId)
 
     if (updateError) return
 
-    setPeople(ps => ps.map(p => p.id === person.id ? { ...p, access_groups: next } : p))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { fields: 'access_groups', access_groups: next } })
+    setPeople(ps => ps.map(p => p.id === personId ? { ...p, allowed_modules: modules } : p))
+    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: personId, details: { fields: 'allowed_modules', allowed_modules: modules } })
   }
 
-  if (loading) {
-    return <div className="text-sm text-gray-500">Loading...</div>
-  }
+  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 
   if (error) {
     return (
@@ -120,20 +169,17 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       </div>
 
       {people.length === 0 ? (
-        <div className="bg-white rounded-md border border-gray-200/80  px-6 py-12 text-center">
+        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
           <p className="text-sm text-gray-500">No {title.toLowerCase()} found.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-md border border-gray-200/80  divide-y divide-gray-100">
+        <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
           {people.map(person => (
-            <div key={person.id} className="flex items-center justify-between px-5 py-4">
+            <div key={person.id} className="flex items-center justify-between px-5 py-3">
               <div className="flex items-center gap-4">
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
                   {person.first_name[0]}{person.last_name[0]}
                 </div>
-
-                {/* Name + email */}
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {person.first_name} {person.last_name}
@@ -142,27 +188,12 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
                 </div>
               </div>
 
-              {/* Role groups + Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                {showAccessGroups && roleGroups.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    {roleGroups.map(rg => {
-                      const active = (person.access_groups ?? []).includes(rg.id)
-                      return (
-                        <button key={rg.id} type="button"
-                          onClick={() => toggleGroup(person, rg.id)}
-                          title={`${rg.name}: ${active ? 'Remove' : 'Add'}`}
-                          className={`px-2 py-0.5 text-[10px] font-medium rounded border transition-colors ${
-                            active
-                              ? 'bg-brand text-white border-brand'
-                              : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600'
-                          }`}
-                        >
-                          {rg.name}
-                        </button>
-                      )
-                    })}
-                  </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {showAccessGroups && person.role !== 'admin' && (
+                  <ModuleAccessControl
+                    person={person}
+                    onUpdate={(modules) => updateModules(person.id, modules)}
+                  />
                 )}
                 <button
                   onClick={() => navigate(`/people/${person.id}/edit`)}
