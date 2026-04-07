@@ -17,3 +17,6 @@ will each one need an auth?
 
 Prompt 3:
 How do I create the env vars? Or where do I find them?
+
+Prompt 4:
+Write up the steps to get me a test user for my test org "TechBeans"
