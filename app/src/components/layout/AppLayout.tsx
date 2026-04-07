@@ -16,7 +16,7 @@ export default function AppLayout() {
   const title = PAGE_TITLES[location.pathname] ?? 'MentorDesk'
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-100">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar title={title} />

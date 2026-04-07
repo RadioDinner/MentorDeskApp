@@ -119,7 +119,7 @@ export default function ProfilePage() {
     <div className="max-w-2xl space-y-8">
 
       {/* --- Profile Info --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-8 py-8">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
 
         <form onSubmit={handleProfileSubmit} className="space-y-5">
@@ -222,7 +222,7 @@ export default function ProfilePage() {
       </div>
 
       {/* --- Change Password --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-8 py-8">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Change Password</h2>
 
         <form onSubmit={handlePasswordSubmit} className="space-y-5">

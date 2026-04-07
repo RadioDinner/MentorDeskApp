@@ -23,7 +23,7 @@ export default function Topbar({ title }: TopbarProps) {
   }, [])
 
   return (
-    <header className="h-14 shrink-0 flex items-center justify-between px-6 bg-white border-b border-gray-200">
+    <header className="h-14 shrink-0 flex items-center justify-between px-6 bg-white border-b border-gray-200/80">
       <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
 
       {profile && (

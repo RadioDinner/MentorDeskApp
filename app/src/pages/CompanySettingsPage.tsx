@@ -83,7 +83,7 @@ export default function CompanySettingsPage() {
   return (
     <div className="max-w-2xl space-y-8">
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-8 py-8">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Company Settings</h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">

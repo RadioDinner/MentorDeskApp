@@ -25,11 +25,11 @@ export default function Sidebar() {
   )
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col bg-white border-r border-gray-200 min-h-screen">
+    <aside className="w-56 shrink-0 flex flex-col bg-slate-900 min-h-screen">
 
       {/* Brand */}
-      <div className="px-5 py-5 border-b border-gray-200">
-        <span className="text-base font-semibold text-gray-900 tracking-tight">MentorDesk</span>
+      <div className="px-5 py-5 border-b border-slate-700/50">
+        <span className="text-base font-semibold text-white tracking-tight">MentorDesk</span>
       </div>
 
       {/* Nav */}
@@ -41,8 +41,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`
             }
           >
@@ -54,11 +54,11 @@ export default function Sidebar() {
 
       {/* User info */}
       {profile && (
-        <div className="px-4 py-4 border-t border-gray-200">
-          <p className="text-xs font-medium text-gray-900 truncate">
+        <div className="px-4 py-4 border-t border-slate-700/50">
+          <p className="text-xs font-medium text-slate-200 truncate">
             {profile.first_name} {profile.last_name}
           </p>
-          <p className="text-xs text-gray-500 capitalize">{profile.role}</p>
+          <p className="text-xs text-slate-400 capitalize">{profile.role}</p>
         </div>
       )}
 

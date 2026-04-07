@@ -80,3 +80,8 @@ Can you see images? I want to start building the admin homepage dashboard
 to look similar to this (provided screenshot of admin dashboard with
 greeting, stat cards, People section with Mentors/Mentees/Staff rows,
 and System section)
+
+Prompt 19:
+I don't like the colors you have chosen for the page. I want a dark blueish
+side bar, like the picture I sent, with a light grey background and then you
+can use white or a very very light gray for the modules

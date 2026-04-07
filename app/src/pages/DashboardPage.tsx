@@ -81,7 +81,7 @@ export default function DashboardPage() {
       {isAdmin && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {statCards.map(card => (
-            <div key={card.label} className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+            <div key={card.label} className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-5 py-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center`}>
                   <svg className={`w-4 h-4 ${card.iconColor}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -105,7 +105,7 @@ export default function DashboardPage() {
       {isAdmin && (
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">People</h3>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
             {peopleItems.map(item => (
               <div key={item.title} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">
@@ -142,7 +142,7 @@ export default function DashboardPage() {
       {isAdmin && (
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">System</h3>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm divide-y divide-gray-100">
             {systemItems.map(item => (
               <div key={item.title} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">
@@ -173,7 +173,7 @@ export default function DashboardPage() {
 
       {/* Non-admin fallback */}
       {!isAdmin && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-6 py-8 text-center">
           <p className="text-sm text-gray-500">
             Welcome back, {profile.first_name}. You are signed in as <span className="font-medium capitalize">{profile.role}</span>.
           </p>
