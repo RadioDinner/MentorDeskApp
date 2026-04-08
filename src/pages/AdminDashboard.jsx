@@ -64,7 +64,6 @@ export default function AdminDashboard() {
     {
       title: 'Finance',
       items: [
-        { icon: CreditCard,  label: 'Billing',   desc: 'Your subscription & payment',        color: '#6366f1', editPath: '/admin/billing',         addPath: null, perm: 'mod_billing' },
         { icon: Receipt,     label: 'Invoicing', desc: 'Mentee billing & invoices',           color: '#10b981', editPath: '/admin/invoicing',       addPath: null, perm: 'mod_invoicing' },
         { icon: DollarSign,  label: 'Payroll',   desc: 'Mentor compensation & payouts',       color: '#f59e0b', editPath: '/admin/mentor-payroll',  addPath: null, perm: 'mod_payroll' },
       ]

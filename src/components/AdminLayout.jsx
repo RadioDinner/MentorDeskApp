@@ -29,12 +29,12 @@ const allProgramNav = [
 ]
 
 const allFinanceNav = [
-  { icon: CreditCard,  label: 'Billing',   path: '/admin/billing',         perm: 'mod_billing',    feature: 'billing' },
   { icon: Receipt,     label: 'Invoicing', path: '/admin/invoicing',       perm: 'mod_invoicing',  feature: 'invoicing' },
   { icon: DollarSign,  label: 'Payroll',   path: '/admin/mentor-payroll',  perm: 'mod_payroll',    feature: 'payroll' },
 ]
 
 const allSystemNav = [
+  { icon: CreditCard,     label: 'Billing',     path: '/admin/billing',    perm: 'mod_billing',    feature: 'billing' },
   { icon: ClipboardList,  label: 'Audit Log',   path: '/admin/audit-log',  perm: 'mod_audit_log' },
   { icon: Settings,       label: 'Settings',    path: '/admin/settings',   perm: 'mod_settings' },
 ]
