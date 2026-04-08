@@ -1,0 +1,167 @@
+SESSION 006 - HANDOFF LOG
+==========================
+Date: 2026-04-08
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Major bug-fix and feature session. Fixed the persistent Loading bug with
+multiple layers of timeouts, added error reporting infrastructure for
+auto-creating GitHub Issues, renamed assignments→pairings, built dedicated
+mentee and mentor portals with role-specific sidebars and dashboards,
+enabled multi-role accounts (same person as admin+mentor+mentee).
+
+
+CHANGES MADE
+-------------
+
+1. LOADING BUG FIXES (multiple layers):
+   - AuthContext: wrapped onAuthStateChange in try/catch/finally so
+     setLoading(false) always runs; added 6s safety timeout; fixed
+     applyProfile fallback when profileId doesn't match any staff record
+   - ProtectedRoute: added 8s timeout — forces through even if auth hangs;
+     added "Report bug occurrence" button that captures comprehensive
+     diagnostic data (auth state, session, staff records, my_organization_id
+     RPC result, browser info) and writes to error_reports table
+   - useLoadingGuard hook: 8s timeout on all data-fetching pages
+   - All page-level loading guards applied to 9 pages
+
+2. COURSE BUILDER FIXES:
+   - Supabase SDK write calls to lessons/lesson_questions were hanging
+     forever (reads worked fine)
+   - Added withTimeout() utility and supabaseRestCall() for direct REST API
+   - Switched addLesson, saveLesson, addQuestion to use raw fetch() calls
+     bypassing the Supabase JS SDK
+   - "Test DB" button added for diagnostics (tests read, write SDK, write
+     fetch, lessons table specifically)
+   - Removed redundant "Save Question" button — questions auto-save on blur
+   - Likely root cause: PostgREST stale schema cache — user should run
+     NOTIFY pgrst, 'reload schema' in SQL editor
+
+3. OFFERING EDIT PAGE FIX:
+   - handleSave had NO try/catch/finally — setSaving(false) wouldn't run
+     on errors. Wrapped properly.
+
+4. LOGAUDIT AWAITED:
+   - All 25 logAudit() calls across 14 files now properly awaited
+
+5. ERROR REPORTING SYSTEM:
+   - error_reports table (migration 982) — captures all app errors
+   - reportError() / reportSupabaseError() utilities in lib/errorReporter.ts
+   - ErrorBoundary: auto-reports React crashes
+   - Global handlers: unhandled promise rejections + uncaught errors
+   - Integrated into: PersonCreatePage, MenteeCreatePage, CourseBuilderPage,
+     OfferingCreatePage, OfferingEditPage
+   - Supabase Edge Function (report-error-to-github): auto-creates GitHub
+     Issues, deduplicates by adding comments to existing open issues
+   - Friendly error messages for duplicate email constraint violations
+
+6. MULTI-ROLE ACCOUNTS:
+   - Dropped unique constraint on staff(organization_id, email)
+   - New constraint: staff(organization_id, email, role) — same email can
+     have one record per role per org
+   - PersonCreatePage: auto-links user_id when creating role for existing
+     email, auto-refreshes profile switcher
+   - MenteeCreatePage: same auto-link behavior for mentee records
+   - Profile switcher in Topbar already existed (from Session 005)
+
+7. ASSIGNMENTS → PAIRINGS RENAME:
+   - Migration 980: renamed table, enum, constraints, triggers, RLS policies
+   - Added offering_id column (which engagement a pairing is for)
+   - Added allow_multi_engagement org setting
+   - All code references updated across 5 files
+   - CompanySettingsPage: new toggle "Multiple open engagements per mentee"
+
+8. MENTEE PORTAL:
+   - Dedicated mentee sidebar: Home, My Engagements, My Courses, Billing
+   - No access to admin modules whatsoever
+   - MenteeDashboardPage: active engagements with mentor name, quick links
+   - MenteeEngagementsPage: all pairings (active + completed)
+   - MenteeCoursesPage: course-type offerings assigned to them
+   - MenteeBillingPage: comprehensive with two tabs:
+     * Invoices: view all invoices, outstanding balance banner
+     * Payment Method: enter/update card info (masked storage)
+   - Migration 979: payment_method jsonb column on mentees
+   - Routes: /my-engagements, /my-courses, /my-billing
+
+9. MENTOR PORTAL:
+   - Dedicated mentor sidebar: Home, My Mentees, Reports
+   - No access to admin modules
+   - Mentor dashboard: stats (mentee count, pairing count), mentee cards
+     showing name/email and all active pairings with offering name/type
+   - Mentees page: scoped to only assigned mentees (from Session 006 earlier)
+
+10. MENTEES LIST PAGE IMPROVEMENTS:
+    - Mentors see "My Mentees" (only assigned), admins see all
+    - Mentors get "View" button only, admins get full Edit/Archive/Delete
+
+
+DATABASE MIGRATIONS TO RUN (in order):
+---------------------------------------
+- 982_error_reports.sql (error reporting table)
+- 981_allow_multi_role_staff.sql (drop old unique, add role-aware unique)
+- 980_rename_assignments_to_pairings.sql (table rename + offering_id + multi-engagement)
+- 979_mentee_payment_method.sql (payment_method column on mentees)
+
+Also run: NOTIFY pgrst, 'reload schema'; (fixes PostgREST write issues)
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. SUPABASE SDK WRITE HANG:
+   - Root cause still unknown — reads work via SDK, writes hang
+   - Workaround: raw fetch() for Course Builder operations
+   - Run NOTIFY pgrst, 'reload schema' to see if that resolves it
+   - May need to apply same raw fetch workaround to other write operations
+
+2. LOADING BUG:
+   - Multiple timeout layers now in place (3s/6s/8s)
+   - "Report bug occurrence" button captures diagnostics
+   - Need user to click the button next time it happens and share the
+     error_reports data so root cause can be identified
+
+3. ERROR REPORTING → GITHUB:
+   - Edge Function created but not deployed yet
+   - User needs to: set GITHUB_TOKEN secret, deploy function, create
+     database webhook on error_reports INSERT
+
+4. FEATURES FROM SESSION 005 STILL PENDING:
+   - Reports module (placeholder page exists, mentor sidebar links to it)
+   - Admin-controlled report permissions for mentors
+   - Invoicing page (admin — batch generation)
+   - Payroll page (admin)
+   - Billing page (admin — platform subscription to MentorDesk)
+   - Mentor/Mentee detail pages with full offering/meeting/invoice views
+   - Signup/invite flows
+   - Pairings grid column filtering
+   - Drag-and-drop lesson reorder (exists but basic)
+
+5. MENTEE PORTAL ENHANCEMENTS:
+   - Course viewer (lesson-by-lesson progress, content display)
+   - Actual payment processing (Stripe integration)
+   - Meeting scheduling
+   - Messaging between mentee and mentor
+
+6. MENTOR PORTAL ENHANCEMENTS:
+   - Mentee progress tracking (lesson completion, quiz scores)
+   - Meeting notes / session logs
+   - Reports (admin-controlled permissions)
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- Real codebase: app/ (TypeScript/React 19/Vite/Tailwind CSS 4)
+- Backend: Supabase (Postgres + Auth + RLS)
+- Deployment: Vercel (auto-deploys from main)
+- 10 tables: organizations, staff, mentees, offerings, pairings, lessons,
+  lesson_questions, audit_log, invoices, payroll, error_reports
+- 25+ page components in app/src/pages/
+- 3 role-specific portals: Admin (full), Mentor (mentees + reports),
+  Mentee (engagements + billing)
+- Multi-role accounts: same person can be admin + mentor + mentee
+- Profile switcher in Topbar dropdown
+- Error reporting system (client → Supabase → GitHub Issues)
+- Build passes clean (tsc + vite)
+- CLAUDE.md prevents codebase contamination
