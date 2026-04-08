@@ -28,3 +28,5 @@ SESSION 004 - PROMPT HISTORY
 13. idk what idempotent means
 
 14. ok, sure do that, but make it be migration number 984
+
+15. Review ALL sessions. Did I miss creating an edge function? I currently have no edge functions built.
