@@ -85,7 +85,7 @@ export default function MenteesListPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Mentees</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {activeMentees.length} active{archivedMentees.length > 0 ? `, ${archivedMentees.length} archived` : ''}
+            {activeMentees.length} active{archivedMentees.length > 0 ? `, ${archivedMentees.length} de-activated` : ''}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -98,7 +98,7 @@ export default function MenteesListPage() {
                   : 'border-gray-200 text-gray-500 hover:border-gray-300'
               }`}
             >
-              {showArchived ? 'Hide archived' : `Show archived (${archivedMentees.length})`}
+              {showArchived ? 'Hide de-activated' : `Show de-activated (${archivedMentees.length})`}
             </button>
           )}
           <button
@@ -134,7 +134,7 @@ export default function MenteesListPage() {
                         {mentee.first_name} {mentee.last_name}
                       </p>
                       {isArchived && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium shrink-0">Archived</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium shrink-0">De-activated</span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 truncate">{mentee.email}</p>
@@ -148,7 +148,7 @@ export default function MenteesListPage() {
                         onClick={() => unarchiveMentee(mentee.id)}
                         className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded hover:bg-brand-light transition-colors"
                       >
-                        Restore
+                        Re-activate
                       </button>
                       {isConfirming ? (
                         <div className="flex items-center gap-1.5">
@@ -185,7 +185,7 @@ export default function MenteesListPage() {
                       <button
                         onClick={() => archiveMentee(mentee.id)}
                         className="px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-colors"
-                        title="Archive"
+                        title="De-activate"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />

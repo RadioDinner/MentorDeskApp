@@ -53,6 +53,10 @@ export default function PersonEditPage() {
   const [sendingReset, setSendingReset] = useState(false)
   const [sendingInvite, setSendingInvite] = useState(false)
 
+  // Archive / Delete
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => {
     if (!id) return
 
@@ -247,6 +251,27 @@ export default function PersonEditPage() {
     } finally {
       setSendingInvite(false)
     }
+  }
+
+  async function handleArchive() {
+    if (!person || !currentUser) return
+    const isArchived = !!person.archived_at
+    const now = isArchived ? null : new Date().toISOString()
+    const { error } = await supabase.from('staff').update({ archived_at: now }).eq('id', person.id)
+    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    setPerson({ ...person, archived_at: now } as StaffMember)
+    logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
+    setActionMsg({ type: 'success', text: isArchived ? 'Record restored.' : 'Record archived.' })
+  }
+
+  async function handleDelete() {
+    if (!person || !currentUser) return
+    setDeleting(true)
+    const { error } = await supabase.from('staff').delete().eq('id', person.id)
+    setDeleting(false)
+    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
+    navigate(-1)
   }
 
   if (loading) {
@@ -536,6 +561,56 @@ export default function PersonEditPage() {
                     : 'Creates a login account and sends an invite email.'}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Danger Zone */}
+          <div className="bg-white rounded-md border border-red-200 px-6 py-6">
+            <h2 className="text-base font-semibold text-red-600 mb-4">Danger Zone</h2>
+            <div className="space-y-3">
+              {/* Archive / Restore */}
+              <div>
+                <button type="button" onClick={handleArchive}
+                  className={`w-full rounded border px-4 py-2.5 text-sm font-medium transition-colors text-left ${person.archived_at ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}`}>
+                  {person.archived_at ? 'Restore this person' : 'Archive this person'}
+                </button>
+                <p className="text-xs text-gray-400 mt-1 px-1">
+                  {person.archived_at
+                    ? 'Restoring will make them active again.'
+                    : 'Archiving hides them from active lists. Can be restored later.'}
+                </p>
+              </div>
+
+              {/* Delete */}
+              {!showDeleteConfirm ? (
+                <div>
+                  <button type="button" onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full rounded border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors text-left">
+                    Delete this person
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1 px-1">Permanently remove this person and all their data.</p>
+                </div>
+              ) : (
+                <div className="rounded-md border border-red-300 bg-red-50 px-4 py-4 space-y-3">
+                  <p className="text-sm font-semibold text-red-700">Are you sure?</p>
+                  <p className="text-xs text-red-600">
+                    This will permanently delete <strong>{person.first_name} {person.last_name}</strong> and all associated data. This action cannot be undone.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Would you rather <button type="button" onClick={() => { handleArchive(); setShowDeleteConfirm(false) }} className="text-amber-600 font-medium underline hover:text-amber-700">archive</button> them instead? Archived records can be restored later.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button type="button" disabled={deleting} onClick={handleDelete}
+                      className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                      {deleting ? 'Deleting…' : 'Yes, permanently delete'}
+                    </button>
+                    <button type="button" onClick={() => setShowDeleteConfirm(false)}
+                      className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

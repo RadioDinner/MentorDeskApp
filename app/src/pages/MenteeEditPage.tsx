@@ -31,6 +31,11 @@ export default function MenteeEditPage() {
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // De-activate / Delete
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [dangerMsg, setDangerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   useEffect(() => {
     if (!id) return
 
@@ -112,6 +117,27 @@ export default function MenteeEditPage() {
     setMentee({ ...mentee, first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim() })
     if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
     setMsg({ type: 'success', text: 'Mentee information has been updated.' })
+  }
+
+  async function handleDeactivate() {
+    if (!mentee || !currentUser) return
+    const isDeactivated = !!mentee.archived_at
+    const now = isDeactivated ? null : new Date().toISOString()
+    const { error } = await supabase.from('mentees').update({ archived_at: now }).eq('id', mentee.id)
+    if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
+    setMentee({ ...mentee, archived_at: now } as Mentee)
+    logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: isDeactivated ? 'reactivated' : 'deactivated', entity_type: 'mentee', entity_id: mentee.id })
+    setDangerMsg({ type: 'success', text: isDeactivated ? 'Mentee re-activated.' : 'Mentee de-activated.' })
+  }
+
+  async function handleDeleteMentee() {
+    if (!mentee || !currentUser) return
+    setDeleting(true)
+    const { error } = await supabase.from('mentees').delete().eq('id', mentee.id)
+    setDeleting(false)
+    if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
+    logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'mentee', entity_id: mentee.id })
+    navigate('/mentees')
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
@@ -315,6 +341,67 @@ export default function MenteeEditPage() {
               Added: {new Date(mentee.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
+
+          {/* Danger Zone */}
+          <div className="bg-white rounded-md border border-red-200 px-6 py-6">
+            <h2 className="text-base font-semibold text-red-600 mb-4">Danger Zone</h2>
+
+            {dangerMsg && (
+              <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs mb-3 ${
+                dangerMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                <span>{dangerMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
+                {dangerMsg.text}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {/* De-activate / Re-activate */}
+              <div>
+                <button type="button" onClick={handleDeactivate}
+                  className={`w-full rounded border px-4 py-2.5 text-sm font-medium transition-colors text-left ${mentee.archived_at ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}`}>
+                  {mentee.archived_at ? 'Re-activate this mentee' : 'De-activate this mentee'}
+                </button>
+                <p className="text-xs text-gray-400 mt-1 px-1">
+                  {mentee.archived_at
+                    ? 'Re-activating will return them to active mentee lists.'
+                    : 'De-activating hides them from active lists. Can be re-activated later.'}
+                </p>
+              </div>
+
+              {/* Delete */}
+              {!showDeleteConfirm ? (
+                <div>
+                  <button type="button" onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full rounded border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors text-left">
+                    Delete this mentee
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1 px-1">Permanently remove this mentee and all their data.</p>
+                </div>
+              ) : (
+                <div className="rounded-md border border-red-300 bg-red-50 px-4 py-4 space-y-3">
+                  <p className="text-sm font-semibold text-red-700">Are you sure?</p>
+                  <p className="text-xs text-red-600">
+                    This will permanently delete <strong>{mentee.first_name} {mentee.last_name}</strong> and all associated data. This action cannot be undone.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Would you rather <button type="button" onClick={() => { handleDeactivate(); setShowDeleteConfirm(false) }} className="text-amber-600 font-medium underline hover:text-amber-700">de-activate</button> them instead? De-activated mentees can be re-activated later.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button type="button" disabled={deleting} onClick={handleDeleteMentee}
+                      className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                      {deleting ? 'Deleting…' : 'Yes, permanently delete'}
+                    </button>
+                    <button type="button" onClick={() => setShowDeleteConfirm(false)}
+                      className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
