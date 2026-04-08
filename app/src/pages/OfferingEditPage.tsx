@@ -135,8 +135,9 @@ export default function OfferingEditPage() {
       return
     }
 
+    const oldVals = { name: offering.name, description: offering.description, billing_mode: offering.billing_mode, price_cents: offering.price_cents, recurring_price_cents: offering.recurring_price_cents, setup_fee_cents: offering.setup_fee_cents }
     setOffering({ ...offering, name: name.trim(), description: description.trim() || null })
-    if (currentUser) logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() } })
+    if (currentUser) logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() }, old_values: oldVals, new_values: updates })
     setMsg({ type: 'success', text: 'Offering has been updated.' })
   }
 

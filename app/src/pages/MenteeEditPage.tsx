@@ -114,8 +114,10 @@ export default function MenteeEditPage() {
       return
     }
 
-    setMentee({ ...mentee, first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim() })
-    if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
+    const oldVals = { first_name: mentee.first_name, last_name: mentee.last_name, email: mentee.email, phone: mentee.phone, street: mentee.street, city: mentee.city, state: mentee.state, zip: mentee.zip, country: mentee.country }
+    const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
+    setMentee({ ...mentee, ...newVals })
+    if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` }, old_values: oldVals, new_values: newVals })
     setMsg({ type: 'success', text: 'Mentee information has been updated.' })
   }
 

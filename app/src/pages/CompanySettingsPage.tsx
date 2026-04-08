@@ -131,7 +131,8 @@ export default function CompanySettingsPage() {
     const updatedOrg = { ...org, ...updates }
     setOrg(updatedOrg)
     refreshTheme(updatedOrg)
-    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab } })
+    const oldVals = { name: org.name, slug: org.slug, logo_url: org.logo_url, primary_color: org.primary_color, secondary_color: org.secondary_color, tertiary_color: org.tertiary_color }
+    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 
