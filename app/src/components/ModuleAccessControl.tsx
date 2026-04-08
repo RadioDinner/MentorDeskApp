@@ -70,7 +70,7 @@ export default function ModuleAccessControl({ person, allPeople, permissionGroup
       <button
         type="button"
         onClick={onToggle}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
+        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
           expanded
             ? 'border-brand bg-brand-light text-brand shadow-sm'
             : activeCount > 0
@@ -78,16 +78,20 @@ export default function ModuleAccessControl({ person, allPeople, permissionGroup
               : 'border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-gray-400 hover:text-gray-500'
         }`}
       >
-        <span className="flex items-center gap-0.5">
-          {assignable.slice(0, 6).map(mod => (
+        <span className="flex items-center -space-x-1">
+          {assignable.map(mod => (
             <span
               key={mod.key}
-              className={`w-2 h-2 rounded-full transition-colors ${allowed.has(mod.key) ? mod.color : 'bg-gray-200'}`}
-            />
+              className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm transition-all ${
+                allowed.has(mod.key)
+                  ? `bg-gradient-to-br ${mod.gradient} text-white`
+                  : 'bg-gray-200 text-gray-400'
+              }`}
+              title={mod.label}
+            >
+              {mod.letter}
+            </span>
           ))}
-          {assignable.length > 6 && (
-            <span className="text-[9px] text-gray-400 ml-0.5">+{assignable.length - 6}</span>
-          )}
         </span>
         <span>{activeCount}/{assignable.length}</span>
         <svg className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -188,16 +192,18 @@ export default function ModuleAccessControl({ person, allPeople, permissionGroup
                       key={mod.key}
                       type="button"
                       onClick={() => toggle(mod.key)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${
                         active
                           ? `${style.bg} ${style.border} ${style.text}`
                           : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500'
                       }`}
                     >
-                      <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] ${
-                        active ? `${mod.color} text-white` : 'bg-gray-100 text-gray-400'
+                      <span className={`w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm ${
+                        active
+                          ? `bg-gradient-to-br ${mod.gradient} text-white`
+                          : 'bg-gray-200 text-gray-400'
                       }`}>
-                        {mod.icon}
+                        {mod.letter}
                       </span>
                       {mod.label}
                       {active && (

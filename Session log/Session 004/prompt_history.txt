@@ -30,3 +30,5 @@ SESSION 004 - PROMPT HISTORY
 14. ok, sure do that, but make it be migration number 984
 
 15. Review ALL sessions. Did I miss creating an edge function? I currently have no edge functions built.
+
+16. When I click the "+Add" button on the lessons in the course builder, nothing happens. Also, I am still not satisfied with the icons on the staff permissions. Currently, there are just colored dots where as the "icons" but I want you to generate icons for each module and make the row of icons bigger and more pronounced. Like, maybe put the first letter of the module in as the icon in a circle of a color with a gradient and a white border around the circle.

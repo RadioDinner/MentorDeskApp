@@ -100,7 +100,11 @@ export default function CourseBuilderPage() {
       order_index: newIndex,
     }).select('*')
 
-    if (e || !data?.length) return
+    if (e) {
+      setLessonMsg({ type: 'error', text: 'Failed to add lesson: ' + e.message })
+      return
+    }
+    if (!data?.length) return
     const newLesson = data[0] as Lesson
     setLessons(prev => [...prev, newLesson])
     setSelectedLessonId(newLesson.id)
@@ -110,7 +114,7 @@ export default function CourseBuilderPage() {
   async function deleteLesson(lessonId: string) {
     if (!profile || !id) return
     const { error: e } = await supabase.from('lessons').delete().eq('id', lessonId)
-    if (e) return
+    if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete lesson: ' + e.message }); return }
     const updated = lessons.filter(l => l.id !== lessonId)
     // Reindex
     for (let i = 0; i < updated.length; i++) {

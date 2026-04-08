@@ -63,7 +63,9 @@ export default function Sidebar() {
                     }`
                   }
                 >
-                  <span className="text-base leading-none">{mod.icon}</span>
+                  <span className={`w-5 h-5 rounded-full bg-gradient-to-br ${mod.gradient} flex items-center justify-center text-[9px] font-bold text-white shadow-sm border border-white/20 shrink-0`}>
+                    {mod.letter}
+                  </span>
                   {mod.label}
                 </NavLink>
               ))}
