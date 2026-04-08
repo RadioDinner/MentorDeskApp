@@ -70,12 +70,12 @@ export default function DashboardPage() {
   ]
 
   const financeItems = [
-    { title: 'Billing', desc: 'Manage billing and payments', route: '/billing', canAdd: false, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
     { title: 'Invoicing', desc: 'Create and track invoices', route: '/invoicing', canAdd: true, iconBg: 'bg-cyan-50', iconColor: 'text-cyan-600' },
     { title: 'Payroll', desc: 'Staff compensation tracking', route: '/payroll', canAdd: false, iconBg: 'bg-lime-50', iconColor: 'text-lime-600' },
   ]
 
   const systemItems = [
+    { title: 'Billing', desc: 'Your MentorDesk subscription & payment', route: '/billing', canAdd: false, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
     { title: 'Audit Log', desc: 'Track actions and changes', route: '/audit-log', canAdd: false, iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
     { title: 'Settings', desc: 'Company and app configuration', route: '/settings', canAdd: false, iconBg: 'bg-gray-100', iconColor: 'text-gray-600' },
   ]
