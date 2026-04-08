@@ -24,3 +24,7 @@ SESSION 004 - PROMPT HISTORY
 11. BRO WHAT? Why do you have the super-admin-app folder? [deleted unauthorized folders and files]
 
 12. Now I don't remember which migrations I ran and which ones I didn't run yet.
+
+13. idk what idempotent means
+
+14. ok, sure do that, but make it be migration number 984

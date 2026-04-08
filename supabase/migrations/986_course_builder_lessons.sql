@@ -23,21 +23,33 @@ CREATE INDEX IF NOT EXISTS idx_lessons_org ON lessons(organization_id);
 
 ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "lessons_tenant_select" ON lessons
-  FOR SELECT TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lessons_select" ON lessons
+    FOR SELECT TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lessons_tenant_insert" ON lessons
-  FOR INSERT TO authenticated
-  WITH CHECK (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lessons_insert" ON lessons
+    FOR INSERT TO authenticated
+    WITH CHECK (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lessons_tenant_update" ON lessons
-  FOR UPDATE TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lessons_update" ON lessons
+    FOR UPDATE TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lessons_tenant_delete" ON lessons
-  FOR DELETE TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lessons_delete" ON lessons
+    FOR DELETE TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Lesson questions table ─────────────────────────────────────────────────
 
@@ -57,21 +69,33 @@ CREATE INDEX IF NOT EXISTS idx_lesson_questions_org ON lesson_questions(organiza
 
 ALTER TABLE lesson_questions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "lesson_questions_tenant_select" ON lesson_questions
-  FOR SELECT TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lesson_questions_select" ON lesson_questions
+    FOR SELECT TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lesson_questions_tenant_insert" ON lesson_questions
-  FOR INSERT TO authenticated
-  WITH CHECK (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lesson_questions_insert" ON lesson_questions
+    FOR INSERT TO authenticated
+    WITH CHECK (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lesson_questions_tenant_update" ON lesson_questions
-  FOR UPDATE TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lesson_questions_update" ON lesson_questions
+    FOR UPDATE TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "lesson_questions_tenant_delete" ON lesson_questions
-  FOR DELETE TO authenticated
-  USING (organization_id IN (SELECT user_org_ids()) OR is_super_admin());
+DO $$ BEGIN
+  CREATE POLICY "lesson_questions_delete" ON lesson_questions
+    FOR DELETE TO authenticated
+    USING (organization_id = public.my_organization_id());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Due date mode on offerings ─────────────────────────────────────────────
 
