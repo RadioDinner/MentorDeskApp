@@ -46,9 +46,9 @@ export default function AssistantMentorDashboard() {
   const [statusOptions, setStatusOptions] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { loadAll() }, [])
-
   const { activeEntityId, organizationId } = useRole()
+
+  useEffect(() => { loadAll() }, [activeEntityId, organizationId])
 
   async function loadAll() {
     setLoading(true)

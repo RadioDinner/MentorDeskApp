@@ -40,7 +40,7 @@ export default function ManageStaffRoles() {
   const [saving, setSaving] = useState({})
   const [expanded, setExpanded] = useState({})
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [organizationId])
 
   async function load() {
     setLoading(true)

@@ -2,3 +2,5 @@ SESSION 005 - PROMPT HISTORY
 ==============================
 
 1. Pull the new session instructions and prepare session 005. I want to look into some bug fixes
+
+2. Ok so the "Loading..." bug on modules still exists. Once I get the bug to occur, it doesn't matter if I switch between modules, it still says loading. If I get the bug in say, the staff module, I can click the button for the module again, but it doesn't go away. I can click another module and it doesn't go away either. The only way to make it go away is to refresh the browser.

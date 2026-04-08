@@ -75,7 +75,7 @@ function ManageOfferings() {
   const [deleteId, setDeleteId] = useState(null)
   const [error, setError] = useState('')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [organizationId])
 
   async function load() {
     setLoading(true)

@@ -60,9 +60,9 @@ export default function MentorDashboard() {
   const [testMenteeLoading, setTestMenteeLoading] = useState(false)
   const [testMenteeReady, setTestMenteeReady] = useState(false)
 
-  useEffect(() => { loadAll() }, [])
-
   const { activeEntityId, organizationId, session, setActiveRole, roles, refreshRoles } = useRole()
+
+  useEffect(() => { loadAll() }, [activeEntityId, organizationId])
 
   async function loadAll() {
     setLoading(true)

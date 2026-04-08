@@ -111,11 +111,11 @@ export default function MenteeDashboard() {
   const [savingMeeting, setSavingMeeting] = useState(false)
   const [meetingError, setMeetingError] = useState(null)
 
+  const { activeEntityId, organizationId } = useRole()
+
   useEffect(() => {
     loadAll()
-  }, [])
-
-  const { activeEntityId, organizationId } = useRole()
+  }, [activeEntityId, organizationId])
 
   async function loadAll() {
     setLoading(true)
