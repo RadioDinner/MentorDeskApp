@@ -6,3 +6,18 @@ SESSION 006 - PROMPT HISTORY
 2. You up?
 
 3. Did you fix everything
+
+4. merge to main and delete the brnach
+
+5. Saving lessons doesn't work. And the +Response and +Quiz buttons on the questions still doesn't work
+
+6. I clicked the +Response button 3 times
+
+[CourseBuilder] addQuestion:
+Object { type: "response", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", order_index: 0 }
+index-C8Qy2Kti.js:187:17439
+[CourseBuilder] addQuestion:
+Object { type: "response", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", order_index: 0 }
+index-C8Qy2Kti.js:187:17439
+[CourseBuilder] addQuestion:
+Object { type: "response", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", order_index: 0 }

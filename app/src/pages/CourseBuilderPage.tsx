@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, withTimeout, testSupabaseConnectivity } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
@@ -43,7 +43,16 @@ export default function CourseBuilderPage() {
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
+  const [connTest, setConnTest] = useState<Record<string, string> | null>(null)
+
   const selectedLesson = lessons.find(l => l.id === selectedLessonId) ?? null
+
+  async function runConnTest() {
+    if (!profile) return
+    setConnTest({ status: 'testing...' })
+    const results = await testSupabaseConnectivity(profile.organization_id)
+    setConnTest(results)
+  }
 
   // Fetch course, lessons, and org settings
   useEffect(() => {
@@ -113,15 +122,20 @@ export default function CourseBuilderPage() {
     if (!id || !profile) { console.error('[CourseBuilder] addLesson: no id or profile', { id, profile }); return }
     const newIndex = lessons.length
     console.log('[CourseBuilder] addLesson: inserting lesson', { offering_id: id, order_index: newIndex })
-    const { data, error: e } = await supabase.from('lessons').insert({
-      offering_id: id,
-      organization_id: profile.organization_id,
-      title: `Lesson ${newIndex + 1}`,
-      order_index: newIndex,
-    }).select('*')
+
+    const { data, error: e } = await withTimeout(
+      supabase.from('lessons').insert({
+        offering_id: id,
+        organization_id: profile.organization_id,
+        title: `Lesson ${newIndex + 1}`,
+        order_index: newIndex,
+      }).select('*'),
+      15000,
+      'addLesson',
+    )
 
     if (e) {
-      console.error('[CourseBuilder] addLesson FAILED:', e.message, e)
+      console.error('[CourseBuilder] addLesson FAILED:', e.message)
       setLessonMsg({ type: 'error', text: 'Failed to add lesson: ' + e.message })
       return
     }
@@ -135,7 +149,7 @@ export default function CourseBuilderPage() {
 
   async function deleteLesson(lessonId: string) {
     if (!profile || !id) return
-    const { error: e } = await supabase.from('lessons').delete().eq('id', lessonId)
+    const { error: e } = await withTimeout(supabase.from('lessons').delete().eq('id', lessonId), 15000, 'deleteLesson')
     if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete lesson: ' + e.message }); return }
     const updated = lessons.filter(l => l.id !== lessonId)
     // Reindex
@@ -167,8 +181,12 @@ export default function CourseBuilderPage() {
       }
 
       console.log('[CourseBuilder] saveLesson: updating', selectedLesson.id, updates)
-      const { error: e } = await supabase.from('lessons').update(updates).eq('id', selectedLesson.id)
-      if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message, e); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
+      const { error: e } = await withTimeout(
+        supabase.from('lessons').update(updates).eq('id', selectedLesson.id),
+        15000,
+        'saveLesson',
+      )
+      if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
 
       console.log('[CourseBuilder] saveLesson: SUCCESS')
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
@@ -224,16 +242,20 @@ export default function CourseBuilderPage() {
 
     try {
       console.log('[CourseBuilder] addQuestion:', { type, lesson_id: selectedLessonId, order_index: newIndex })
-      const { data, error: e } = await supabase.from('lesson_questions').insert({
-        lesson_id: selectedLessonId,
-        organization_id: profile.organization_id,
-        question_text: '',
-        question_type: type,
-        options,
-        order_index: newIndex,
-      }).select('*')
+      const { data, error: e } = await withTimeout(
+        supabase.from('lesson_questions').insert({
+          lesson_id: selectedLessonId,
+          organization_id: profile.organization_id,
+          question_text: '',
+          question_type: type,
+          options,
+          order_index: newIndex,
+        }).select('*'),
+        15000,
+        'addQuestion',
+      )
 
-      if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message, e); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
+      if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
       console.log('[CourseBuilder] addQuestion response:', data)
       if (!data?.length) { console.warn('[CourseBuilder] addQuestion: no data returned'); return }
       setQuestions(prev => [...prev, data[0] as LessonQuestion])
@@ -244,14 +266,14 @@ export default function CourseBuilderPage() {
   }
 
   async function updateQuestion(questionId: string, updates: Partial<LessonQuestion>) {
-    const { error: e } = await supabase.from('lesson_questions').update(updates).eq('id', questionId)
-    if (e) return
+    const { error: e } = await withTimeout(supabase.from('lesson_questions').update(updates).eq('id', questionId), 15000, 'updateQuestion')
+    if (e) { console.error('[CourseBuilder] updateQuestion FAILED:', e.message); return }
     setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } as LessonQuestion : q))
   }
 
   async function deleteQuestion(questionId: string) {
-    const { error: e } = await supabase.from('lesson_questions').delete().eq('id', questionId)
-    if (e) return
+    const { error: e } = await withTimeout(supabase.from('lesson_questions').delete().eq('id', questionId), 15000, 'deleteQuestion')
+    if (e) { console.error('[CourseBuilder] deleteQuestion FAILED:', e.message); return }
     setQuestions(prev => prev.filter(q => q.id !== questionId))
   }
 
@@ -282,13 +304,31 @@ export default function CourseBuilderPage() {
             <p className="text-xs text-gray-500">Course Builder &middot; {lessons.length} lesson{lessons.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate(`/courses/${id}/edit`)}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-        >
-          Course Settings
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={runConnTest}
+            className="px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+            title="Test Supabase read/write connectivity"
+          >
+            Test DB
+          </button>
+          <button
+            onClick={() => navigate(`/courses/${id}/edit`)}
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+          >
+            Course Settings
+          </button>
+        </div>
       </div>
+
+      {connTest && (
+        <div className="mb-4 rounded border bg-gray-50 border-gray-200 px-4 py-3 text-xs font-mono text-gray-700">
+          <p className="font-semibold mb-1">DB Connectivity Test:</p>
+          {Object.entries(connTest).map(([k, v]) => (
+            <p key={k}>{k}: <span className={v.startsWith('OK') ? 'text-green-600' : v === 'testing...' ? 'text-amber-600' : 'text-red-600'}>{v}</span></p>
+          ))}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 180px)' }}>
