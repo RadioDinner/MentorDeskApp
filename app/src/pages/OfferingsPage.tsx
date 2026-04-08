@@ -20,7 +20,7 @@ export default function OfferingsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
 
     async function fetchOfferings() {
       setLoading(true)

@@ -74,7 +74,7 @@ export default function AuditLogPage() {
   }, [profile?.organization_id])
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
 
     async function fetchLog() {
       setLoading(true)

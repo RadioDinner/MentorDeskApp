@@ -88,7 +88,7 @@ export default function CompanySettingsPage() {
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
     async function fetchOrg() {
       const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()
       if (error) { setMsg({ type: 'error', text: 'Failed to load: ' + error.message }); setLoading(false); return }

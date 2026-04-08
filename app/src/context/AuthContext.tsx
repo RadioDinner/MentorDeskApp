@@ -53,48 +53,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isMenteeMode, setIsMenteeMode] = useState(false)
 
   async function fetchAllProfiles(userId: string) {
-    // Fetch all staff records for this user
+    // Fetch all staff records for this user (and mentee record if exists)
     const [staffRes, menteeRes] = await Promise.all([
-      supabase
-        .from('staff')
-        .select('*')
-        .eq('user_id', userId)
-        .is('archived_at', null),
-      supabase
-        .from('mentees')
-        .select('*')
-        .eq('user_id', userId)
-        .is('archived_at', null),
+      supabase.from('staff').select('*').eq('user_id', userId),
+      supabase.from('mentees').select('*').eq('user_id', userId),
     ])
-
-    const staffRecords = (staffRes.data as StaffMember[]) ?? []
-    const menteeRecords = (menteeRes.data as Mentee[]) ?? []
 
     if (staffRes.error) {
       console.error('Failed to fetch staff profiles:', staffRes.error.message)
+      // CRITICAL: if fetch fails, keep existing profile — don't null it out
+      return profile
     }
 
-    setAllStaffProfiles(staffRecords)
+    const staffRecords = (staffRes.data as StaffMember[]) ?? []
+    // Filter out archived in JS (archived_at column may not exist yet)
+    const activeStaff = staffRecords.filter(s => !s.archived_at)
+    const menteeRecords = ((menteeRes.data as Mentee[]) ?? []).filter(m => !m.archived_at)
+
+    // If no staff records found, keep existing profile to prevent null-out
+    if (activeStaff.length === 0 && !profile) {
+      return null
+    }
+
+    setAllStaffProfiles(activeStaff)
     setMenteeProfile(menteeRecords.length > 0 ? menteeRecords[0] : null)
 
-    // Pick the active profile: prefer admin, then last used, then first available
+    // Pick the active profile: prefer saved, then admin, then first staff
     const savedActiveId = localStorage.getItem(`mentordesk_active_profile_${userId}`)
-
-    // Check if saved profile still exists
-    const allIds = [...staffRecords.map(s => s.id), ...menteeRecords.map(m => `mentee:${m.id}`)]
+    const allIds = [...activeStaff.map(s => s.id), ...menteeRecords.map(m => `mentee:${m.id}`)]
     let activeId = savedActiveId && allIds.includes(savedActiveId) ? savedActiveId : null
 
     if (!activeId) {
-      // Default to admin profile, then first staff profile
-      const adminProfile = staffRecords.find(s => s.role === 'admin')
-      activeId = adminProfile?.id ?? staffRecords[0]?.id ?? (menteeRecords.length > 0 ? `mentee:${menteeRecords[0].id}` : null)
+      const adminProfile = activeStaff.find(s => s.role === 'admin')
+      activeId = adminProfile?.id ?? activeStaff[0]?.id ?? (menteeRecords.length > 0 ? `mentee:${menteeRecords[0].id}` : null)
     }
 
     if (activeId) {
-      applyProfile(activeId, staffRecords, menteeRecords.length > 0 ? menteeRecords[0] : null, userId)
+      applyProfile(activeId, activeStaff, menteeRecords.length > 0 ? menteeRecords[0] : null, userId)
     }
 
-    return staffRecords[0] ?? null // Return any profile for org_id access
+    return activeStaff[0] ?? profile // Never return null if we have a current profile
   }
 
   function applyProfile(profileId: string, staffRecords: StaffMember[], menteeRec: Mentee | null, userId?: string) {
@@ -155,20 +153,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 5000)
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!didInit) {
         didInit = true
         clearTimeout(initTimeout)
       }
       setSession(session)
       setUser(session?.user ?? null)
+
       if (session?.user) {
-        const p = await fetchAllProfiles(session.user.id)
-        // Run archive auto-purge in the background
-        if (p?.organization_id) {
-          purgeExpiredArchives(p.organization_id).catch(() => {})
+        // On token refresh, don't disrupt the current profile
+        // Only do a full profile fetch on initial load or sign-in
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
+          const p = await fetchAllProfiles(session.user.id)
+          if (p?.organization_id) {
+            purgeExpiredArchives(p.organization_id).catch(() => {})
+          }
         }
+        // TOKEN_REFRESHED: keep existing profile, don't re-fetch
       } else {
+        // Only clear on actual sign out
         setProfile(null)
         setAllStaffProfiles([])
         setMenteeProfile(null)

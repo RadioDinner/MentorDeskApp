@@ -15,7 +15,7 @@ export default function MenteesListPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
 
     async function fetchMentees() {
       setLoading(true)

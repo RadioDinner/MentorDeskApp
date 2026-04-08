@@ -12,7 +12,7 @@ export default function EngagementsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
     async function fetch() {
       setLoading(true)
       const { data, error: e } = await supabase

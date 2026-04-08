@@ -41,7 +41,7 @@ export default function PairingsPage() {
   const [filterStatus, setFilterStatus] = useState('')
 
   async function fetchAll() {
-    if (!profile) return
+    if (!profile?.organization_id) { setLoading(false); return }
     setLoading(true)
     setError(null)
 
