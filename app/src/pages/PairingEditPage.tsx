@@ -44,11 +44,11 @@ export default function PairingEditPage() {
     async function fetchPairing() {
       try {
         const { data, error } = await supabase
-          .from('assignments')
+          .from('pairings')
           .select(`
-            id, organization_id, status, started_at, ended_at, notes, created_at,
-            mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name, email ),
-            mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email )
+            id, organization_id, status, started_at, ended_at, notes, created_at, offering_id,
+            mentor:staff!pairings_mentor_id_fkey ( id, first_name, last_name, email ),
+            mentee:mentees!pairings_mentee_id_fkey ( id, first_name, last_name, email )
           `)
           .eq('id', id!)
           .single()
@@ -89,7 +89,7 @@ export default function PairingEditPage() {
     }
 
     const { error } = await supabase
-      .from('assignments')
+      .from('pairings')
       .update(updates)
       .eq('id', pairing.id)
 

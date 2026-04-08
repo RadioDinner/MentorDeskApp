@@ -86,6 +86,7 @@ export default function CompanySettingsPage() {
   const [editingGroup, setEditingGroup] = useState<RoleGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
+  const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useLoadingGuard(loading, useCallback(() => {
@@ -108,6 +109,7 @@ export default function CompanySettingsPage() {
         setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
         setRoleGroups(o.role_groups ?? [])
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
+        setAllowMultiEngagement(o.allow_multi_engagement ?? false)
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       } catch (err) {
         setMsg({ type: 'error', text: 'Failed to load: ' + ((err as Error).message || 'Unknown error') })
@@ -129,6 +131,7 @@ export default function CompanySettingsPage() {
       pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
       role_groups: roleGroups,
       enable_lesson_due_dates: enableLessonDueDates,
+      allow_multi_engagement: allowMultiEngagement,
       archive_settings: archiveSettings,
     }
     const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
@@ -325,6 +328,23 @@ export default function CompanySettingsPage() {
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${enableLessonDueDates ? 'bg-brand' : 'bg-gray-200'}`}
                 >
                   <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${enableLessonDueDates ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Multiple open engagements per mentee</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Allow a mentee to be paired with different mentors for different engagements at the same time.
+                    When disabled, a mentee can only have one active pairing at a time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAllowMultiEngagement(!allowMultiEngagement)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${allowMultiEngagement ? 'bg-brand' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${allowMultiEngagement ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
                 </button>
               </div>
             </div>

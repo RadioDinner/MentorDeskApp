@@ -60,6 +60,7 @@ export interface Organization {
   default_cancellation_policy: CancellationPolicy
   role_groups: RoleGroup[]
   enable_lesson_due_dates: boolean
+  allow_multi_engagement: boolean
   archive_settings: ArchiveSettings
   created_at: string
 }

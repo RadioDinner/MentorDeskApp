@@ -48,7 +48,7 @@ export async function revertAuditEntry(entry: {
     return { success: false, error: 'No data to revert' }
   }
 
-  const table = entry.entity_type === 'pairing' ? 'assignments'
+  const table = entry.entity_type === 'pairing' ? 'pairings'
     : entry.entity_type === 'organization' ? 'organizations'
     : entry.entity_type === 'offering' ? 'offerings'
     : entry.entity_type === 'mentee' ? 'mentees'

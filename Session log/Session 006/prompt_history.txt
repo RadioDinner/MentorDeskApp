@@ -75,3 +75,5 @@ Is there any way to automatically collect errors in github? For example, if I ha
 21. So, when I switch to my mentor account, it displays mentees that are not assigned to me. I want that to be fixed as well.
 
 22. I can't switch to my mentee account, why?
+
+23. Rename the assignments table and all code related to it to "pairings". Also, add a column in that table for programs. A mentee might be paired to mentor A for one engagement, and mentor B for a separate one. In company options, add the company toggle to allow mentees to have multiple open engagements at once. Got a message "Failed to load mentees: Request timed out. Please refresh the page.". I suspect this is the "Loading..." bug

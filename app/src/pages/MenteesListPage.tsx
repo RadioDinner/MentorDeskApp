@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, withTimeout } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Mentee } from '../types'
@@ -30,35 +30,30 @@ export default function MenteesListPage() {
       try {
         if (isMentor) {
           // Mentors only see mentees assigned to them
-          const { data: assignments, error: assignErr } = await supabase
-            .from('assignments')
-            .select('mentee_id')
-            .eq('mentor_id', profile!.id)
-            .in('status', ['active', 'paused'])
+          const { data: pairingsData, error: pairErr } = await withTimeout(
+            supabase.from('pairings').select('mentee_id').eq('mentor_id', profile!.id).in('status', ['active', 'paused']),
+            10000, 'fetchPairings',
+          )
 
-          if (assignErr) { setError(assignErr.message); return }
-          const menteeIds = (assignments ?? []).map(a => a.mentee_id)
+          if (pairErr) { setError(pairErr.message); return }
+          const menteeIds = (pairingsData ?? []).map((a: { mentee_id: string }) => a.mentee_id)
 
           if (menteeIds.length === 0) {
             setMentees([])
           } else {
-            const { data, error: fetchError } = await supabase
-              .from('mentees')
-              .select('*')
-              .in('id', menteeIds)
-              .order('first_name', { ascending: true })
-
+            const { data, error: fetchError } = await withTimeout(
+              supabase.from('mentees').select('*').in('id', menteeIds).order('first_name', { ascending: true }),
+              10000, 'fetchAssignedMentees',
+            )
             if (fetchError) { setError(fetchError.message); return }
             setMentees(data as Mentee[])
           }
         } else {
           // Admins and staff see all mentees in the org
-          const { data, error: fetchError } = await supabase
-            .from('mentees')
-            .select('*')
-            .eq('organization_id', profile!.organization_id)
-            .order('first_name', { ascending: true })
-
+          const { data, error: fetchError } = await withTimeout(
+            supabase.from('mentees').select('*').eq('organization_id', profile!.organization_id).order('first_name', { ascending: true }),
+            10000, 'fetchAllMentees',
+          )
           if (fetchError) { setError(fetchError.message); return }
           setMentees(data as Mentee[])
         }

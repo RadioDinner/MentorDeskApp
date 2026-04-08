@@ -63,7 +63,7 @@ export default function PairingCreatePage() {
     setSaving(true)
 
     const { error } = await supabase
-      .from('assignments')
+      .from('pairings')
       .insert({
         organization_id: profile.organization_id,
         mentor_id: mentorId,

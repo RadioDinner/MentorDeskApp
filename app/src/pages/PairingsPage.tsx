@@ -54,10 +54,10 @@ export default function PairingsPage() {
       const [mentorRes, menteeRes, pairingRes, orgRes] = await Promise.all([
         supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).eq('role', 'mentor').order('first_name'),
         supabase.from('mentees').select('id, first_name, last_name, email, flow_step_id').eq('organization_id', profile.organization_id).order('first_name'),
-        supabase.from('assignments').select(`
-          id, status, mentor_id, mentee_id,
-          mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name ),
-          mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email, flow_step_id )
+        supabase.from('pairings').select(`
+          id, status, mentor_id, mentee_id, offering_id,
+          mentor:staff!pairings_mentor_id_fkey ( id, first_name, last_name ),
+          mentee:mentees!pairings_mentee_id_fkey ( id, first_name, last_name, email, flow_step_id )
         `).eq('organization_id', profile.organization_id).neq('status', 'ended'),
         supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single(),
       ])
@@ -84,7 +84,7 @@ export default function PairingsPage() {
   async function quickPair(menteeId: string, mentorId: string) {
     if (!profile) return
     setPairing(true)
-    const { error } = await supabase.from('assignments').insert({
+    const { error } = await supabase.from('pairings').insert({
       organization_id: profile.organization_id,
       mentor_id: mentorId,
       mentee_id: menteeId,
@@ -101,7 +101,7 @@ export default function PairingsPage() {
 
   async function changeMentor(pairingId: string, newMentorId: string) {
     if (!profile) return
-    const { error } = await supabase.from('assignments').update({ mentor_id: newMentorId }).eq('id', pairingId)
+    const { error } = await supabase.from('pairings').update({ mentor_id: newMentorId }).eq('id', pairingId)
     if (error) { setError(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'mentor_changed' } })
     fetchAll()
@@ -111,7 +111,7 @@ export default function PairingsPage() {
     if (!profile) return
     const updates: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'ended') updates.ended_at = new Date().toISOString()
-    const { error } = await supabase.from('assignments').update(updates).eq('id', pairingId)
+    const { error } = await supabase.from('pairings').update(updates).eq('id', pairingId)
     if (error) { setError(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
     fetchAll()
