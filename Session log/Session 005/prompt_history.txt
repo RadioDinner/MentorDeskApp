@@ -14,3 +14,5 @@ SESSION 005 - PROMPT HISTORY
 6. https://mentor-desk-app.vercel.app/login is just blank even after a refresh. Also, you still didn't redesign the small icons that display in the staff list
 
 7. still blank
+
+8. It's still blank. VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are both set. I think you've messed up stuff by mixing the old src files :( and I have no clue how to fix this. Short of starting over again
