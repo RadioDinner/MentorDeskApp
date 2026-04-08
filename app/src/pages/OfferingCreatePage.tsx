@@ -96,54 +96,62 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
     setMsg(null)
     setSaving(true)
 
-    const record: Record<string, unknown> = {
-      organization_id: profile.organization_id,
-      type: offeringType,
-      name: name.trim(),
-      description: description.trim() || null,
-    }
-
-    if (isCourse) {
-      record.billing_mode = billingMode
-      record.price_cents = billingMode === 'one_time' && price ? Math.round(parseFloat(price) * 100) : 0
-      record.recurring_price_cents = billingMode === 'recurring' && recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
-      record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
-      record.dispense_mode = dispenseMode
-      record.dispense_interval_days = dispenseMode === 'interval' && intervalDays ? parseInt(intervalDays) : null
-      record.lesson_count = lessonCount ? parseInt(lessonCount) : null
-      record.course_due_date = billingMode === 'one_time' && dueDate ? dueDate : null
-      record.preview_mode = previewMode
-    } else {
-      record.meeting_count = meetingCount ? parseInt(meetingCount) : null
-      record.allocation_period = allocationPeriod
-      record.use_org_default_cancellation = useOrgDefault
-      record.cancellation_policy = useOrgDefault ? null : cancelPolicy
-    }
-
-    const { data, error } = await supabase.from('offerings').insert(record).select('id')
-    setSaving(false)
-
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
-
-    if (data && data.length > 0) {
-      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
-
-      if (addToFlow) {
-        const { data: orgData } = await supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single()
-        if (orgData) {
-          const flow = (orgData.mentee_flow as { steps: unknown[] }) ?? { steps: [] }
-          flow.steps.push({ id: crypto.randomUUID(), name: name.trim(), type: offeringType, offering_id: data[0].id, in_flow: true, order: flow.steps.length })
-          await supabase.from('organizations').update({ mentee_flow: flow }).eq('id', profile.organization_id)
-        }
+    try {
+      const record: Record<string, unknown> = {
+        organization_id: profile.organization_id,
+        type: offeringType,
+        name: name.trim(),
+        description: description.trim() || null,
       }
 
-      if (offeringType === 'course') {
-        navigate(`/courses/${data[0].id}/builder`)
+      if (isCourse) {
+        record.billing_mode = billingMode
+        record.price_cents = billingMode === 'one_time' && price ? Math.round(parseFloat(price) * 100) : 0
+        record.recurring_price_cents = billingMode === 'recurring' && recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
+        record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
+        record.dispense_mode = dispenseMode
+        record.dispense_interval_days = dispenseMode === 'interval' && intervalDays ? parseInt(intervalDays) : null
+        record.lesson_count = lessonCount ? parseInt(lessonCount) : null
+        record.course_due_date = billingMode === 'one_time' && dueDate ? dueDate : null
+        record.preview_mode = previewMode
       } else {
-        navigate(`/engagements/${data[0].id}/edit`)
+        record.billing_mode = 'recurring'
+        record.recurring_price_cents = recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
+        record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
+        record.meeting_count = meetingCount ? parseInt(meetingCount) : null
+        record.allocation_period = allocationPeriod
+        record.use_org_default_cancellation = useOrgDefault
+        record.cancellation_policy = useOrgDefault ? null : cancelPolicy
       }
-    } else {
-      navigate(offeringType === 'course' ? '/courses' : '/engagements')
+
+      const { data, error } = await supabase.from('offerings').insert(record).select('id')
+      if (error) { setMsg({ type: 'error', text: error.message }); return }
+
+      if (data && data.length > 0) {
+        logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
+
+        if (addToFlow) {
+          const { data: orgData } = await supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single()
+          if (orgData) {
+            const flow = (orgData.mentee_flow as { steps: unknown[] }) ?? { steps: [] }
+            flow.steps.push({ id: crypto.randomUUID(), name: name.trim(), type: offeringType, offering_id: data[0].id, in_flow: true, order: flow.steps.length })
+            await supabase.from('organizations').update({ mentee_flow: flow }).eq('id', profile.organization_id)
+          }
+        }
+
+        if (offeringType === 'course') {
+          navigate(`/courses/${data[0].id}/builder`)
+        } else {
+          navigate(`/engagements/${data[0].id}/edit`)
+        }
+      } else {
+        navigate(offeringType === 'course' ? '/courses' : '/engagements')
+      }
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Failed to create offering' })
+      console.error(err)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -353,6 +361,28 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
               <select id="allocPeriod" value={allocationPeriod} onChange={e => setAllocationPeriod(e.target.value as AllocationPeriod)} className={selectClass}>
                 {ALLOCATION_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
+          <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Pricing</h2>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="engRecurringPrice" className="block text-xs font-medium text-gray-700 mb-1">Monthly price</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                <input id="engRecurringPrice" type="number" step="0.01" min="0" value={recurringPrice} onChange={e => setRecurringPrice(e.target.value)} placeholder="0.00" className={dollarInput} />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Automatically invoiced monthly when a mentee is assigned to this engagement.</p>
+            </div>
+            <div>
+              <label htmlFor="engSetupFee" className="block text-xs font-medium text-gray-700 mb-1">Setup fee (one-time)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                <input id="engSetupFee" type="number" step="0.01" min="0" value={setupFee} onChange={e => setSetupFee(e.target.value)} placeholder="0.00" className={dollarInput} />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Charged once at enrollment.</p>
             </div>
           </div>
         </div>

@@ -146,22 +146,27 @@ export default function CourseBuilderPage() {
     setLessonSaving(true)
     setLessonMsg(null)
 
-    const updates: Record<string, unknown> = {
-      title: lessonTitle.trim() || selectedLesson.title,
-      description: lessonDescription.trim() || null,
-      content: lessonContent.trim() || null,
-      video_url: lessonVideoUrl.trim() || null,
-      due_days_offset: enableLessonDueDates && lessonDueDays ? parseInt(lessonDueDays) : null,
+    try {
+      const updates: Record<string, unknown> = {
+        title: lessonTitle.trim() || selectedLesson.title,
+        description: lessonDescription.trim() || null,
+        content: lessonContent.trim() || null,
+        video_url: lessonVideoUrl.trim() || null,
+        due_days_offset: enableLessonDueDates && lessonDueDays ? parseInt(lessonDueDays) : null,
+      }
+
+      const { error: e } = await supabase.from('lessons').update(updates).eq('id', selectedLesson.id)
+      if (e) { setLessonMsg({ type: 'error', text: e.message }); return }
+
+      setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
+      setLessonMsg({ type: 'success', text: 'Lesson saved.' })
+      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: course?.id ?? '', details: { sub: 'lesson', lesson_id: selectedLesson.id, title: lessonTitle.trim() } })
+    } catch (err) {
+      setLessonMsg({ type: 'error', text: (err as Error).message || 'Failed to save lesson' })
+      console.error(err)
+    } finally {
+      setLessonSaving(false)
     }
-
-    const { error: e } = await supabase.from('lessons').update(updates).eq('id', selectedLesson.id)
-    setLessonSaving(false)
-
-    if (e) { setLessonMsg({ type: 'error', text: e.message }); return }
-
-    setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
-    setLessonMsg({ type: 'success', text: 'Lesson saved.' })
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: course?.id ?? '', details: { sub: 'lesson', lesson_id: selectedLesson.id, title: lessonTitle.trim() } })
   }
 
   // Drag-and-drop lesson reorder
@@ -204,17 +209,23 @@ export default function CourseBuilderPage() {
     const newIndex = questions.length
     const options: QuizOption[] | null = type === 'quiz' ? [{ text: '', is_correct: true }, { text: '', is_correct: false }] : null
 
-    const { data, error: e } = await supabase.from('lesson_questions').insert({
-      lesson_id: selectedLessonId,
-      organization_id: profile.organization_id,
-      question_text: '',
-      question_type: type,
-      options,
-      order_index: newIndex,
-    }).select('*')
+    try {
+      const { data, error: e } = await supabase.from('lesson_questions').insert({
+        lesson_id: selectedLessonId,
+        organization_id: profile.organization_id,
+        question_text: '',
+        question_type: type,
+        options,
+        order_index: newIndex,
+      }).select('*')
 
-    if (e || !data?.length) return
-    setQuestions(prev => [...prev, data[0] as LessonQuestion])
+      if (e) { setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
+      if (!data?.length) return
+      setQuestions(prev => [...prev, data[0] as LessonQuestion])
+    } catch (err) {
+      setLessonMsg({ type: 'error', text: 'Failed to add question: ' + ((err as Error).message || 'Unknown error') })
+      console.error(err)
+    }
   }
 
   async function updateQuestion(questionId: string, updates: Partial<LessonQuestion>) {
@@ -425,15 +436,16 @@ export default function CourseBuilderPage() {
                   <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Questions</h2>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => addQuestion('response')}
-                      className="text-xs font-medium text-brand hover:text-brand-hover transition-colors"
+                      className="px-2.5 py-1 text-xs font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
                     >
                       + Response
                     </button>
-                    <span className="text-gray-300">|</span>
                     <button
+                      type="button"
                       onClick={() => addQuestion('quiz')}
-                      className="text-xs font-medium text-brand hover:text-brand-hover transition-colors"
+                      className="px-2.5 py-1 text-xs font-semibold rounded border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                     >
                       + Quiz
                     </button>
