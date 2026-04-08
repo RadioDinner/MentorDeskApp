@@ -43,10 +43,15 @@ export async function withTimeout<T>(
  * the Supabase connection works for both operations.
  */
 export async function testSupabaseConnectivity(orgId: string) {
+  const projectUrl = supabaseUrl ?? 'NOT SET'
+  // Show just the project ID, not the full key
+  const projectId = projectUrl.replace('https://', '').replace('.supabase.co', '')
   console.log('[SupabaseTest] Starting connectivity test...')
-  const results: Record<string, string> = {}
+  console.log('[SupabaseTest] Project URL:', projectUrl)
+  console.log('[SupabaseTest] Project ID:', projectId)
+  const results: Record<string, string> = { project: projectId }
 
-  // Test 1: Read
+  // Test 1: Read (via Supabase JS client)
   try {
     const start = performance.now()
     const { error } = await Promise.race([
@@ -61,7 +66,7 @@ export async function testSupabaseConnectivity(orgId: string) {
     results.read = `ERROR: ${(e as Error).message}`
   }
 
-  // Test 2: Write (insert + delete in audit_log, which is low-risk)
+  // Test 2: Write via Supabase JS client
   try {
     const start = performance.now()
     const { data, error } = await Promise.race([
@@ -77,16 +82,79 @@ export async function testSupabaseConnectivity(orgId: string) {
     ])
     const elapsed = Math.round(performance.now() - start)
     if (error) {
-      results.write = `FAIL (${error.message}) ${elapsed}ms`
+      results.write_sdk = `FAIL (${error.message}) ${elapsed}ms`
     } else {
-      results.write = `OK ${elapsed}ms`
-      // Clean up test row
+      results.write_sdk = `OK ${elapsed}ms`
       if (data?.[0]?.id) {
         await supabase.from('audit_log').delete().eq('id', data[0].id)
       }
     }
   } catch (e) {
-    results.write = `ERROR: ${(e as Error).message}`
+    results.write_sdk = `ERROR: ${(e as Error).message}`
+  }
+
+  // Test 3: Write via raw fetch (bypass Supabase JS client)
+  try {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      results.write_fetch = 'SKIP (no env vars)'
+    } else {
+      const start = performance.now()
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token ?? supabaseAnonKey
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      const resp = await fetch(`${supabaseUrl}/rest/v1/audit_log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          organization_id: orgId,
+          action: 'connectivity_test_fetch',
+          entity_type: 'organization',
+          details: { test: true },
+        }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      const elapsed = Math.round(performance.now() - start)
+
+      if (resp.ok) {
+        results.write_fetch = `OK (${resp.status}) ${elapsed}ms`
+        // Clean up
+        try {
+          const rows = await resp.json()
+          if (rows?.[0]?.id) {
+            await supabase.from('audit_log').delete().eq('id', rows[0].id)
+          }
+        } catch { /* ignore cleanup errors */ }
+      } else {
+        const body = await resp.text()
+        results.write_fetch = `FAIL (${resp.status}: ${body.slice(0, 100)}) ${elapsed}ms`
+      }
+    }
+  } catch (e) {
+    const msg = (e as Error).name === 'AbortError' ? 'TIMEOUT (8s)' : (e as Error).message
+    results.write_fetch = `ERROR: ${msg}`
+  }
+
+  // Test 4: Check if lessons table exists
+  try {
+    const start = performance.now()
+    const { error } = await Promise.race([
+      supabase.from('lessons').select('id').limit(1),
+      new Promise<{ data: null; error: { message: string } }>(resolve =>
+        setTimeout(() => resolve({ data: null, error: { message: 'TIMEOUT' } }), 8000)
+      ),
+    ])
+    const elapsed = Math.round(performance.now() - start)
+    results.lessons_table = error ? `FAIL (${error.message}) ${elapsed}ms` : `OK ${elapsed}ms`
+  } catch (e) {
+    results.lessons_table = `ERROR: ${(e as Error).message}`
   }
 
   console.log('[SupabaseTest] Results:', results)
