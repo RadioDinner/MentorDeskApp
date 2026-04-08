@@ -10,21 +10,21 @@ import { useRole } from '../context/RoleContext'
 
 const MODULES = [
   { section: 'Main' },
-  { key: 'mod_dashboard',        label: 'Dashboard',         icon: LayoutDashboard, color: '#6366f1', bg: '#eef2ff' },
-  { key: 'mod_mentors',          label: 'Mentors',           icon: UserCheck,       color: '#6366f1', bg: '#eef2ff' },
-  { key: 'mod_assistant_mentors', label: 'Assistant Mentors', icon: HeartHandshake,  color: '#10b981', bg: '#ecfdf5' },
-  { key: 'mod_mentees',          label: 'Mentees',           icon: Users,           color: '#3b82f6', bg: '#eff6ff' },
-  { key: 'mod_staff',            label: 'Staff',             icon: Users2,          color: '#f59e0b', bg: '#fffbeb' },
-  { key: 'mod_offerings',        label: 'Offerings',         icon: Package,         color: '#8b5cf6', bg: '#f5f3ff', feature: 'courses' },
-  { key: 'mod_reports',          label: 'Reports',           icon: BarChart3,       color: '#ec4899', bg: '#fdf2f8', feature: 'reports' },
+  { key: 'mod_dashboard',        label: 'Dashboard',         icon: LayoutDashboard, color: '#6366f1', bg: '#eef2ff', grad: 'linear-gradient(135deg, #6366f1, #818cf8)', letter: 'D' },
+  { key: 'mod_mentors',          label: 'Mentors',           icon: UserCheck,       color: '#6366f1', bg: '#eef2ff', grad: 'linear-gradient(135deg, #6366f1, #a78bfa)', letter: 'M' },
+  { key: 'mod_assistant_mentors', label: 'Assistant Mentors', icon: HeartHandshake,  color: '#10b981', bg: '#ecfdf5', grad: 'linear-gradient(135deg, #10b981, #34d399)', letter: 'A' },
+  { key: 'mod_mentees',          label: 'Mentees',           icon: Users,           color: '#3b82f6', bg: '#eff6ff', grad: 'linear-gradient(135deg, #3b82f6, #60a5fa)', letter: 'E' },
+  { key: 'mod_staff',            label: 'Staff',             icon: Users2,          color: '#f59e0b', bg: '#fffbeb', grad: 'linear-gradient(135deg, #f59e0b, #fbbf24)', letter: 'S' },
+  { key: 'mod_offerings',        label: 'Offerings',         icon: Package,         color: '#8b5cf6', bg: '#f5f3ff', feature: 'courses', grad: 'linear-gradient(135deg, #8b5cf6, #a78bfa)', letter: 'O' },
+  { key: 'mod_reports',          label: 'Reports',           icon: BarChart3,       color: '#ec4899', bg: '#fdf2f8', feature: 'reports', grad: 'linear-gradient(135deg, #ec4899, #f472b6)', letter: 'R' },
   { section: 'Finance' },
-  { key: 'mod_invoicing',        label: 'Invoicing',         icon: Receipt,         color: '#0d9488', bg: '#f0fdfa', feature: 'invoicing' },
-  { key: 'mod_payroll',          label: 'Payroll',           icon: DollarSign,      color: '#0d9488', bg: '#f0fdfa', feature: 'payroll' },
+  { key: 'mod_invoicing',        label: 'Invoicing',         icon: Receipt,         color: '#0d9488', bg: '#f0fdfa', feature: 'invoicing', grad: 'linear-gradient(135deg, #0d9488, #14b8a6)', letter: 'I' },
+  { key: 'mod_payroll',          label: 'Payroll',           icon: DollarSign,      color: '#0d9488', bg: '#f0fdfa', feature: 'payroll', grad: 'linear-gradient(135deg, #0d9488, #2dd4bf)', letter: 'P' },
   { section: 'System' },
-  { key: 'mod_billing',          label: 'Billing',           icon: CreditCard,      color: '#0d9488', bg: '#f0fdfa', feature: 'billing' },
-  { key: 'mod_staff_roles',      label: 'Staff Roles',       icon: Shield,          color: '#dc2626', bg: '#fef2f2' },
-  { key: 'mod_audit_log',        label: 'Audit Log',         icon: ClipboardList,   color: '#64748b', bg: '#f8fafc' },
-  { key: 'mod_settings',         label: 'Settings',          icon: Settings,        color: '#f59e0b', bg: '#fffbeb' },
+  { key: 'mod_billing',          label: 'Billing',           icon: CreditCard,      color: '#0d9488', bg: '#f0fdfa', feature: 'billing', grad: 'linear-gradient(135deg, #6366f1, #8b5cf6)', letter: 'B' },
+  { key: 'mod_staff_roles',      label: 'Staff Roles',       icon: Shield,          color: '#dc2626', bg: '#fef2f2', grad: 'linear-gradient(135deg, #dc2626, #f87171)', letter: 'R' },
+  { key: 'mod_audit_log',        label: 'Audit Log',         icon: ClipboardList,   color: '#64748b', bg: '#f8fafc', grad: 'linear-gradient(135deg, #64748b, #94a3b8)', letter: 'L' },
+  { key: 'mod_settings',         label: 'Settings',          icon: Settings,        color: '#f59e0b', bg: '#fffbeb', grad: 'linear-gradient(135deg, #f59e0b, #fbbf24)', letter: 'G' },
 ]
 
 const MODULE_KEYS = MODULES.filter(m => m.key).map(m => m.key)
@@ -162,14 +162,11 @@ export default function ManageStaffRoles() {
                   {/* Module icons preview (when collapsed) */}
                   <div style={s.iconRow}>
                     {activeModules.length > 0 ? (
-                      activeModules.map(mod => {
-                        const Icon = mod.icon
-                        return (
-                          <div key={mod.key} style={{ ...s.iconCircle, backgroundColor: mod.bg, borderColor: mod.color + '40' }} title={mod.label}>
-                            <Icon size={13} color={mod.color} strokeWidth={2} />
-                          </div>
-                        )
-                      })
+                      activeModules.map(mod => (
+                        <div key={mod.key} style={{ ...s.iconCircle, background: mod.grad || mod.bg }} title={mod.label}>
+                          <span style={s.iconLetter}>{mod.letter || mod.label[0]}</span>
+                        </div>
+                      ))
                     ) : (
                       <span style={s.noAccessLabel}>No access</span>
                     )}
@@ -266,7 +263,8 @@ const s = {
   memberName: { fontWeight: 600, color: '#111827', fontSize: '0.9rem' },
   memberRole: { color: '#9ca3af', fontSize: '0.72rem' },
   iconRow: { display: 'flex', gap: '0.3rem', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end', alignItems: 'center', marginRight: '0.25rem' },
-  iconCircle: { width: 28, height: 28, borderRadius: '50%', border: '1.5px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  iconCircle: { width: 28, height: 28, borderRadius: '50%', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  iconLetter: { color: '#fff', fontSize: '0.68rem', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' },
   noAccessLabel: { fontSize: '0.72rem', color: '#d1d5db', fontWeight: 500, fontStyle: 'italic' },
   expandBtn: { width: 30, height: 30, borderRadius: 6, border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', cursor: 'pointer', flexShrink: 0 },
   modulePanel: { borderTop: '1px solid #f3f4f6', backgroundColor: '#fafbfc' },

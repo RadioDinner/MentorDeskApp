@@ -10,3 +10,5 @@ SESSION 005 - PROMPT HISTORY
 4. I can tell you why there are two codebases. YOU FREAKING BROUGHT FILES OVER FROM THE OLD REPO YOU IDIOT. NOW I DONT KNOW WHICH ONES ARE REAL. CLEAN UP THE CODEBASE. GET BACK TO ONE! Vercel deployments are failing. Build error: src/context/AuthContext.tsx(98,73): error TS6133: 'menteeRec' is declared but its value is never read. Build command: cd app && npm run build (tsc -b && vite build)
 
 5. I want you to move the "Billing" module to System group, because the "Billing" module will be where orgs update their payment plan to pay ME, MentorDesk platform as a service. The "Invoicing" module is where Orgs will manage their mentees invoices.
+
+6. https://mentor-desk-app.vercel.app/login is just blank even after a refresh. Also, you still didn't redesign the small icons that display in the staff list
