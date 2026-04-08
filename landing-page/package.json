@@ -1,9 +1,0 @@
-{
-  "name": "mentordesk-landing",
-  "private": true,
-  "version": "0.1.0",
-  "scripts": {
-    "build": "mkdir -p dist && node build.js",
-    "dev": "npx serve ."
-  }
-}
