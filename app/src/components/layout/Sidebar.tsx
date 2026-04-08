@@ -3,12 +3,13 @@ import { useAuth } from '../../context/AuthContext'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../../lib/modules'
 
 export default function Sidebar() {
-  const { profile } = useAuth()
+  const { profile, isMenteeMode } = useAuth()
 
   if (!profile) return null
 
-  const isAdmin = profile.role === 'admin'
-  const isMentor = profile.role === 'mentor' || profile.role === 'assistant_mentor'
+  // In mentee mode, show only home
+  const isAdmin = !isMenteeMode && profile.role === 'admin'
+  const isMentor = !isMenteeMode && (profile.role === 'mentor' || profile.role === 'assistant_mentor')
   const allowedKeys = new Set(profile.allowed_modules ?? [])
 
   // Build visible modules
@@ -76,7 +77,9 @@ export default function Sidebar() {
         <p className="text-xs font-medium text-slate-200 truncate">
           {profile.first_name} {profile.last_name}
         </p>
-        <p className="text-xs text-slate-400 capitalize">{profile.role}</p>
+        <p className="text-xs text-slate-400 capitalize">
+          {isMenteeMode ? 'Mentee' : profile.role.replace('_', ' ')}
+        </p>
       </div>
 
     </aside>

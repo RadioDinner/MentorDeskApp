@@ -3,13 +3,28 @@ import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { purgeExpiredArchives } from '../lib/archivePurge'
-import type { StaffMember } from '../types'
+import type { StaffMember, Mentee } from '../types'
+
+export interface ProfileOption {
+  type: 'staff' | 'mentee'
+  id: string
+  label: string
+  role: string
+  staffRecord?: StaffMember
+  menteeRecord?: Mentee
+}
 
 interface AuthContextValue {
   session: Session | null
   user: User | null
   profile: StaffMember | null
   loading: boolean
+  // Multi-profile support
+  allProfiles: ProfileOption[]
+  activeProfileId: string | null
+  menteeProfile: Mentee | null
+  isMenteeMode: boolean
+  switchProfile: (profileId: string) => void
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -17,31 +32,121 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  staff: 'Staff',
+  mentor: 'Mentor',
+  assistant_mentor: 'Asst. Mentor',
+  mentee: 'Mentee',
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function fetchProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('staff')
-      .select('*')
-      .eq('user_id', userId)
-      .single()
+  // Multi-profile state
+  const [allStaffProfiles, setAllStaffProfiles] = useState<StaffMember[]>([])
+  const [menteeProfile, setMenteeProfile] = useState<Mentee | null>(null)
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
+  const [isMenteeMode, setIsMenteeMode] = useState(false)
 
-    if (error) {
-      console.error('Failed to fetch staff profile:', error.message)
-      return null
+  async function fetchAllProfiles(userId: string) {
+    // Fetch all staff records for this user
+    const [staffRes, menteeRes] = await Promise.all([
+      supabase
+        .from('staff')
+        .select('*')
+        .eq('user_id', userId)
+        .is('archived_at', null),
+      supabase
+        .from('mentees')
+        .select('*')
+        .eq('user_id', userId)
+        .is('archived_at', null),
+    ])
+
+    const staffRecords = (staffRes.data as StaffMember[]) ?? []
+    const menteeRecords = (menteeRes.data as Mentee[]) ?? []
+
+    if (staffRes.error) {
+      console.error('Failed to fetch staff profiles:', staffRes.error.message)
     }
-    return data as StaffMember
+
+    setAllStaffProfiles(staffRecords)
+    setMenteeProfile(menteeRecords.length > 0 ? menteeRecords[0] : null)
+
+    // Pick the active profile: prefer admin, then last used, then first available
+    const savedActiveId = localStorage.getItem(`mentordesk_active_profile_${userId}`)
+
+    // Check if saved profile still exists
+    const allIds = [...staffRecords.map(s => s.id), ...menteeRecords.map(m => `mentee:${m.id}`)]
+    let activeId = savedActiveId && allIds.includes(savedActiveId) ? savedActiveId : null
+
+    if (!activeId) {
+      // Default to admin profile, then first staff profile
+      const adminProfile = staffRecords.find(s => s.role === 'admin')
+      activeId = adminProfile?.id ?? staffRecords[0]?.id ?? (menteeRecords.length > 0 ? `mentee:${menteeRecords[0].id}` : null)
+    }
+
+    if (activeId) {
+      applyProfile(activeId, staffRecords, menteeRecords.length > 0 ? menteeRecords[0] : null, userId)
+    }
+
+    return staffRecords[0] ?? null // Return any profile for org_id access
   }
+
+  function applyProfile(profileId: string, staffRecords: StaffMember[], menteeRec: Mentee | null, userId?: string) {
+    setActiveProfileId(profileId)
+
+    if (profileId.startsWith('mentee:')) {
+      // Mentee mode — we still need a staff profile for org_id etc.
+      // Use the first staff record as the "base" but mark mentee mode
+      setIsMenteeMode(true)
+      // Keep the current staff profile for org context
+      if (staffRecords.length > 0) {
+        setProfile(staffRecords[0])
+      }
+    } else {
+      const staffProfile = staffRecords.find(s => s.id === profileId)
+      if (staffProfile) {
+        setProfile(staffProfile)
+        setIsMenteeMode(false)
+      }
+    }
+
+    // Persist choice
+    if (userId) {
+      localStorage.setItem(`mentordesk_active_profile_${userId}`, profileId)
+    }
+  }
+
+  function switchProfile(profileId: string) {
+    applyProfile(profileId, allStaffProfiles, menteeProfile, user?.id)
+  }
+
+  // Build the list of available profile options
+  const allProfiles: ProfileOption[] = [
+    ...allStaffProfiles.map(s => ({
+      type: 'staff' as const,
+      id: s.id,
+      label: ROLE_LABELS[s.role] ?? s.role,
+      role: s.role,
+      staffRecord: s,
+    })),
+    ...(menteeProfile ? [{
+      type: 'mentee' as const,
+      id: `mentee:${menteeProfile.id}`,
+      label: 'Mentee',
+      role: 'mentee',
+      menteeRecord: menteeProfile,
+    }] : []),
+  ]
 
   useEffect(() => {
     let didInit = false
 
-    // The SDK's getSession() can hang in some Supabase configurations.
-    // Use onAuthStateChange as the primary init path, with a timeout fallback.
     const initTimeout = setTimeout(() => {
       if (!didInit) {
         didInit = true
@@ -58,19 +163,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        const p = await fetchProfile(session.user.id)
-        setProfile(p)
-        // Run archive auto-purge in the background (fire-and-forget)
+        const p = await fetchAllProfiles(session.user.id)
+        // Run archive auto-purge in the background
         if (p?.organization_id) {
           purgeExpiredArchives(p.organization_id).catch(() => {})
         }
       } else {
         setProfile(null)
+        setAllStaffProfiles([])
+        setMenteeProfile(null)
+        setActiveProfileId(null)
+        setIsMenteeMode(false)
       }
       setLoading(false)
     })
 
-    // Trigger the initial session check
     supabase.auth.getSession().catch((err) => {
       console.error('[AuthContext] getSession failed:', err)
       if (!didInit) {
@@ -93,21 +200,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    if (user) {
+      localStorage.removeItem(`mentordesk_active_profile_${user.id}`)
+    }
     await supabase.auth.signOut({ scope: 'local' })
     setSession(null)
     setUser(null)
     setProfile(null)
+    setAllStaffProfiles([])
+    setMenteeProfile(null)
+    setActiveProfileId(null)
+    setIsMenteeMode(false)
   }
 
   async function refreshProfile() {
     if (user) {
-      const p = await fetchProfile(user.id)
-      setProfile(p)
+      await fetchAllProfiles(user.id)
     }
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      session, user, profile, loading,
+      allProfiles, activeProfileId, menteeProfile, isMenteeMode,
+      switchProfile,
+      signIn, signOut, refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   )
