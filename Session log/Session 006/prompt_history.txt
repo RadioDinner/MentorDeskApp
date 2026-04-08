@@ -65,3 +65,5 @@ Is there any way to automatically collect errors in github? For example, if I ha
 16. So yeah, I understand this "Also fixed: The "duplicate key" error now shows a friendly message like: "A staff member with the email 'you@email.com' already exists in your organization."" but it isn't working how I designed it. I want to be able to create "duplicates" of sorts. I want to be able to setup a mentor account so I can switch to that account, or that dashboard, so that I can see what the app looks like from the mentor login. Capishe?
 
 17. lessons aren't saving. Title isn't saving, links aren't saving, etc
+
+18. ok, on the buttons to add questions, take away the "Save question" button, it's redundnat

@@ -563,26 +563,26 @@ function QuestionCard({
 }) {
   const [text, setText] = useState(question.question_text)
   const [options, setOptions] = useState<QuizOption[]>(question.options ?? [])
-  const [saving, setSaving] = useState(false)
 
   const isQuiz = question.question_type === 'quiz'
 
-  async function save() {
-    setSaving(true)
-    const updates: Partial<LessonQuestion> = { question_text: text.trim() }
+  function autoSave(overrideText?: string, overrideOptions?: QuizOption[]) {
+    const updates: Partial<LessonQuestion> = { question_text: (overrideText ?? text).trim() }
     if (isQuiz) {
-      updates.options = options
+      updates.options = overrideOptions ?? options
     }
-    await onUpdate(question.id, updates)
-    setSaving(false)
+    onUpdate(question.id, updates)
   }
 
   function addOption() {
-    setOptions(prev => [...prev, { text: '', is_correct: false }])
+    const next = [...options, { text: '', is_correct: false }]
+    setOptions(next)
   }
 
   function removeOption(idx: number) {
-    setOptions(prev => prev.filter((_, i) => i !== idx))
+    const next = options.filter((_, i) => i !== idx)
+    setOptions(next)
+    autoSave(undefined, next)
   }
 
   function updateOptionText(idx: number, value: string) {
@@ -590,7 +590,9 @@ function QuestionCard({
   }
 
   function setCorrectOption(idx: number) {
-    setOptions(prev => prev.map((o, i) => ({ ...o, is_correct: i === idx })))
+    const next = options.map((o, i) => ({ ...o, is_correct: i === idx }))
+    setOptions(next)
+    autoSave(undefined, next)
   }
 
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
@@ -621,6 +623,7 @@ function QuestionCard({
             rows={2}
             value={text}
             onChange={e => setText(e.target.value)}
+            onBlur={() => autoSave()}
             className={inputClass + ' resize-none'}
             placeholder="Enter your question..."
           />
@@ -650,6 +653,7 @@ function QuestionCard({
                     type="text"
                     value={opt.text}
                     onChange={e => updateOptionText(oi, e.target.value)}
+                    onBlur={() => autoSave()}
                     placeholder={`Option ${oi + 1}`}
                     className={inputClass}
                   />
@@ -673,15 +677,6 @@ function QuestionCard({
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button
-            onClick={save}
-            disabled={saving}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-60 transition-colors"
-          >
-            {saving ? 'Saving...' : 'Save Question'}
-          </button>
-        </div>
       </div>
     </div>
   )
