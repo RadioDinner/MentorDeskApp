@@ -33,3 +33,25 @@ Object { title: "Lesson 1", description: null, content: "<p>srth</p>", video_url
 When clicking save
 
 9. still broken
+
+10. Is this interference from the old codebase mixup?
+
+11. ✗Save failed: Request timed out after 15s. Your Supabase project may be paused or unreachable.
+
+12. I'm afraid we got some wires crossed and it's still using the old "CourseCorrect" project, which saddens me deeply if that is the case.
+
+13. These are the last 24 hours in the old supabase project. [large table of postgres logs from project gmukitlqvuhlonlhlimw showing only admin connections, org_signups queries, and an error about supabase_migrations.schema_migrations not existing]
+
+14. Results from the button push
+
+DB Connectivity Test:
+
+project: hxnbyjqookqkoumcvnya
+
+read: OK 156ms
+
+write_sdk: OK 249ms
+
+write_fetch: OK (201) 182ms
+
+lessons_table: OK 262ms

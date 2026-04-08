@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout, testSupabaseConnectivity } from '../lib/supabase'
+import { supabase, withTimeout, testSupabaseConnectivity, supabaseRestCall } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
@@ -123,15 +123,16 @@ export default function CourseBuilderPage() {
     const newIndex = lessons.length
     console.log('[CourseBuilder] addLesson: inserting lesson', { offering_id: id, order_index: newIndex })
 
-    const { data, error: e } = await withTimeout(
-      supabase.from('lessons').insert({
+    // Use raw REST call — SDK write calls have been timing out
+    const { data, error: e } = await supabaseRestCall(
+      'lessons',
+      'POST',
+      {
         offering_id: id,
         organization_id: profile.organization_id,
         title: `Lesson ${newIndex + 1}`,
         order_index: newIndex,
-      }).select('*'),
-      15000,
-      'addLesson',
+      },
     )
 
     if (e) {
@@ -141,7 +142,7 @@ export default function CourseBuilderPage() {
     }
     console.log('[CourseBuilder] addLesson response:', data)
     if (!data?.length) { console.warn('[CourseBuilder] addLesson: no data returned'); return }
-    const newLesson = data[0] as Lesson
+    const newLesson = data[0] as unknown as Lesson
     setLessons(prev => [...prev, newLesson])
     setSelectedLessonId(newLesson.id)
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: newLesson.id, title: newLesson.title } })
@@ -181,10 +182,12 @@ export default function CourseBuilderPage() {
       }
 
       console.log('[CourseBuilder] saveLesson: updating', selectedLesson.id, updates)
-      const { error: e } = await withTimeout(
-        supabase.from('lessons').update(updates).eq('id', selectedLesson.id),
-        15000,
-        'saveLesson',
+      // Use raw REST call — SDK write calls have been timing out
+      const { error: e } = await supabaseRestCall(
+        'lessons',
+        'PATCH',
+        updates as Record<string, unknown>,
+        `id=eq.${selectedLesson.id}`,
       )
       if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
 
@@ -242,23 +245,24 @@ export default function CourseBuilderPage() {
 
     try {
       console.log('[CourseBuilder] addQuestion:', { type, lesson_id: selectedLessonId, order_index: newIndex })
-      const { data, error: e } = await withTimeout(
-        supabase.from('lesson_questions').insert({
+      // Use raw REST call — SDK write calls have been timing out
+      const { data, error: e } = await supabaseRestCall(
+        'lesson_questions',
+        'POST',
+        {
           lesson_id: selectedLessonId,
           organization_id: profile.organization_id,
           question_text: '',
           question_type: type,
           options,
           order_index: newIndex,
-        }).select('*'),
-        15000,
-        'addQuestion',
+        },
       )
 
       if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
       console.log('[CourseBuilder] addQuestion response:', data)
       if (!data?.length) { console.warn('[CourseBuilder] addQuestion: no data returned'); return }
-      setQuestions(prev => [...prev, data[0] as LessonQuestion])
+      setQuestions(prev => [...prev, data[0] as unknown as LessonQuestion])
     } catch (err) {
       setLessonMsg({ type: 'error', text: 'Failed to add question: ' + ((err as Error).message || 'Unknown error') })
       console.error(err)
