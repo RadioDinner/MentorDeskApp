@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('[AuthContext] Session init timed out — continuing without session')
         setLoading(false)
       }
-    }, 5000)
+    }, 3000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AuthContext] onAuthStateChange:', event, '| has session:', !!session)
@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const safetyTimeout = setTimeout(() => {
         console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
         setLoading(false)
-      }, 10000)
+      }, 6000)
 
       try {
         if (session?.user) {

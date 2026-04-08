@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 export function useLoadingGuard(
   loading: boolean,
   onTimeout: () => void,
-  timeoutMs = 15000,
+  timeoutMs = 8000,
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
