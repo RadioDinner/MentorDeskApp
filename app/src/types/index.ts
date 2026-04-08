@@ -39,6 +39,14 @@ export interface CancellationPolicy {
   no_show: CancelOutcome
 }
 
+export type ArchiveDeleteUnit = 'days' | 'months' | 'years'
+
+export interface ArchiveSettings {
+  auto_delete_enabled: boolean
+  auto_delete_value: number
+  auto_delete_unit: ArchiveDeleteUnit
+}
+
 export interface Organization {
   id: string
   name: string
@@ -52,6 +60,7 @@ export interface Organization {
   default_cancellation_policy: CancellationPolicy
   role_groups: RoleGroup[]
   enable_lesson_due_dates: boolean
+  archive_settings: ArchiveSettings
   created_at: string
 }
 
@@ -100,6 +109,7 @@ export interface Mentee {
   zip: string | null
   country: string | null
   flow_step_id: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
@@ -171,6 +181,7 @@ export interface StaffMember {
   pay_rate: number | null
   access_groups: string[]
   allowed_modules: string[]
+  archived_at: string | null
   created_at: string
   updated_at: string
 }

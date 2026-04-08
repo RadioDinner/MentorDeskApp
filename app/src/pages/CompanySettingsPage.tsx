@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
 
@@ -27,7 +27,7 @@ const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
   assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
 }
 
-type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'courses' | 'permissions' | 'notifications' | 'integrations'
+type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'courses' | 'permissions' | 'archives' | 'notifications' | 'integrations'
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'branding', label: 'Branding' },
@@ -36,8 +36,21 @@ const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'cancellation', label: 'Cancellation' },
   { key: 'courses', label: 'Courses' },
   { key: 'permissions', label: 'Permissions' },
+  { key: 'archives', label: 'Archives' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'integrations', label: 'Integrations' },
+]
+
+const DEFAULT_ARCHIVE_SETTINGS: ArchiveSettings = {
+  auto_delete_enabled: false,
+  auto_delete_value: 90,
+  auto_delete_unit: 'days',
+}
+
+const ARCHIVE_UNITS: { value: ArchiveDeleteUnit; label: string }[] = [
+  { value: 'days', label: 'days' },
+  { value: 'months', label: 'months' },
+  { value: 'years', label: 'years' },
 ]
 
 const GROUP_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -72,6 +85,7 @@ export default function CompanySettingsPage() {
   const [editingGroup, setEditingGroup] = useState<RoleGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
+  const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useEffect(() => {
     if (!profile) return
@@ -87,6 +101,7 @@ export default function CompanySettingsPage() {
       setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       setRoleGroups(o.role_groups ?? [])
       setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
+      setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       setLoading(false)
     }
     fetchOrg()
@@ -102,6 +117,7 @@ export default function CompanySettingsPage() {
       pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
       role_groups: roleGroups,
       enable_lesson_due_dates: enableLessonDueDates,
+      archive_settings: archiveSettings,
     }
     const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
     setSaving(false)
@@ -452,6 +468,70 @@ export default function CompanySettingsPage() {
                   <p className="text-xs text-gray-400">Create groups like "Operations", "Finance Team", or "Course Builder" to quickly assign module access to staff.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ====== ARCHIVES ====== */}
+          {activeTab === 'archives' && (
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">
+                Configure how your organization handles archived staff and mentees. Archived people are hidden from active lists but can be restored at any time.
+              </p>
+
+              {/* Auto-delete toggle */}
+              <div className="rounded-lg border border-gray-200 px-5 py-5 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Automatic deletion</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Permanently delete archived people after a set period. This cannot be undone.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setArchiveSettings(s => ({ ...s, auto_delete_enabled: !s.auto_delete_enabled }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                      archiveSettings.auto_delete_enabled ? 'bg-brand' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${
+                      archiveSettings.auto_delete_enabled ? 'translate-x-[22px]' : 'translate-x-[3px]'
+                    }`} />
+                  </button>
+                </div>
+
+                {archiveSettings.auto_delete_enabled && (
+                  <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                    <span className="text-sm text-gray-700">Delete after</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={archiveSettings.auto_delete_value}
+                      onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_value: parseInt(e.target.value) || 1 }))}
+                      className="w-20 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                    />
+                    <select
+                      value={archiveSettings.auto_delete_unit}
+                      onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_unit: e.target.value as ArchiveDeleteUnit }))}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                    >
+                      {ARCHIVE_UNITS.map(u => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-500">of being archived</span>
+                  </div>
+                )}
+
+                {!archiveSettings.auto_delete_enabled && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-gray-500">Archived people will be kept indefinitely until manually deleted.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

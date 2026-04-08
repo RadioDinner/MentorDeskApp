@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { purgeExpiredArchives } from '../lib/archivePurge'
 import type { StaffMember } from '../types'
 
 interface AuthContextValue {
@@ -59,6 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         const p = await fetchProfile(session.user.id)
         setProfile(p)
+        // Run archive auto-purge in the background (fire-and-forget)
+        if (p?.organization_id) {
+          purgeExpiredArchives(p.organization_id).catch(() => {})
+        }
       } else {
         setProfile(null)
       }
