@@ -13,6 +13,8 @@ At the beginning of each new session, follow these instructions:
    - Log EVERY prompt the user sends during the session into this file, in order.
    - Update the file after each prompt is received.
    - Format: number each prompt sequentially with a blank line between entries.
+   - CRITICAL: Save prompts VERBATIM — copy the user's exact words. Do NOT
+     summarize, paraphrase, or shorten them. The user's exact phrasing matters.
 
 3. SESSION HANDOFF LOG
    - At the END of the session (when the user indicates they are done, or wraps up),

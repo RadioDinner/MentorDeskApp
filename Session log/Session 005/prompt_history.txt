@@ -40,3 +40,5 @@ SESSION 005 - PROMPT HISTORY
 19. Why am I needing to re-prompt you so often to redo work? Multi-role account switcher still not done. Want: single user can be admin + mentor + assistant mentor + mentee. UI switcher dropdown in profile/topbar. Only shows roles the user actually has. Switch between them without logging out.
 
 20. Lessons are still not saving in the editor. And I still have the loading... bug. Have you put provisions in place to debug this with the browser console or anything? Course builder save, +Response/+Quiz, engagement create still broken.
+
+21. Do we have the appropriate tables and fields in them so far? I want that audited to verify multi-tenancy viabliity in the future. Remember, this is a test org and we'll build a platform super admin console for the platform as a company later. I also want you to go back across all sessions and all prompts in those sessions, and ensure that the changes I've requested across those sessions have been honored. I also want you to update the session document that when I say I want my prompt saved, I want it saved VERBATIM. Not summarized by you, the Idiot.
