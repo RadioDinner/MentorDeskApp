@@ -879,7 +879,7 @@ const s = {
   typePill: { display: 'inline-flex', alignItems: 'center', fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: 79, flexShrink: 0 },
   typePillArrangement: { background: '#f0fdfa', color: '#0d9488', border: '1px solid #a7f3d0' },
   typePillCourse: { background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' },
-  activeToggle: { background: 'none', border: 'none', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0, cursor: 'pointer', borderRadius: 7, border: '1px solid #e5e7eb' },
+  activeToggle: { background: 'none', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0, cursor: 'pointer', borderRadius: 7, border: '1px solid #e5e7eb' },
   pillRow: { display: 'flex', flexWrap: 'wrap', gap: '0.35rem', flexShrink: 0 },
   pill: { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.22rem 0.6rem', borderRadius: 79, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '0.73rem', color: '#374151', fontWeight: 500 },
   rowActions: { display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 },
