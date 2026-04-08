@@ -20,20 +20,48 @@ export default function MenteesListPage() {
     setError('Request timed out. Please refresh the page.')
   }, []))
 
+  const isMentor = profile?.role === 'mentor' || profile?.role === 'assistant_mentor'
+
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[MenteesListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
 
     async function fetchMentees() {
       setLoading(true)
       try {
-        const { data, error: fetchError } = await supabase
-          .from('mentees')
-          .select('*')
-          .eq('organization_id', profile!.organization_id)
-          .order('first_name', { ascending: true })
+        if (isMentor) {
+          // Mentors only see mentees assigned to them
+          const { data: assignments, error: assignErr } = await supabase
+            .from('assignments')
+            .select('mentee_id')
+            .eq('mentor_id', profile!.id)
+            .in('status', ['active', 'paused'])
 
-        if (fetchError) { setError(fetchError.message); return }
-        setMentees(data as Mentee[])
+          if (assignErr) { setError(assignErr.message); return }
+          const menteeIds = (assignments ?? []).map(a => a.mentee_id)
+
+          if (menteeIds.length === 0) {
+            setMentees([])
+          } else {
+            const { data, error: fetchError } = await supabase
+              .from('mentees')
+              .select('*')
+              .in('id', menteeIds)
+              .order('first_name', { ascending: true })
+
+            if (fetchError) { setError(fetchError.message); return }
+            setMentees(data as Mentee[])
+          }
+        } else {
+          // Admins and staff see all mentees in the org
+          const { data, error: fetchError } = await supabase
+            .from('mentees')
+            .select('*')
+            .eq('organization_id', profile!.organization_id)
+            .order('first_name', { ascending: true })
+
+          if (fetchError) { setError(fetchError.message); return }
+          setMentees(data as Mentee[])
+        }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -43,7 +71,7 @@ export default function MenteesListPage() {
     }
 
     fetchMentees()
-  }, [profile?.organization_id])
+  }, [profile?.organization_id, profile?.id, profile?.role])
 
   async function archiveMentee(id: string) {
     if (!profile) return
@@ -89,13 +117,16 @@ export default function MenteesListPage() {
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Mentees</h1>
+          <h1 className="text-xl font-semibold text-gray-900">{isMentor ? 'My Mentees' : 'Mentees'}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {activeMentees.length} active{archivedMentees.length > 0 ? `, ${archivedMentees.length} de-activated` : ''}
+            {isMentor
+              ? `${activeMentees.length} assigned to you`
+              : `${activeMentees.length} active${archivedMentees.length > 0 ? `, ${archivedMentees.length} de-activated` : ''}`
+            }
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {archivedMentees.length > 0 && (
+          {!isMentor && archivedMentees.length > 0 && (
             <button
               onClick={() => setShowArchived(!showArchived)}
               className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
@@ -107,12 +138,14 @@ export default function MenteesListPage() {
               {showArchived ? 'Hide de-activated' : `Show de-activated (${archivedMentees.length})`}
             </button>
           )}
-          <button
-            onClick={() => navigate('/mentees/new')}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + Create Mentee Account
-          </button>
+          {!isMentor && (
+            <button
+              onClick={() => navigate('/mentees/new')}
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
+            >
+              + Create Mentee Account
+            </button>
+          )}
         </div>
       </div>
 
@@ -148,7 +181,14 @@ export default function MenteesListPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {isArchived ? (
+                  {isMentor ? (
+                    <button
+                      onClick={() => navigate(`/mentees/${mentee.id}/edit`)}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                    >
+                      View
+                    </button>
+                  ) : isArchived ? (
                     <>
                       <button
                         onClick={() => unarchiveMentee(mentee.id)}
