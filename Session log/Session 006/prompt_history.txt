@@ -69,3 +69,5 @@ Is there any way to automatically collect errors in github? For example, if I ha
 18. ok, on the buttons to add questions, take away the "Save question" button, it's redundnat
 
 19. Ok, I created a mentor account in this org, but you STILL haven't built a way to switch between account roles in orgs yet?
+
+20. for the loading bug, it doesn't seem like you have a good grasp of how to fix it. The "Loading..." screen is obviously setup to display somehow, can you add a button on the default "Loading..." screen that says "Report bug occurance" that would then send a comprehensive log to the github error reporting system that you could look at and fix immediately.
