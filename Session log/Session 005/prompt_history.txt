@@ -1,0 +1,4 @@
+SESSION 005 - PROMPT HISTORY
+==============================
+
+1. Pull the new session instructions and prepare session 005. I want to look into some bug fixes
