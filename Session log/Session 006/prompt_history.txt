@@ -21,3 +21,15 @@ Object { type: "response", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", or
 index-C8Qy2Kti.js:187:17439
 [CourseBuilder] addQuestion:
 Object { type: "response", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", order_index: 0 }
+
+7. +Quiz button once
+
+[CourseBuilder] addQuestion:
+Object { type: "quiz", lesson_id: "a2e29bc1-59fb-461c-969a-cef982a4dc57", order_index: 0 }
+
+8. [CourseBuilder] saveLesson: updating a2e29bc1-59fb-461c-969a-cef982a4dc57
+Object { title: "Lesson 1", description: null, content: "<p>srth</p>", video_url: "https://www.youtube.com/watch?v=Cu4RLWCJByc", due_days_offset: null }
+
+When clicking save
+
+9. still broken
