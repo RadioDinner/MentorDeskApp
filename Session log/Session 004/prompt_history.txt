@@ -12,3 +12,5 @@ SESSION 004 - PROMPT HISTORY
 5. When I click the "Course Builder" button it redirects me to the dashboard. Also, do we have all the tables in supabase that we need to for the features we've built so far? If not, please build those and put them in a migration file.
 
 6. I also want to be able to filter by the data in the grid on the Pairing module. A change I'd like to make the https://mentor-desk-app.vercel.app/engagements/new screen. If the "Use organization default" cancellation policy is checked, I want you to summarize what the default policy is. A change I'd like to have made to the mentee flow is that I want the order system of the defined progression to be easier to see, either bigger, more obvious up/down buttons to move the items in the list or a drag and drop. Actually probably both buttons and drag and drop.
+
+7. The permission dropdown feature in the staff module is still not where I need it to be. I want the whole list/card to drop down, not open a separate ui. I want it to be dynamic. Try a redesign of this feature to see if I am satisfied.

@@ -126,38 +126,86 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       ) : (
         <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
           {people.map(person => (
-            <div key={person.id} className="flex items-center justify-between px-5 py-3">
-              <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
-                  {person.first_name[0]}{person.last_name[0]}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {person.first_name} {person.last_name}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">{person.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                {showAccessGroups && person.role !== 'admin' && (
-                  <ModuleAccessControl
-                    person={person}
-                    allPeople={allStaff}
-                    permissionGroups={permissionGroups}
-                    onUpdate={(modules) => updateModules(person.id, modules)}
-                  />
-                )}
-                <button
-                  onClick={() => navigate(`/people/${person.id}/edit`)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
+            <StaffRow
+              key={person.id}
+              person={person}
+              showAccessGroups={showAccessGroups}
+              allStaff={allStaff}
+              permissionGroups={permissionGroups}
+              onUpdateModules={(modules) => updateModules(person.id, modules)}
+              onEdit={() => navigate(`/people/${person.id}/edit`)}
+            />
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function StaffRow({
+  person,
+  showAccessGroups,
+  allStaff,
+  permissionGroups,
+  onUpdateModules,
+  onEdit,
+}: {
+  person: StaffMember
+  showAccessGroups?: boolean
+  allStaff: StaffMember[]
+  permissionGroups: RoleGroup[]
+  onUpdateModules: (modules: string[]) => void
+  onEdit: () => void
+}) {
+  const [accessExpanded, setAccessExpanded] = useState(false)
+  const showAccess = showAccessGroups && person.role !== 'admin'
+
+  return (
+    <div className="px-5 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
+            {person.first_name[0]}{person.last_name[0]}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {person.first_name} {person.last_name}
+            </p>
+            <p className="text-xs text-gray-500 truncate">{person.email}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          {showAccess && (
+            <ModuleAccessControl
+              person={person}
+              allPeople={allStaff}
+              permissionGroups={permissionGroups}
+              onUpdate={onUpdateModules}
+              expanded={accessExpanded}
+              onToggle={() => setAccessExpanded(!accessExpanded)}
+            />
+          )}
+          <button
+            onClick={onEdit}
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded access panel — renders below the row, full card width */}
+      {showAccess && accessExpanded && (
+        <ModuleAccessControl
+          person={person}
+          allPeople={allStaff}
+          permissionGroups={permissionGroups}
+          onUpdate={onUpdateModules}
+          expanded={accessExpanded}
+          onToggle={() => setAccessExpanded(false)}
+          renderPanel
+        />
       )}
     </div>
   )
