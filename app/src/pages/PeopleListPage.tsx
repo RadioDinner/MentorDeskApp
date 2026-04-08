@@ -26,7 +26,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[PeopleListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
 
     async function fetchPeople() {
       setLoading(true)

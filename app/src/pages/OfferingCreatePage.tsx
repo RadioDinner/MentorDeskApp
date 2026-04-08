@@ -124,8 +124,10 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         record.cancellation_policy = useOrgDefault ? null : cancelPolicy
       }
 
+      console.log('[OfferingCreate] inserting record:', record)
       const { data, error } = await supabase.from('offerings').insert(record).select('id')
-      if (error) { setMsg({ type: 'error', text: error.message }); return }
+      console.log('[OfferingCreate] insert result:', { data, error })
+      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); setMsg({ type: 'error', text: error.message }); return }
 
       if (data && data.length > 0) {
         logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })

@@ -41,7 +41,7 @@ export default function PairingsPage() {
   const [filterStatus, setFilterStatus] = useState('')
 
   async function fetchAll() {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[PairingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
     setLoading(true)
     setError(null)
     try {

@@ -88,7 +88,7 @@ export default function CompanySettingsPage() {
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useEffect(() => {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[CompanySettingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
     async function fetchOrg() {
       try {
         const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()

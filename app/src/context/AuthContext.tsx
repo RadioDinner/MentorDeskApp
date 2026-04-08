@@ -53,14 +53,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isMenteeMode, setIsMenteeMode] = useState(false)
 
   async function fetchAllProfiles(userId: string) {
+    console.log('[AuthContext] fetchAllProfiles for user:', userId)
     // Fetch all staff records for this user (and mentee record if exists)
     const [staffRes, menteeRes] = await Promise.all([
       supabase.from('staff').select('*').eq('user_id', userId),
       supabase.from('mentees').select('*').eq('user_id', userId),
     ])
 
+    console.log('[AuthContext] staff query:', { data: staffRes.data?.length ?? 0, error: staffRes.error?.message })
+    console.log('[AuthContext] mentee query:', { data: menteeRes.data?.length ?? 0, error: menteeRes.error?.message })
+
     if (staffRes.error) {
-      console.error('Failed to fetch staff profiles:', staffRes.error.message)
+      console.error('[AuthContext] FAILED to fetch staff profiles:', staffRes.error.message, staffRes.error)
       // CRITICAL: if fetch fails, keep existing profile — don't null it out
       return profile
     }
@@ -70,8 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activeStaff = staffRecords.filter(s => !s.archived_at)
     const menteeRecords = ((menteeRes.data as Mentee[]) ?? []).filter(m => !m.archived_at)
 
+    console.log('[AuthContext] activeStaff:', activeStaff.length, 'mentees:', menteeRecords.length)
+    if (activeStaff.length > 0) {
+      console.log('[AuthContext] staff roles:', activeStaff.map(s => `${s.role} (org: ${s.organization_id})`))
+    }
+
     // If no staff records found, keep existing profile to prevent null-out
     if (activeStaff.length === 0 && !profile) {
+      console.warn('[AuthContext] No staff records found and no existing profile')
       return null
     }
 
@@ -96,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function applyProfile(profileId: string, staffRecords: StaffMember[], _menteeRec: Mentee | null, userId?: string) {
+    console.log('[AuthContext] applyProfile:', profileId, '| staff records:', staffRecords.length)
     setActiveProfileId(profileId)
 
     if (profileId.startsWith('mentee:')) {
@@ -154,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 5000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] onAuthStateChange:', event, '| has session:', !!session)
       if (!didInit) {
         didInit = true
         clearTimeout(initTimeout)

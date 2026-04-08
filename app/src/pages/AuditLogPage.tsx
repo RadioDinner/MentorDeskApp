@@ -105,7 +105,7 @@ export default function AuditLogPage() {
   }, [profile?.organization_id])
 
   useEffect(() => {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[AuditLogPage] No profile.organization_id — profile:', profile); setLoading(false); return }
 
     async function fetchLog() {
       setLoading(true)

@@ -20,7 +20,7 @@ export default function OfferingsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[OfferingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
 
     async function fetchOfferings() {
       setLoading(true)

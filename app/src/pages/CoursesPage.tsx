@@ -12,7 +12,7 @@ export default function CoursesPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile?.organization_id) { setLoading(false); return }
+    if (!profile?.organization_id) { console.warn('[CoursesPage] No profile.organization_id — profile:', profile); setLoading(false); return }
     async function fetch() {
       setLoading(true)
       try {

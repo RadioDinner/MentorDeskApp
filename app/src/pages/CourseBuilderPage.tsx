@@ -51,7 +51,8 @@ export default function CourseBuilderPage() {
           supabase.from('organizations').select('enable_lesson_due_dates').eq('id', profile!.organization_id).single(),
         ])
 
-        if (courseRes.error) { setError(courseRes.error.message); return }
+        console.log('[CourseBuilder] fetchData results:', { courseErr: courseRes.error, lessonsErr: lessonsRes.error, lessonCount: lessonsRes.data?.length })
+        if (courseRes.error) { console.error('[CourseBuilder] fetchData: course error', courseRes.error); setError(courseRes.error.message); return }
         if ((courseRes.data as Offering).type !== 'course') { setError('This offering is not a course.'); return }
 
         setCourse(courseRes.data as Offering)
@@ -103,8 +104,9 @@ export default function CourseBuilderPage() {
   // --- Actions ---
 
   async function addLesson() {
-    if (!id || !profile) return
+    if (!id || !profile) { console.error('[CourseBuilder] addLesson: no id or profile', { id, profile }); return }
     const newIndex = lessons.length
+    console.log('[CourseBuilder] addLesson: inserting lesson', { offering_id: id, order_index: newIndex })
     const { data, error: e } = await supabase.from('lessons').insert({
       offering_id: id,
       organization_id: profile.organization_id,
@@ -113,10 +115,12 @@ export default function CourseBuilderPage() {
     }).select('*')
 
     if (e) {
+      console.error('[CourseBuilder] addLesson FAILED:', e.message, e)
       setLessonMsg({ type: 'error', text: 'Failed to add lesson: ' + e.message })
       return
     }
-    if (!data?.length) return
+    console.log('[CourseBuilder] addLesson response:', data)
+    if (!data?.length) { console.warn('[CourseBuilder] addLesson: no data returned'); return }
     const newLesson = data[0] as Lesson
     setLessons(prev => [...prev, newLesson])
     setSelectedLessonId(newLesson.id)
@@ -156,9 +160,11 @@ export default function CourseBuilderPage() {
         due_days_offset: enableLessonDueDates && lessonDueDays ? parseInt(lessonDueDays) : null,
       }
 
+      console.log('[CourseBuilder] saveLesson: updating', selectedLesson.id, updates)
       const { error: e } = await supabase.from('lessons').update(updates).eq('id', selectedLesson.id)
-      if (e) { setLessonMsg({ type: 'error', text: e.message }); return }
+      if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message, e); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
 
+      console.log('[CourseBuilder] saveLesson: SUCCESS')
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
       setLessonMsg({ type: 'success', text: 'Lesson saved.' })
       logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: course?.id ?? '', details: { sub: 'lesson', lesson_id: selectedLesson.id, title: lessonTitle.trim() } })
@@ -211,6 +217,7 @@ export default function CourseBuilderPage() {
     const options: QuizOption[] | null = type === 'quiz' ? [{ text: '', is_correct: true }, { text: '', is_correct: false }] : null
 
     try {
+      console.log('[CourseBuilder] addQuestion:', { type, lesson_id: selectedLessonId, order_index: newIndex })
       const { data, error: e } = await supabase.from('lesson_questions').insert({
         lesson_id: selectedLessonId,
         organization_id: profile.organization_id,
@@ -220,8 +227,9 @@ export default function CourseBuilderPage() {
         order_index: newIndex,
       }).select('*')
 
-      if (e) { setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
-      if (!data?.length) return
+      if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message, e); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
+      console.log('[CourseBuilder] addQuestion response:', data)
+      if (!data?.length) { console.warn('[CourseBuilder] addQuestion: no data returned'); return }
       setQuestions(prev => [...prev, data[0] as LessonQuestion])
     } catch (err) {
       setLessonMsg({ type: 'error', text: 'Failed to add question: ' + ((err as Error).message || 'Unknown error') })
