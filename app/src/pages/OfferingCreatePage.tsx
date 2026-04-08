@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
+import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy, CancelOutcome } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
@@ -31,6 +31,22 @@ const PREVIEW_OPTIONS: { value: PreviewMode; label: string }[] = [
 ]
 
 type BillingMode = 'one_time' | 'recurring'
+
+function formatOutcome(outcome: CancelOutcome): string {
+  return outcome === 'keep_credit' ? 'keep credit' : 'lose credit'
+}
+
+function PolicySummary({ policy }: { policy: CancellationPolicy }) {
+  return (
+    <div className="rounded-md bg-gray-50 border border-gray-200 px-4 py-3 text-xs text-gray-600 space-y-1">
+      <p className="font-medium text-gray-700 mb-1.5">Current default policy:</p>
+      <p>Cancel window: <span className="font-medium text-gray-900">{policy.cancel_window_value} {policy.cancel_window_unit}</span> before appointment</p>
+      <p>Cancelled in window: <span className="font-medium text-gray-900">{formatOutcome(policy.cancelled_in_window)}</span></p>
+      <p>Late cancel: <span className="font-medium text-gray-900">{formatOutcome(policy.cancelled_outside_window)}</span></p>
+      <p>No-show: <span className="font-medium text-gray-900">{formatOutcome(policy.no_show)}</span></p>
+    </div>
+  )
+}
 
 export default function OfferingCreatePage({ title, offeringType }: OfferingCreatePageProps) {
   const { profile } = useAuth()
@@ -60,6 +76,19 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
   const [useOrgDefault, setUseOrgDefault] = useState(true)
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [orgDefaultPolicy, setOrgDefaultPolicy] = useState<CancellationPolicy | null>(null)
+
+  // Fetch org default cancellation policy for summary display
+  useEffect(() => {
+    if (!profile || isCourse) return
+    async function fetchOrgPolicy() {
+      const { data } = await supabase.from('organizations').select('default_cancellation_policy').eq('id', profile!.organization_id).single()
+      if (data?.default_cancellation_policy) {
+        setOrgDefaultPolicy(data.default_cancellation_policy as CancellationPolicy)
+      }
+    }
+    fetchOrgPolicy()
+  }, [profile?.organization_id])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -337,6 +366,9 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
               <p className="text-[10px] text-gray-400">Apply the default cancellation policy from Company Settings.</p>
             </div>
           </label>
+          {useOrgDefault && orgDefaultPolicy && (
+            <PolicySummary policy={orgDefaultPolicy} />
+          )}
           {!useOrgDefault && <CancellationPolicyEditor policy={cancelPolicy} onChange={setCancelPolicy} />}
         </div>
 

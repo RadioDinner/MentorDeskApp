@@ -260,53 +260,13 @@ export default function CompanySettingsPage() {
 
           {/* ====== MENTEE FLOW ====== */}
           {activeTab === 'mentee_flow' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500">Define the expected progression of mentees through your program.</p>
-
-              {flowSteps.length > 0 && (
-                <div className="space-y-1">
-                  {flowSteps
-                    .sort((a, b) => { if (a.in_flow && !b.in_flow) return -1; if (!a.in_flow && b.in_flow) return 1; return a.order - b.order })
-                    .map((_step, _idx, sorted) => {
-                      const step = _step
-                      const flowItems = sorted.filter(s => s.in_flow)
-                      const flowIdx = step.in_flow ? flowItems.indexOf(step) : -1
-                      return (
-                        <div key={step.id} className={`flex items-center gap-3 px-3 py-2 rounded border ${step.in_flow ? 'border-brand/30 bg-brand-light' : 'border-gray-200 bg-gray-50'}`}>
-                          {step.in_flow ? (
-                            <div className="flex flex-col gap-0.5 shrink-0">
-                              <button type="button" disabled={flowIdx === 0} onClick={() => {
-                                const prev = flowItems[flowIdx - 1]
-                                setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, order: prev.order } : x.id === prev.id ? { ...x, order: step.order } : x))
-                              }} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&uarr;</button>
-                              <button type="button" disabled={flowIdx === flowItems.length - 1} onClick={() => {
-                                const next = flowItems[flowIdx + 1]
-                                setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, order: next.order } : x.id === next.id ? { ...x, order: step.order } : x))
-                              }} className="text-gray-400 hover:text-gray-600 disabled:opacity-30 text-xs leading-none">&darr;</button>
-                            </div>
-                          ) : <div className="w-3" />}
-                          <div className="flex-1 flex items-center gap-2 min-w-0">
-                            <span className="text-sm font-medium text-gray-900 truncate">{step.name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${step.type === 'course' ? 'bg-violet-50 text-violet-600' : step.type === 'engagement' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>{step.type}</span>
-                          </div>
-                          <button type="button" onClick={() => setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, in_flow: !x.in_flow } : x))}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${step.in_flow ? 'bg-brand' : 'bg-gray-200'}`}>
-                            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${step.in_flow ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
-                          </button>
-                          <button type="button" onClick={() => setFlowSteps(s => s.filter(x => x.id !== step.id))} className="text-gray-300 hover:text-red-500 transition-colors text-sm">&times;</button>
-                        </div>
-                      )
-                    })}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input type="text" value={newStepName} onChange={e => setNewStepName(e.target.value)} placeholder="Add a status (e.g. Lead, Graduated)" className={inputClass + ' flex-1'}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!newStepName.trim()) return; setFlowSteps(s => [...s, { id: crypto.randomUUID(), name: newStepName.trim(), type: 'status', offering_id: null, in_flow: true, order: flowSteps.length }]); setNewStepName('') } }} />
-                <button type="button" onClick={() => { if (!newStepName.trim()) return; setFlowSteps(s => [...s, { id: crypto.randomUUID(), name: newStepName.trim(), type: 'status', offering_id: null, in_flow: true, order: flowSteps.length }]); setNewStepName('') }}
-                  className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add</button>
-              </div>
-            </div>
+            <MenteeFlowEditor
+              flowSteps={flowSteps}
+              setFlowSteps={setFlowSteps}
+              newStepName={newStepName}
+              setNewStepName={setNewStepName}
+              inputClass={inputClass}
+            />
           )}
 
           {/* ====== CANCELLATION ====== */}
@@ -507,6 +467,205 @@ export default function CompanySettingsPage() {
 
         </div>
       </form>
+    </div>
+  )
+}
+
+// --- Mentee Flow Editor with drag-and-drop + up/down buttons ---
+
+function MenteeFlowEditor({
+  flowSteps,
+  setFlowSteps,
+  newStepName,
+  setNewStepName,
+  inputClass,
+}: {
+  flowSteps: FlowStep[]
+  setFlowSteps: React.Dispatch<React.SetStateAction<FlowStep[]>>
+  newStepName: string
+  setNewStepName: (v: string) => void
+  inputClass: string
+}) {
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
+  const sorted = [...flowSteps].sort((a, b) => {
+    if (a.in_flow && !b.in_flow) return -1
+    if (!a.in_flow && b.in_flow) return 1
+    return a.order - b.order
+  })
+  const flowItems = sorted.filter(s => s.in_flow)
+
+  function moveStep(stepId: string, direction: -1 | 1) {
+    const idx = flowItems.findIndex(s => s.id === stepId)
+    if (idx < 0) return
+    const targetIdx = idx + direction
+    if (targetIdx < 0 || targetIdx >= flowItems.length) return
+    const target = flowItems[targetIdx]
+    const current = flowItems[idx]
+    setFlowSteps(s => s.map(x =>
+      x.id === current.id ? { ...x, order: target.order } :
+      x.id === target.id ? { ...x, order: current.order } : x
+    ))
+  }
+
+  function handleDragStart(stepId: string) {
+    setDragId(stepId)
+  }
+
+  function handleDragOver(e: React.DragEvent, stepId: string) {
+    e.preventDefault()
+    if (dragId && dragId !== stepId) setDragOverId(stepId)
+  }
+
+  function handleDrop(targetId: string) {
+    if (!dragId || dragId === targetId) {
+      setDragId(null)
+      setDragOverId(null)
+      return
+    }
+
+    // Only reorder within flow items
+    const fromIdx = flowItems.findIndex(s => s.id === dragId)
+    const toIdx = flowItems.findIndex(s => s.id === targetId)
+    if (fromIdx < 0 || toIdx < 0) {
+      setDragId(null)
+      setDragOverId(null)
+      return
+    }
+
+    const reordered = [...flowItems]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    // Reassign order indices
+    setFlowSteps(prev => {
+      const orderMap = new Map<string, number>()
+      reordered.forEach((s, i) => orderMap.set(s.id, i))
+      return prev.map(s => orderMap.has(s.id) ? { ...s, order: orderMap.get(s.id)! } : s)
+    })
+
+    setDragId(null)
+    setDragOverId(null)
+  }
+
+  function addStep() {
+    if (!newStepName.trim()) return
+    setFlowSteps(s => [...s, {
+      id: crypto.randomUUID(),
+      name: newStepName.trim(),
+      type: 'status' as const,
+      offering_id: null,
+      in_flow: true,
+      order: flowSteps.length,
+    }])
+    setNewStepName('')
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">Define the expected progression of mentees through your program. Drag items or use the arrow buttons to reorder.</p>
+
+      {sorted.length > 0 && (
+        <div className="space-y-1.5">
+          {sorted.map((step) => {
+            const flowIdx = step.in_flow ? flowItems.indexOf(step) : -1
+            const isFirst = flowIdx === 0
+            const isLast = flowIdx === flowItems.length - 1
+            const isDragTarget = dragOverId === step.id
+
+            return (
+              <div
+                key={step.id}
+                draggable={step.in_flow}
+                onDragStart={() => step.in_flow && handleDragStart(step.id)}
+                onDragOver={e => step.in_flow && handleDragOver(e, step.id)}
+                onDrop={() => handleDrop(step.id)}
+                onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-all ${
+                  isDragTarget
+                    ? 'border-brand bg-brand-light/60 shadow-sm'
+                    : step.in_flow
+                      ? 'border-brand/30 bg-brand-light'
+                      : 'border-gray-200 bg-gray-50'
+                } ${step.in_flow ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              >
+                {/* Order number */}
+                {step.in_flow && (
+                  <span className="w-7 h-7 rounded-full bg-brand/10 text-brand font-bold text-sm flex items-center justify-center shrink-0">
+                    {flowIdx + 1}
+                  </span>
+                )}
+                {!step.in_flow && <div className="w-7" />}
+
+                {/* Up/down buttons */}
+                {step.in_flow ? (
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isFirst}
+                      onClick={() => moveStep(step.id, -1)}
+                      className="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-500 hover:text-brand hover:border-brand disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200 transition-colors"
+                      title="Move up"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLast}
+                      onClick={() => moveStep(step.id, 1)}
+                      className="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-500 hover:text-brand hover:border-brand disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200 transition-colors"
+                      title="Move down"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : <div className="w-6" />}
+
+                {/* Drag handle */}
+                {step.in_flow && (
+                  <div className="shrink-0 text-gray-300" title="Drag to reorder">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Name + type */}
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-medium text-gray-900 truncate">{step.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                    step.type === 'course' ? 'bg-violet-50 text-violet-600' :
+                    step.type === 'engagement' ? 'bg-blue-50 text-blue-600' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>{step.type}</span>
+                </div>
+
+                {/* Toggle in-flow */}
+                <button type="button" onClick={() => setFlowSteps(s => s.map(x => x.id === step.id ? { ...x, in_flow: !x.in_flow } : x))}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${step.in_flow ? 'bg-brand' : 'bg-gray-200'}`}>
+                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${step.in_flow ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+                </button>
+
+                {/* Delete */}
+                <button type="button" onClick={() => setFlowSteps(s => s.filter(x => x.id !== step.id))} className="text-gray-300 hover:text-red-500 transition-colors text-sm">&times;</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input type="text" value={newStepName} onChange={e => setNewStepName(e.target.value)}
+          placeholder="Add a status (e.g. Lead, Graduated)" className={inputClass + ' flex-1'}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addStep() } }} />
+        <button type="button" onClick={addStep}
+          className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add</button>
+      </div>
     </div>
   )
 }

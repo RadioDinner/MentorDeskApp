@@ -131,6 +131,8 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
   const [search, setSearch] = useState('')
+  const [colFilters, setColFilters] = useState<Record<string, string>>({})
+  const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null)
   const [colWidths, setColWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(DEFAULT_COLUMNS.map(c => [c.id, c.width]))
   )
@@ -163,6 +165,20 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
     }
   }
 
+  // Compute distinct values per column (for filter dropdowns)
+  function getDistinctValues(colId: string): string[] {
+    const col = columns.find(c => c.id === colId)
+    if (!col) return []
+    const vals = new Set<string>()
+    for (const r of pairings) {
+      const v = col.getValue(r, helpers)
+      if (v) vals.add(v)
+    }
+    return Array.from(vals).sort()
+  }
+
+  const activeFilterCount = Object.values(colFilters).filter(v => v).length
+
   // Filter + sort rows
   let rows = [...pairings]
   if (search.trim()) {
@@ -173,6 +189,14 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
       `${r.mentor.first_name} ${r.mentor.last_name}`.toLowerCase().includes(q) ||
       r.status.includes(q)
     )
+  }
+
+  // Apply per-column filters
+  for (const [colId, filterVal] of Object.entries(colFilters)) {
+    if (!filterVal) continue
+    const col = columns.find(c => c.id === colId)
+    if (!col) continue
+    rows = rows.filter(r => col.getValue(r, helpers) === filterVal)
   }
   if (sortCol && sortDir) {
     const col = columns.find(c => c.id === sortCol)
@@ -271,6 +295,17 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-400">
           <span>{rows.length} pairing{rows.length !== 1 ? 's' : ''}</span>
+          {activeFilterCount > 0 && (
+            <>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={() => setColFilters({})}
+                className="text-xs text-brand hover:text-brand-hover transition-colors font-medium"
+              >
+                Clear {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}
+              </button>
+            </>
+          )}
           <span className="text-gray-300">|</span>
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -306,21 +341,55 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
                     onDrop={() => onDrop(col.id)}
                     onDragEnd={onDragEnd}
                   >
-                    <button
-                      type="button"
-                      className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left cursor-grab active:cursor-grabbing"
-                      onClick={() => col.sortable && handleSort(col.id)}
-                    >
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                        {col.label}
-                      </span>
-                      {col.sortable && (
-                        <span className={`flex flex-col text-[8px] leading-none ${isSorted ? 'text-brand' : 'text-gray-300'}`}>
-                          <span className={isSorted && sortDir === 'asc' ? 'text-brand' : ''}>&#9650;</span>
-                          <span className={isSorted && sortDir === 'desc' ? 'text-brand' : ''}>&#9660;</span>
+                    <div className="flex-1 flex items-center px-3 py-2.5 cursor-grab active:cursor-grabbing">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 text-left flex-1"
+                        onClick={() => col.sortable && handleSort(col.id)}
+                      >
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          {col.label}
                         </span>
-                      )}
-                    </button>
+                        {col.sortable && (
+                          <span className={`flex flex-col text-[8px] leading-none ${isSorted ? 'text-brand' : 'text-gray-300'}`}>
+                            <span className={isSorted && sortDir === 'asc' ? 'text-brand' : ''}>&#9650;</span>
+                            <span className={isSorted && sortDir === 'desc' ? 'text-brand' : ''}>&#9660;</span>
+                          </span>
+                        )}
+                      </button>
+                      {/* Filter button */}
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setActiveFilterCol(activeFilterCol === col.id ? null : col.id) }}
+                        className={`shrink-0 p-0.5 rounded transition-colors ${colFilters[col.id] ? 'text-brand' : 'text-gray-300 hover:text-gray-500'}`}
+                        title={`Filter by ${col.label}`}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Filter dropdown */}
+                    {activeFilterCol === col.id && (
+                      <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-md shadow-lg min-w-[160px] py-1">
+                        <button
+                          onClick={() => { setColFilters(prev => { const next = { ...prev }; delete next[col.id]; return next }); setActiveFilterCol(null) }}
+                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors ${!colFilters[col.id] ? 'text-brand font-medium' : 'text-gray-600'}`}
+                        >
+                          All
+                        </button>
+                        {getDistinctValues(col.id).map(val => (
+                          <button
+                            key={val}
+                            onClick={() => { setColFilters(prev => ({ ...prev, [col.id]: val })); setActiveFilterCol(null) }}
+                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors truncate ${colFilters[col.id] === val ? 'text-brand font-medium bg-brand-light' : 'text-gray-700'}`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Resize handle */}
                     <div
