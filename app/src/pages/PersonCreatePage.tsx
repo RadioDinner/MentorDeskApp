@@ -35,10 +35,25 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
     setMsg(null)
     setSaving(true)
 
+    // If a staff record with this email already exists, link to the same user_id
+    // so the profile switcher works (same person, different role)
+    let linkedUserId: string | null = null
+    const { data: existing } = await supabase
+      .from('staff')
+      .select('user_id')
+      .eq('organization_id', profile.organization_id)
+      .eq('email', email.trim())
+      .not('user_id', 'is', null)
+      .limit(1)
+    if (existing?.length && existing[0].user_id) {
+      linkedUserId = existing[0].user_id
+    }
+
     const { data, error } = await supabase
       .from('staff')
       .insert({
         organization_id: profile.organization_id,
+        user_id: linkedUserId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
@@ -56,8 +71,8 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
 
     if (error) {
       reportSupabaseError(error, { component: 'PersonCreatePage', action: 'create', metadata: { role: defaultRole, email: email.trim() } })
-      const friendly = error.message.includes('staff_organization_id_email_key')
-        ? `A staff member with the email "${email.trim()}" already exists in your organization.`
+      const friendly = error.message.includes('staff_organization_id_email_role_key')
+        ? `A ${defaultRole} account with the email "${email.trim()}" already exists in your organization.`
         : error.message
       setMsg({ type: 'error', text: friendly })
       return

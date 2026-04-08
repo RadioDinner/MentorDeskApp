@@ -61,3 +61,5 @@ lessons_table: OK 262ms
 ✗duplicate key value violates unique constraint "staff_organization_id_email_key"
 
 Is there any way to automatically collect errors in github? For example, if I have an organization called "BubbleHelpers" and one of their admins is running into an error like I just did, could I have it automatically be added to a list in github of issues to investigate? I'd like to do that if at all possible
+
+16. So yeah, I understand this "Also fixed: The "duplicate key" error now shows a friendly message like: "A staff member with the email 'you@email.com' already exists in your organization."" but it isn't working how I designed it. I want to be able to create "duplicates" of sorts. I want to be able to setup a mentor account so I can switch to that account, or that dashboard, so that I can see what the app looks like from the mentor login. Capishe?
