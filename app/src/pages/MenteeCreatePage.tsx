@@ -7,7 +7,7 @@ import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 
 export default function MenteeCreatePage() {
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
 
   const [firstName, setFirstName] = useState('')
@@ -28,10 +28,25 @@ export default function MenteeCreatePage() {
     setMsg(null)
     setSaving(true)
 
+    // If a staff member with this email exists, link to their user_id
+    // so the profile switcher can include the mentee role
+    let linkedUserId: string | null = null
+    const { data: existing } = await supabase
+      .from('staff')
+      .select('user_id')
+      .eq('organization_id', profile.organization_id)
+      .eq('email', email.trim())
+      .not('user_id', 'is', null)
+      .limit(1)
+    if (existing?.length && existing[0].user_id) {
+      linkedUserId = existing[0].user_id
+    }
+
     const { data, error } = await supabase
       .from('mentees')
       .insert({
         organization_id: profile.organization_id,
+        user_id: linkedUserId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
@@ -57,6 +72,9 @@ export default function MenteeCreatePage() {
 
     if (data && data.length > 0) {
       await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'mentee', entity_id: data[0].id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
+      if (linkedUserId) {
+        await refreshProfile()
+      }
       navigate(`/mentees/${data[0].id}/edit`)
     } else {
       navigate('/mentees')

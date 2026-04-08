@@ -73,3 +73,5 @@ Is there any way to automatically collect errors in github? For example, if I ha
 20. for the loading bug, it doesn't seem like you have a good grasp of how to fix it. The "Loading..." screen is obviously setup to display somehow, can you add a button on the default "Loading..." screen that says "Report bug occurance" that would then send a comprehensive log to the github error reporting system that you could look at and fix immediately.
 
 21. So, when I switch to my mentor account, it displays mentees that are not assigned to me. I want that to be fixed as well.
+
+22. I can't switch to my mentee account, why?
