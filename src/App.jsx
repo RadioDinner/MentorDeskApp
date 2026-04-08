@@ -42,6 +42,7 @@ import AdminLayout from './components/AdminLayout'
 import ErrorBoundary from './components/ErrorBoundary'
 import ErrorTracker from './components/ErrorTracker'
 import SmartHelp from './components/SmartHelp'
+import { runRecurringBilling } from './utils/recurringBilling'
 
 const ROLE_PRIORITY = ['admin', 'staff', 'mentor', 'assistantmentor', 'mentee', 'trainee']
 
@@ -221,6 +222,13 @@ export default function App() {
     loadThemeForOrg(orgId)
     loadOrgMeta(orgId)
     loadEntityCounts(orgId)
+
+    // Run recurring billing check (once per session)
+    const billingKey = `billing_check_${userId}`
+    if (!sessionStorage.getItem(billingKey)) {
+      sessionStorage.setItem(billingKey, '1')
+      runRecurringBilling(orgId)
+    }
     // Collect all unique orgs for multi-org switching
     const uniqueOrgIds = [...new Set(urData.map(r => r.organization_id))]
     if (uniqueOrgIds.length > 1) {

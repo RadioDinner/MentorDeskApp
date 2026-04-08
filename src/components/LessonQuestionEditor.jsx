@@ -53,11 +53,11 @@ export default function LessonQuestionEditor({ questions, onChange }) {
         <span style={s.headerTitle}>Questions</span>
         <span style={s.count}>{questions.length}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem' }}>
-          <button style={s.addTypeBtn} onClick={() => addQuestion('quiz')}>
-            <Check size={12} /> Quiz
+          <button type="button" style={s.addTypeBtn} onClick={() => addQuestion('quiz')}>
+            <Plus size={11} /> Quiz
           </button>
-          <button style={{ ...s.addTypeBtn, ...s.addResponseBtn }} onClick={() => addQuestion('response')}>
-            <MessageSquare size={12} /> Response
+          <button type="button" style={{ ...s.addTypeBtn, ...s.addResponseBtn }} onClick={() => addQuestion('response')}>
+            <Plus size={11} /> Response
           </button>
         </div>
       </div>
@@ -156,11 +156,11 @@ const s = {
   count: { fontSize: '0.62rem', fontWeight: 700, color: '#d97706', background: '#fef3c7', borderRadius: 99, padding: '0.1rem 0.4rem' },
   hint: { fontSize: '0.78rem', color: '#9ca3af', margin: 0, lineHeight: 1.5 },
   addTypeBtn: {
-    display: 'flex', alignItems: 'center', gap: '0.2rem',
-    padding: '0.2rem 0.5rem', border: '1px solid #86efac', borderRadius: 4,
-    background: '#f0fdf4', color: '#16a34a', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '0.3rem',
+    padding: '0.35rem 0.7rem', border: '1.5px solid #86efac', borderRadius: 5,
+    background: '#f0fdf4', color: '#16a34a', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
   },
-  addResponseBtn: { border: '1px solid #c7d2fe', background: '#eef2ff', color: '#6366f1' },
+  addResponseBtn: { border: '1.5px solid #c7d2fe', background: '#eef2ff', color: '#6366f1' },
   questionList: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
   questionCard: {
     border: '1.5px solid #fde68a', borderRadius: 6, background: '#fffbeb', padding: '0.75rem',

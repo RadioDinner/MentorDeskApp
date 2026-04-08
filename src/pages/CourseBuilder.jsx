@@ -131,111 +131,119 @@ export default function CourseBuilder() {
     setSaving(true)
     setSaved(false)
 
-    const coursePayload = {
-      offering_id: offeringId,
-      delivery_mode: deliveryMode,
-      schedule_interval: deliveryMode === 'scheduled' ? parseInt(scheduleInterval) : null,
-      schedule_unit: deliveryMode === 'scheduled' ? scheduleUnit : null,
-      due_date_mode: dueDateMode,
-      expected_completion_days: dueDateMode === 'course' && expectedCompletionDays ? parseInt(expectedCompletionDays) : null,
-    }
-
-    let courseId = course?.id
-    if (courseId) {
-      await supabase.from('courses').update(coursePayload).eq('id', courseId)
-    } else {
-      const { data } = await supabase.from('courses').insert({ ...coursePayload, organization_id: organizationId }).select().single()
-      if (data) { courseId = data.id; setCourse(data) }
-    }
-
-    if (courseId) {
-      const { data: dbLessons } = await supabase.from('lessons').select('id').eq('course_id', courseId)
-      const dbIds = new Set((dbLessons || []).map(l => l.id))
-      const uiIds = new Set(lessons.filter(l => l.id).map(l => l.id))
-      const toDelete = [...dbIds].filter(id => !uiIds.has(id))
-      if (toDelete.length > 0) await supabase.from('lessons').delete().in('id', toDelete)
-
-      // Save all lessons in parallel, then save all questions in parallel
-      const savedLessonIds = await Promise.all(lessons.map(async (l, i) => {
-        const payload = {
-          title: l.title?.trim() || '',
-          description: l.description?.trim() || null,
-          content: l.content || null,
-          video_url: l.video_url?.trim() || null,
-          order_index: i,
-          due_days_offset: dueDateMode === 'lesson' && l.due_days_offset ? parseInt(l.due_days_offset) : null,
-        }
-        if (l.id) {
-          await supabase.from('lessons').update(payload).eq('id', l.id)
-          return l.id
-        } else {
-          const { data: inserted } = await supabase.from('lessons').insert({ ...payload, course_id: courseId, organization_id: organizationId }).select('id').single()
-          return inserted?.id || null
-        }
-      }))
-
-      // Delete all old questions in one batch, then insert all new ones in one batch
-      const validLessonIds = savedLessonIds.filter(Boolean)
-      if (validLessonIds.length > 0) {
-        await supabase.from('lesson_questions').delete().in('lesson_id', validLessonIds)
+    try {
+      const coursePayload = {
+        offering_id: offeringId,
+        delivery_mode: deliveryMode,
+        schedule_interval: deliveryMode === 'scheduled' ? parseInt(scheduleInterval) : null,
+        schedule_unit: deliveryMode === 'scheduled' ? scheduleUnit : null,
+        due_date_mode: dueDateMode,
+        expected_completion_days: dueDateMode === 'course' && expectedCompletionDays ? parseInt(expectedCompletionDays) : null,
       }
 
-      const allQuestionInserts = []
-      lessons.forEach((l, i) => {
-        const lessonId = savedLessonIds[i]
-        if (!lessonId || !l.questions) return
-        l.questions
-          .filter(q => q.question_text.trim())
-          .forEach((q, qi) => {
-            allQuestionInserts.push({
-              lesson_id: lessonId,
-              organization_id: organizationId,
-              question_text: q.question_text.trim(),
-              question_type: q.question_type,
-              options: q.question_type === 'quiz' ? (q.options || []).filter(o => o.text.trim()) : null,
-              order_index: qi,
-            })
-          })
-      })
-      if (allQuestionInserts.length > 0) {
-        await supabase.from('lesson_questions').insert(allQuestionInserts)
+      let courseId = course?.id
+      if (courseId) {
+        const { error: updateErr } = await supabase.from('courses').update(coursePayload).eq('id', courseId)
+        if (updateErr) throw updateErr
+      } else {
+        const { data, error: insertErr } = await supabase.from('courses').insert({ ...coursePayload, organization_id: organizationId }).select().single()
+        if (insertErr) throw insertErr
+        if (data) { courseId = data.id; setCourse(data) }
       }
-    }
 
-    // Reload to get saved IDs, but preserve local content/questions
-    const localLessons = [...lessons]
-    const { data: freshCourse } = await supabase.from('courses').select('*').eq('offering_id', offeringId).single()
-    if (freshCourse) {
-      setCourse(freshCourse)
-      const [{ data: freshLessons }, { data: qData }] = await Promise.all([
-        supabase.from('lessons').select('*').eq('course_id', freshCourse.id).order('order_index'),
-        supabase.from('lesson_questions').select('*').eq('organization_id', organizationId).order('order_index'),
-      ])
-      if (freshLessons) {
-        const lessonIds = new Set(freshLessons.map(l => l.id))
-        const qMap = {}
-        for (const q of (qData || [])) {
-          if (!lessonIds.has(q.lesson_id)) continue
-          if (!qMap[q.lesson_id]) qMap[q.lesson_id] = []
-          qMap[q.lesson_id].push({ ...q, _key: q.id })
-        }
-        setLessons(freshLessons.map((fl, i) => {
-          const local = localLessons[i]
-          return {
-            ...fl,
-            _key: local?._key || Math.random(),
-            content: fl.content || local?.content || '',
-            video_url: fl.video_url || local?.video_url || '',
-            due_days_offset: fl.due_days_offset ?? local?.due_days_offset ?? '',
-            questions: qMap[fl.id] || local?.questions || [],
+      if (courseId) {
+        const { data: dbLessons } = await supabase.from('lessons').select('id').eq('course_id', courseId)
+        const dbIds = new Set((dbLessons || []).map(l => l.id))
+        const uiIds = new Set(lessons.filter(l => l.id).map(l => l.id))
+        const toDelete = [...dbIds].filter(id => !uiIds.has(id))
+        if (toDelete.length > 0) await supabase.from('lessons').delete().in('id', toDelete)
+
+        // Save all lessons in parallel, then save all questions in parallel
+        const savedLessonIds = await Promise.all(lessons.map(async (l, i) => {
+          const payload = {
+            title: l.title?.trim() || '',
+            description: l.description?.trim() || null,
+            content: l.content || null,
+            video_url: l.video_url?.trim() || null,
+            order_index: i,
+            due_days_offset: dueDateMode === 'lesson' && l.due_days_offset ? parseInt(l.due_days_offset) : null,
+          }
+          if (l.id) {
+            await supabase.from('lessons').update(payload).eq('id', l.id)
+            return l.id
+          } else {
+            const { data: inserted } = await supabase.from('lessons').insert({ ...payload, course_id: courseId, organization_id: organizationId }).select('id').single()
+            return inserted?.id || null
           }
         }))
-      }
-    }
 
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+        // Delete all old questions in one batch, then insert all new ones in one batch
+        const validLessonIds = savedLessonIds.filter(Boolean)
+        if (validLessonIds.length > 0) {
+          await supabase.from('lesson_questions').delete().in('lesson_id', validLessonIds)
+        }
+
+        const allQuestionInserts = []
+        lessons.forEach((l, i) => {
+          const lessonId = savedLessonIds[i]
+          if (!lessonId || !l.questions) return
+          l.questions
+            .filter(q => q.question_text.trim())
+            .forEach((q, qi) => {
+              allQuestionInserts.push({
+                lesson_id: lessonId,
+                organization_id: organizationId,
+                question_text: q.question_text.trim(),
+                question_type: q.question_type,
+                options: q.question_type === 'quiz' ? (q.options || []).filter(o => o.text.trim()) : null,
+                order_index: qi,
+              })
+            })
+        })
+        if (allQuestionInserts.length > 0) {
+          await supabase.from('lesson_questions').insert(allQuestionInserts)
+        }
+      }
+
+      // Reload to get saved IDs, but preserve local content/questions
+      const localLessons = [...lessons]
+      const { data: freshCourse } = await supabase.from('courses').select('*').eq('offering_id', offeringId).single()
+      if (freshCourse) {
+        setCourse(freshCourse)
+        const [{ data: freshLessons }, { data: qData }] = await Promise.all([
+          supabase.from('lessons').select('*').eq('course_id', freshCourse.id).order('order_index'),
+          supabase.from('lesson_questions').select('*').eq('organization_id', organizationId).order('order_index'),
+        ])
+        if (freshLessons) {
+          const lessonIds = new Set(freshLessons.map(l => l.id))
+          const qMap = {}
+          for (const q of (qData || [])) {
+            if (!lessonIds.has(q.lesson_id)) continue
+            if (!qMap[q.lesson_id]) qMap[q.lesson_id] = []
+            qMap[q.lesson_id].push({ ...q, _key: q.id })
+          }
+          setLessons(freshLessons.map((fl, i) => {
+            const local = localLessons[i]
+            return {
+              ...fl,
+              _key: local?._key || Math.random(),
+              content: fl.content || local?.content || '',
+              video_url: fl.video_url || local?.video_url || '',
+              due_days_offset: fl.due_days_offset ?? local?.due_days_offset ?? '',
+              questions: qMap[fl.id] || local?.questions || [],
+            }
+          }))
+        }
+      }
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error('Save failed:', err)
+      alert('Save failed: ' + (err.message || 'Unknown error. Make sure migrations have been run.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: '#9ca3af' }}>Loading...</div>

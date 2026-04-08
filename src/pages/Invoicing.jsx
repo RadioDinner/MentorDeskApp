@@ -54,7 +54,7 @@ export default function Invoicing() {
 
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [organizationId])
 
   async function fetchAll() {
     setLoading(true)
@@ -100,25 +100,30 @@ export default function Invoicing() {
     e.preventDefault()
     setSaving(true)
     setError(null)
-    const { error: err } = await supabase.from('invoices').insert({
-      mentee_id: newForm.mentee_id,
-      offering_id: newForm.offering_id || null,
-      amount: parseFloat(newForm.amount),
-      due_date: newForm.due_date,
-      description: newForm.description || null,
-      notes: newForm.notes || null,
-      organization_id: organizationId,
-      issued_at: new Date().toISOString(),
-    })
-    if (err) {
-      setError(err.message)
-    } else {
-      setSuccess('Invoice created.')
-      setNewForm(EMPTY_INVOICE)
-      setShowNew(false)
-      fetchAll()
+    try {
+      const { error: err } = await supabase.from('invoices').insert({
+        mentee_id: newForm.mentee_id,
+        offering_id: newForm.offering_id || null,
+        amount: parseFloat(newForm.amount),
+        due_date: newForm.due_date,
+        description: newForm.description || null,
+        notes: newForm.notes || null,
+        organization_id: organizationId,
+        issued_at: new Date().toISOString(),
+      })
+      if (err) {
+        setError(err.message)
+      } else {
+        setSuccess('Invoice created.')
+        setNewForm(EMPTY_INVOICE)
+        setShowNew(false)
+        fetchAll()
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to create invoice.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   // ── Batch generation ──────────────────────────────────────────────────────

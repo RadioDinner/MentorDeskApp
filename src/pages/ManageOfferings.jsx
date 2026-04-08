@@ -63,7 +63,7 @@ export default function ManageOfferingsWithBoundary() {
 
 function ManageOfferings() {
   const navigate = useNavigate()
-  const { checkLimit, refreshEntityCounts, plan } = useRole()
+  const { checkLimit, refreshEntityCounts, plan, organizationId } = useRole()
   const offeringLimit = checkLimit('offerings')
   const [offerings, setOfferings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -191,18 +191,23 @@ function ManageOfferings() {
       }
     }
 
-    let err
-    if (editId) {
-      ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', editId))
-    } else {
-      ;({ error: err } = await supabase.from('offerings').insert(payload))
-    }
+    try {
+      let err
+      if (editId) {
+        ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', editId))
+      } else {
+        ;({ error: err } = await supabase.from('offerings').insert({ ...payload, organization_id: organizationId }))
+      }
 
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    if (!editId) refreshEntityCounts()
-    closeForm()
-    load()
+      if (err) { setError(err.message); return }
+      if (!editId) refreshEntityCounts()
+      closeForm()
+      load()
+    } catch (err) {
+      setError(err.message || 'Failed to save offering.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete() {

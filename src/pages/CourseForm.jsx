@@ -56,30 +56,35 @@ export default function CourseForm() {
     setSaving(true)
     setError('')
 
-    const payload = {
-      offering_type: 'course',
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      duration_value: form.duration_value !== '' ? parseInt(form.duration_value, 10) : null,
-      duration_unit: form.duration_value !== '' ? form.duration_unit : null,
-      cost: form.cost !== '' ? parseFloat(form.cost) : null,
-      setup_fee: form.setup_fee !== '' ? parseFloat(form.setup_fee) : null,
-      billing_type: form.billing_type || 'recurring',
-      active: form.active,
-      cancellation_policy: null,
-    }
+    try {
+      const payload = {
+        offering_type: 'course',
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        duration_value: form.duration_value !== '' ? parseInt(form.duration_value, 10) : null,
+        duration_unit: form.duration_value !== '' ? form.duration_unit : null,
+        cost: form.cost !== '' ? parseFloat(form.cost) : null,
+        setup_fee: form.setup_fee !== '' ? parseFloat(form.setup_fee) : null,
+        billing_type: form.billing_type || 'recurring',
+        active: form.active,
+        cancellation_policy: null,
+      }
 
-    let err
-    if (isEdit) {
-      ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', id))
-    } else {
-      ;({ error: err } = await supabase.from('offerings').insert({ ...payload, organization_id: organizationId }))
-    }
+      let err
+      if (isEdit) {
+        ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', id))
+      } else {
+        ;({ error: err } = await supabase.from('offerings').insert({ ...payload, organization_id: organizationId }))
+      }
 
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    if (!isEdit) refreshEntityCounts()
-    navigate('/admin/offerings')
+      if (err) { setError(err.message); return }
+      if (!isEdit) refreshEntityCounts()
+      navigate('/admin/offerings')
+    } catch (err) {
+      setError(err.message || 'Failed to save course.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: '#9ca3af' }}>Loading…</div>

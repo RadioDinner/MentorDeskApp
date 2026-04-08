@@ -112,37 +112,42 @@ export default function ArrangementForm() {
     setSaving(true)
     setError('')
 
-    const windowHours = form.cancellation_policy === 'window'
-      ? (parseInt(form.cancellation_window_hours, 10) || 24)
-      : 24
+    try {
+      const windowHours = form.cancellation_policy === 'window'
+        ? (parseInt(form.cancellation_window_hours, 10) || 24)
+        : 24
 
-    const payload = {
-      offering_type: 'arrangement',
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      meetings_per_period: form.meetings_per_period !== '' ? parseInt(form.meetings_per_period, 10) : null,
-      program_duration_periods: form.program_duration_periods !== '' ? parseInt(form.program_duration_periods, 10) : null,
-      credits_rollover: form.credits_rollover,
-      cost: form.cost !== '' ? parseFloat(form.cost) : null,
-      setup_fee: form.setup_fee !== '' ? parseFloat(form.setup_fee) : null,
-      billing_type: 'recurring',
-      cancellation_policy: form.cancellation_policy,
-      cancellation_window_hours: windowHours,
-      allow_activities: form.allow_activities,
-      active: form.active,
+      const payload = {
+        offering_type: 'arrangement',
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        meetings_per_period: form.meetings_per_period !== '' ? parseInt(form.meetings_per_period, 10) : null,
+        program_duration_periods: form.program_duration_periods !== '' ? parseInt(form.program_duration_periods, 10) : null,
+        credits_rollover: form.credits_rollover,
+        cost: form.cost !== '' ? parseFloat(form.cost) : null,
+        setup_fee: form.setup_fee !== '' ? parseFloat(form.setup_fee) : null,
+        billing_type: 'recurring',
+        cancellation_policy: form.cancellation_policy,
+        cancellation_window_hours: windowHours,
+        allow_activities: form.allow_activities,
+        active: form.active,
+      }
+
+      let err
+      if (isEdit) {
+        ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', id))
+      } else {
+        ;({ error: err } = await supabase.from('offerings').insert({ ...payload, organization_id: organizationId }))
+      }
+
+      if (err) { setError(err.message); return }
+      if (!isEdit) refreshEntityCounts()
+      navigate('/admin/offerings')
+    } catch (err) {
+      setError(err.message || 'Failed to save arrangement.')
+    } finally {
+      setSaving(false)
     }
-
-    let err
-    if (isEdit) {
-      ;({ error: err } = await supabase.from('offerings').update(payload).eq('id', id))
-    } else {
-      ;({ error: err } = await supabase.from('offerings').insert({ ...payload, organization_id: organizationId }))
-    }
-
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    if (!isEdit) refreshEntityCounts()
-    navigate('/admin/offerings')
   }
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: '#9ca3af' }}>Loading…</div>
