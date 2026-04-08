@@ -20,3 +20,5 @@ SESSION 005 - PROMPT HISTORY
 9. It's still blank. Is it possible to compare our src files to the old repo to define what to keep and what was new?
 
 10. man, I'm dissappointed. this is really messy. Root directory is blank, and I can't find the framework preset. Login is still blank
+
+11. Compare the src folder from CourseCorrect repo (https://github.com/RadioDinner/CourseCorrect/tree/main/app/src) to MentorDeskApp src folder. DELETE anything from MentorDeskApp src that MATCHES a file from CourseCorrect. Remove the files carried over from the old repo.
