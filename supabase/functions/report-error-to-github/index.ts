@@ -1,0 +1,175 @@
+// Supabase Edge Function: report-error-to-github
+//
+// Triggered by a Database Webhook on INSERT to error_reports table.
+// Creates a GitHub Issue for each new error report.
+//
+// SETUP:
+// 1. Set these secrets in your Supabase project:
+//    supabase secrets set GITHUB_TOKEN=ghp_your_personal_access_token
+//    supabase secrets set GITHUB_REPO=RadioDinner/MentorDeskApp
+//
+// 2. Deploy:
+//    supabase functions deploy report-error-to-github
+//
+// 3. Create a Database Webhook in Supabase Dashboard:
+//    - Go to Database → Webhooks
+//    - Create webhook on INSERT to error_reports table
+//    - Set URL to: https://<project-ref>.supabase.co/functions/v1/report-error-to-github
+//    - Add header: Authorization: Bearer <your-service-role-key>
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN')
+const GITHUB_REPO = Deno.env.get('GITHUB_REPO') ?? 'RadioDinner/MentorDeskApp'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+interface ErrorReport {
+  id: string
+  organization_id: string | null
+  error_message: string
+  error_stack: string | null
+  error_code: string | null
+  page: string | null
+  component: string | null
+  action: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+
+Deno.serve(async (req) => {
+  try {
+    if (!GITHUB_TOKEN) {
+      return new Response(JSON.stringify({ error: 'GITHUB_TOKEN not configured' }), { status: 500 })
+    }
+
+    const payload = await req.json()
+
+    // Database webhook sends { type, table, record, ... }
+    const record: ErrorReport = payload.record ?? payload
+
+    if (!record.error_message) {
+      return new Response(JSON.stringify({ error: 'No error_message in payload' }), { status: 400 })
+    }
+
+    // Skip errors that are expected/noise
+    const skipPatterns = ['connectivity_test', 'Request timed out']
+    if (skipPatterns.some(p => record.error_message.includes(p))) {
+      return new Response(JSON.stringify({ skipped: true }), { status: 200 })
+    }
+
+    // Look up organization name if we have an org_id
+    let orgName = 'Unknown Org'
+    if (record.organization_id) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const { data } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', record.organization_id)
+        .single()
+      if (data?.name) orgName = data.name
+    }
+
+    // Check for duplicate issues (same error_message within last 24h)
+    const searchQuery = `repo:${GITHUB_REPO} is:issue is:open "${record.error_message.slice(0, 60)}"`
+    const searchResp = await fetch(
+      `https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}`,
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' } },
+    )
+    const searchData = await searchResp.json()
+    if (searchData.total_count > 0) {
+      // Add a comment to the existing issue instead of creating a new one
+      const existingIssue = searchData.items[0]
+      await fetch(existingIssue.comments_url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          body: `Another occurrence reported.\n\n- **Org:** ${orgName}\n- **Page:** ${record.page ?? 'N/A'}\n- **Time:** ${record.created_at}`,
+        }),
+      })
+
+      // Update status in error_reports
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      await supabase.from('error_reports').update({
+        status: 'reported',
+        github_issue_url: existingIssue.html_url,
+      }).eq('id', record.id)
+
+      return new Response(JSON.stringify({ commented: existingIssue.html_url }), { status: 200 })
+    }
+
+    // Create new GitHub Issue
+    const title = `[Auto] ${record.component ?? 'App'}: ${record.error_message.slice(0, 80)}`
+
+    const body = [
+      `## Auto-reported Error`,
+      ``,
+      `| Field | Value |`,
+      `|-------|-------|`,
+      `| **Organization** | ${orgName} |`,
+      `| **Page** | ${record.page ?? 'N/A'} |`,
+      `| **Component** | ${record.component ?? 'N/A'} |`,
+      `| **Action** | ${record.action ?? 'N/A'} |`,
+      `| **Error Code** | ${record.error_code ?? 'N/A'} |`,
+      `| **Time** | ${record.created_at} |`,
+      ``,
+      `### Error Message`,
+      '```',
+      record.error_message,
+      '```',
+      ...(record.error_stack ? [
+        ``,
+        `### Stack Trace`,
+        '```',
+        record.error_stack.slice(0, 2000),
+        '```',
+      ] : []),
+      ...(record.metadata ? [
+        ``,
+        `### Metadata`,
+        '```json',
+        JSON.stringify(record.metadata, null, 2).slice(0, 1000),
+        '```',
+      ] : []),
+      ``,
+      `---`,
+      `*Auto-generated by MentorDesk error reporter*`,
+    ].join('\n')
+
+    const issueResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title,
+        body,
+        labels: ['bug', 'auto-reported'],
+      }),
+    })
+
+    if (!issueResp.ok) {
+      const errText = await issueResp.text()
+      return new Response(JSON.stringify({ error: `GitHub API error: ${issueResp.status} ${errText}` }), { status: 500 })
+    }
+
+    const issue = await issueResp.json()
+
+    // Update the error_report with the GitHub issue URL
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    await supabase.from('error_reports').update({
+      status: 'reported',
+      github_issue_url: issue.html_url,
+    }).eq('id', record.id)
+
+    return new Response(JSON.stringify({ created: issue.html_url }), { status: 200 })
+  } catch (err) {
+    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500 })
+  }
+})

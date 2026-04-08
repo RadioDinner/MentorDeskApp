@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout, testSupabaseConnectivity, supabaseRestCall } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
 import type { Offering, Lesson, LessonQuestion, QuizOption } from '../types'
@@ -137,6 +138,7 @@ export default function CourseBuilderPage() {
 
     if (e) {
       console.error('[CourseBuilder] addLesson FAILED:', e.message)
+      reportSupabaseError(e, { component: 'CourseBuilderPage', action: 'addLesson' })
       setLessonMsg({ type: 'error', text: 'Failed to add lesson: ' + e.message })
       return
     }
@@ -189,7 +191,7 @@ export default function CourseBuilderPage() {
         updates as Record<string, unknown>,
         `id=eq.${selectedLesson.id}`,
       )
-      if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
+      if (e) { console.error('[CourseBuilder] saveLesson FAILED:', e.message); reportSupabaseError(e, { component: 'CourseBuilderPage', action: 'saveLesson' }); setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
 
       console.log('[CourseBuilder] saveLesson: SUCCESS')
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
@@ -259,7 +261,7 @@ export default function CourseBuilderPage() {
         },
       )
 
-      if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
+      if (e) { console.error('[CourseBuilder] addQuestion FAILED:', e.message); reportSupabaseError(e, { component: 'CourseBuilderPage', action: 'addQuestion' }); setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
       console.log('[CourseBuilder] addQuestion response:', data)
       if (!data?.length) { console.warn('[CourseBuilder] addQuestion: no data returned'); return }
       setQuestions(prev => [...prev, data[0] as unknown as LessonQuestion])

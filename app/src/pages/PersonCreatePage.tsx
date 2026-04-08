@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import type { StaffRole } from '../types'
 
 interface PersonCreatePageProps {
@@ -54,7 +55,11 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
     setSaving(false)
 
     if (error) {
-      setMsg({ type: 'error', text: error.message })
+      reportSupabaseError(error, { component: 'PersonCreatePage', action: 'create', metadata: { role: defaultRole, email: email.trim() } })
+      const friendly = error.message.includes('staff_organization_id_email_key')
+        ? `A staff member with the email "${email.trim()}" already exists in your organization.`
+        : error.message
+      setMsg({ type: 'error', text: friendly })
       return
     }
 

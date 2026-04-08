@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy, CancelOutcome } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
@@ -127,7 +128,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       console.log('[OfferingCreate] inserting record:', record)
       const { data, error } = await supabase.from('offerings').insert(record).select('id')
       console.log('[OfferingCreate] insert result:', { data, error })
-      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); setMsg({ type: 'error', text: error.message }); return }
+      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } }); setMsg({ type: 'error', text: error.message }); return }
 
       if (data && data.length > 0) {
         await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })

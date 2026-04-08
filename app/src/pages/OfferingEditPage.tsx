@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import type { Offering, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
@@ -130,6 +131,7 @@ export default function OfferingEditPage() {
         .eq('id', offering.id)
 
       if (error) {
+        reportSupabaseError(error, { component: 'OfferingEditPage', action: 'save' })
         setMsg({ type: 'error', text: error.message })
         return
       }

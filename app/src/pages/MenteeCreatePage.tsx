@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 export default function MenteeCreatePage() {
   const { profile } = useAuth()
@@ -46,7 +47,11 @@ export default function MenteeCreatePage() {
     setSaving(false)
 
     if (error) {
-      setMsg({ type: 'error', text: error.message })
+      reportSupabaseError(error, { component: 'MenteeCreatePage', action: 'create', metadata: { email: email.trim() } })
+      const friendly = error.message.includes('mentees_organization_id_email_key')
+        ? `A mentee with the email "${email.trim()}" already exists in your organization.`
+        : error.message
+      setMsg({ type: 'error', text: friendly })
       return
     }
 

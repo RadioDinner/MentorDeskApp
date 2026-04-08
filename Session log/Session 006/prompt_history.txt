@@ -55,3 +55,9 @@ write_sdk: OK 249ms
 write_fetch: OK (201) 182ms
 
 lessons_table: OK 262ms
+
+15. I tried to create a mentor account for myself, and I got this error message
+
+✗duplicate key value violates unique constraint "staff_organization_id_email_key"
+
+Is there any way to automatically collect errors in github? For example, if I have an organization called "BubbleHelpers" and one of their admins is running into an error like I just did, could I have it automatically be added to a list in github of issues to investigate? I'd like to do that if at all possible
