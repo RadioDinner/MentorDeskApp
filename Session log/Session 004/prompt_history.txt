@@ -1,0 +1,4 @@
+SESSION 004 - PROMPT HISTORY
+==============================
+
+1. Pull the new session instructions, review the last session, and let's get started building and shipping features
