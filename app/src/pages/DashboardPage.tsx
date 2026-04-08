@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import type { Offering } from '../types'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -23,13 +24,55 @@ interface Stats {
   staff: number
 }
 
+interface MenteeEngagement {
+  id: string
+  status: string
+  mentor: { first_name: string; last_name: string } | null
+  offering: Offering | null
+}
+
 export default function DashboardPage() {
-  const { profile } = useAuth()
+  const { profile, isMenteeMode, menteeProfile } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState<Stats>({ mentors: 0, staff: 0 })
+  const [menteeEngagements, setMenteeEngagements] = useState<MenteeEngagement[]>([])
 
   useEffect(() => {
     if (!profile) return
+    if (isMenteeMode && menteeProfile) {
+      // Fetch active pairings for this mentee
+      async function fetchMenteeData() {
+        const { data } = await supabase
+          .from('pairings')
+          .select(`id, status, offering_id, mentor:staff!pairings_mentor_id_fkey ( first_name, last_name )`)
+          .eq('mentee_id', menteeProfile!.id)
+          .in('status', ['active', 'paused'])
+
+        if (data) {
+          // Fetch offerings for pairings that have offering_id
+          const offeringIds = data.map(p => p.offering_id).filter(Boolean) as string[]
+          let offeringsMap: Record<string, Offering> = {}
+          if (offeringIds.length > 0) {
+            const { data: offerings } = await supabase
+              .from('offerings')
+              .select('*')
+              .in('id', offeringIds)
+            if (offerings) {
+              offeringsMap = Object.fromEntries(offerings.map(o => [o.id, o as Offering]))
+            }
+          }
+
+          setMenteeEngagements(data.map(p => ({
+            id: p.id,
+            status: p.status,
+            mentor: p.mentor as unknown as { first_name: string; last_name: string } | null,
+            offering: p.offering_id ? offeringsMap[p.offering_id] ?? null : null,
+          })))
+        }
+      }
+      fetchMenteeData()
+      return
+    }
 
     async function fetchStats() {
       const { data: staffData } = await supabase
@@ -46,9 +89,76 @@ export default function DashboardPage() {
     }
 
     fetchStats()
-  }, [profile?.organization_id])
+  }, [profile?.organization_id, isMenteeMode, menteeProfile?.id])
 
   if (!profile) return null
+
+  // ====== MENTEE DASHBOARD ======
+  if (isMenteeMode && menteeProfile) {
+    return (
+      <div className="max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {menteeProfile.first_name}</h1>
+          <p className="text-sm text-gray-500 mt-1">{formatDate()}</p>
+        </div>
+
+        {menteeEngagements.length > 0 ? (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Engagements</h3>
+            <div className="space-y-3">
+              {menteeEngagements.map(eng => (
+                <div key={eng.id} className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {eng.offering ? eng.offering.name : 'General Mentoring'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Mentor: {eng.mentor ? `${eng.mentor.first_name} ${eng.mentor.last_name}` : 'Unassigned'}
+                        {eng.offering?.type === 'course' && ' \u00b7 Course'}
+                        {eng.offering?.type === 'engagement' && ' \u00b7 Engagement'}
+                      </p>
+                    </div>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                      eng.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                    }`}>
+                      {eng.status === 'active' ? 'Active' : 'Paused'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
+            <p className="text-sm text-gray-500">No active engagements right now.</p>
+            <p className="text-xs text-gray-400 mt-1">Your mentor or organization admin will assign you when ready.</p>
+          </div>
+        )}
+
+        {/* Quick links */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Links</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => navigate('/my-engagements')}
+              className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+            >
+              <p className="text-sm font-medium text-gray-900">My Engagements</p>
+              <p className="text-xs text-gray-500 mt-0.5">View your courses and programs</p>
+            </button>
+            <button
+              onClick={() => navigate('/my-billing')}
+              className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+            >
+              <p className="text-sm font-medium text-gray-900">Billing</p>
+              <p className="text-xs text-gray-500 mt-0.5">Payment info and invoices</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const isAdmin = profile.role === 'admin'
 
