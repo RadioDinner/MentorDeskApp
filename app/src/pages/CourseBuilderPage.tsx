@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import RichTextEditor from '../components/RichTextEditor'
 import type { Offering, Lesson, LessonQuestion, QuizOption } from '../types'
 
 export default function CourseBuilderPage() {
@@ -387,12 +388,10 @@ export default function CourseBuilderPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Lesson content</label>
-                    <textarea
-                      rows={8}
-                      value={lessonContent}
-                      onChange={e => setLessonContent(e.target.value)}
-                      className={inputClass + ' resize-y font-mono text-xs leading-relaxed'}
-                      placeholder="Write the lesson content here..."
+                    <RichTextEditor
+                      content={lessonContent}
+                      onChange={setLessonContent}
+                      placeholder="Write your lesson content here..."
                     />
                   </div>
                   <div>
