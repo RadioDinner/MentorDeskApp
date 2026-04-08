@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
 
@@ -39,6 +40,11 @@ export default function PairingsPage() {
   // Filter state
   const [filterMentor, setFilterMentor] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   async function fetchAll() {
     if (!profile?.organization_id) { console.warn('[PairingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
@@ -87,7 +93,7 @@ export default function PairingsPage() {
     if (error) { setError(error.message); return }
     const mentor = mentors.find(m => m.id === mentorId)
     const mentee = mentees.find(m => m.id === menteeId)
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
     setPairingMenteeId(null)
     setSelectedMentorId('')
     fetchAll()
@@ -97,7 +103,7 @@ export default function PairingsPage() {
     if (!profile) return
     const { error } = await supabase.from('assignments').update({ mentor_id: newMentorId }).eq('id', pairingId)
     if (error) { setError(error.message); return }
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'mentor_changed' } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'mentor_changed' } })
     fetchAll()
   }
 
@@ -107,7 +113,7 @@ export default function PairingsPage() {
     if (newStatus === 'ended') updates.ended_at = new Date().toISOString()
     const { error } = await supabase.from('assignments').update(updates).eq('id', pairingId)
     if (error) { setError(error.message); return }
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
     fetchAll()
   }
 

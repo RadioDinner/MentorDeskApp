@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit, revertAuditEntry } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 
 interface AuditRow {
   id: string
@@ -81,6 +82,11 @@ export default function AuditLogPage() {
   const [reverting, setReverting] = useState<string | null>(null)
   const [revertMsg, setRevertMsg] = useState<{ id: string; type: 'success' | 'error'; text: string } | null>(null)
 
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
+
   // Filters
   const [filterActor, setFilterActor] = useState('')
   const [filterType, setFilterType] = useState('')
@@ -152,7 +158,7 @@ export default function AuditLogPage() {
 
     if (result.success) {
       // Log the revert itself
-      logAudit({
+      await logAudit({
         organization_id: profile.organization_id,
         actor_id: profile.id,
         action: 'reverted',

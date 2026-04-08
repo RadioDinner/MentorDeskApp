@@ -97,7 +97,7 @@ export default function CompanySettingsPage() {
     const updatedOrg = { ...org, ...updates }
     setOrg(updatedOrg)
     refreshTheme(updatedOrg)
-    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab } })
+    await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab } })
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 

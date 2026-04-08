@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Offering, OfferingType } from '../types'
 
 const TABS: { label: string; value: OfferingType }[] = [
@@ -18,6 +19,11 @@ export default function OfferingsPage() {
   const [items, setItems] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[OfferingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }

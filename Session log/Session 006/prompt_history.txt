@@ -1,0 +1,4 @@
+SESSION 006 - PROMPT HISTORY
+==============================
+
+1. Review the last session, and start a new session according to the new session instructions. I want to start working on what was broken that we identified in the last session.

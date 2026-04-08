@@ -100,6 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (activeId) {
       applyProfile(activeId, activeStaff, menteeRecords.length > 0 ? menteeRecords[0] : null, userId)
+    } else if (activeStaff.length > 0) {
+      // No activeId could be determined but we have staff — use the first one
+      console.warn('[AuthContext] No activeId resolved, falling back to first staff record')
+      setProfile(activeStaff[0])
+      setIsMenteeMode(false)
     }
 
     return activeStaff[0] ?? profile // Never return null if we have a current profile
@@ -121,6 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const staffProfile = staffRecords.find(s => s.id === profileId)
       if (staffProfile) {
         setProfile(staffProfile)
+        setIsMenteeMode(false)
+      } else if (staffRecords.length > 0) {
+        // Fallback: profileId didn't match any record — use first available
+        console.warn('[AuthContext] applyProfile: profileId', profileId, 'not found in staff records, falling back to first')
+        setProfile(staffRecords[0])
         setIsMenteeMode(false)
       }
     }
@@ -173,25 +183,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (session?.user) {
-        // On token refresh, don't disrupt the current profile
-        // Only do a full profile fetch on initial load or sign-in
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
-          const p = await fetchAllProfiles(session.user.id)
-          if (p?.organization_id) {
-            purgeExpiredArchives(p.organization_id).catch(() => {})
+      // Safety timeout: if fetchAllProfiles hangs (network issue, etc.),
+      // ensure loading is cleared so the app doesn't get stuck on "Loading..."
+      const safetyTimeout = setTimeout(() => {
+        console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
+        setLoading(false)
+      }, 10000)
+
+      try {
+        if (session?.user) {
+          // On token refresh, don't disrupt the current profile
+          // Only do a full profile fetch on initial load or sign-in
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
+            const p = await fetchAllProfiles(session.user.id)
+            if (p?.organization_id) {
+              purgeExpiredArchives(p.organization_id).catch(() => {})
+            }
           }
+          // TOKEN_REFRESHED: keep existing profile, don't re-fetch
+        } else {
+          // Only clear on actual sign out
+          setProfile(null)
+          setAllStaffProfiles([])
+          setMenteeProfile(null)
+          setActiveProfileId(null)
+          setIsMenteeMode(false)
         }
-        // TOKEN_REFRESHED: keep existing profile, don't re-fetch
-      } else {
-        // Only clear on actual sign out
-        setProfile(null)
-        setAllStaffProfiles([])
-        setMenteeProfile(null)
-        setActiveProfileId(null)
-        setIsMenteeMode(false)
+      } catch (err) {
+        console.error('[AuthContext] Error during auth state change:', err)
+      } finally {
+        clearTimeout(safetyTimeout)
+        setLoading(false)
       }
-      setLoading(false)
     })
 
     supabase.auth.getSession().catch((err) => {

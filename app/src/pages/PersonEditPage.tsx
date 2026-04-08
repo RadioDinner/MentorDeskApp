@@ -260,7 +260,7 @@ export default function PersonEditPage() {
     const { error } = await supabase.from('staff').update({ archived_at: now }).eq('id', person.id)
     if (error) { setActionMsg({ type: 'error', text: error.message }); return }
     setPerson({ ...person, archived_at: now } as StaffMember)
-    logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
+    await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
     setActionMsg({ type: 'success', text: isArchived ? 'Record restored.' : 'Record archived.' })
   }
 
@@ -270,7 +270,7 @@ export default function PersonEditPage() {
     const { error } = await supabase.from('staff').delete().eq('id', person.id)
     setDeleting(false)
     if (error) { setActionMsg({ type: 'error', text: error.message }); return }
-    logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
+    await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
     navigate(-1)
   }
 

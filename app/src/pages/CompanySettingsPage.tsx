@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
@@ -87,6 +88,11 @@ export default function CompanySettingsPage() {
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setMsg({ type: 'error', text: 'Request timed out. Please refresh the page.' })
+  }, []))
+
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[CompanySettingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
     async function fetchOrg() {
@@ -132,7 +138,7 @@ export default function CompanySettingsPage() {
     setOrg(updatedOrg)
     refreshTheme(updatedOrg)
     const oldVals = { name: org.name, slug: org.slug, logo_url: org.logo_url, primary_color: org.primary_color, secondary_color: org.secondary_color, tertiary_color: org.tertiary_color }
-    logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
+    await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
     setMsg({ type: 'success', text: 'Settings saved.' })
   }
 

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Offering } from '../types'
 
 export default function CoursesPage() {
@@ -10,6 +11,11 @@ export default function CoursesPage() {
   const [items, setItems] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[CoursesPage] No profile.organization_id — profile:', profile); setLoading(false); return }

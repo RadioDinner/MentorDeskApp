@@ -59,7 +59,7 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
     }
 
     if (data && data.length > 0) {
-      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'staff', entity_id: data[0].id, details: { role: defaultRole, name: `${firstName.trim()} ${lastName.trim()}` } })
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'staff', entity_id: data[0].id, details: { role: defaultRole, name: `${firstName.trim()} ${lastName.trim()}` } })
       navigate(`/people/${data[0].id}/edit`)
     } else {
       navigate(backRoute)

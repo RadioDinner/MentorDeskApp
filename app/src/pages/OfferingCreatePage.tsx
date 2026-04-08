@@ -130,7 +130,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); setMsg({ type: 'error', text: error.message }); return }
 
       if (data && data.length > 0) {
-        logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
+        await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
 
         if (addToFlow) {
           const { data: orgData } = await supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single()

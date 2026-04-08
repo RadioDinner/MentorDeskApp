@@ -123,22 +123,27 @@ export default function OfferingEditPage() {
       updates.cancellation_policy = useOrgDefault ? null : cancelPolicy
     }
 
-    const { error } = await supabase
-      .from('offerings')
-      .update(updates)
-      .eq('id', offering.id)
+    try {
+      const { error } = await supabase
+        .from('offerings')
+        .update(updates)
+        .eq('id', offering.id)
 
-    setSaving(false)
+      if (error) {
+        setMsg({ type: 'error', text: error.message })
+        return
+      }
 
-    if (error) {
-      setMsg({ type: 'error', text: error.message })
-      return
+      const oldVals = { name: offering.name, description: offering.description, billing_mode: offering.billing_mode, price_cents: offering.price_cents, recurring_price_cents: offering.recurring_price_cents, setup_fee_cents: offering.setup_fee_cents }
+      setOffering({ ...offering, name: name.trim(), description: description.trim() || null })
+      if (currentUser) await logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() }, old_values: oldVals, new_values: updates })
+      setMsg({ type: 'success', text: 'Offering has been updated.' })
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Failed to save' })
+      console.error('[OfferingEdit] save error:', err)
+    } finally {
+      setSaving(false)
     }
-
-    const oldVals = { name: offering.name, description: offering.description, billing_mode: offering.billing_mode, price_cents: offering.price_cents, recurring_price_cents: offering.recurring_price_cents, setup_fee_cents: offering.setup_fee_cents }
-    setOffering({ ...offering, name: name.trim(), description: description.trim() || null })
-    if (currentUser) logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() }, old_values: oldVals, new_values: updates })
-    setMsg({ type: 'success', text: 'Offering has been updated.' })
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>

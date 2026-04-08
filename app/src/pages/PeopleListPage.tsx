@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import ModuleAccessControl from '../components/ModuleAccessControl'
 import type { StaffMember, StaffRole, RoleGroup } from '../types'
 
@@ -24,6 +25,11 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[PeopleListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
@@ -90,7 +96,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
 
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, allowed_modules: modules } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, allowed_modules: modules } : p))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: personId, details: { fields: 'allowed_modules', allowed_modules: modules } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: personId, details: { fields: 'allowed_modules', allowed_modules: modules } })
   }
 
   async function archivePerson(personId: string) {
@@ -100,7 +106,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     if (e) return
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'staff', entity_id: personId })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'staff', entity_id: personId })
   }
 
   async function unarchivePerson(personId: string) {
@@ -109,7 +115,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     if (e) return
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'staff', entity_id: personId })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'staff', entity_id: personId })
   }
 
   async function deletePerson(personId: string) {
@@ -119,7 +125,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     setPeople(ps => ps.filter(p => p.id !== personId))
     setAllStaff(ps => ps.filter(p => p.id !== personId))
     setConfirmDelete(null)
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'staff', entity_id: personId })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'staff', entity_id: personId })
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>

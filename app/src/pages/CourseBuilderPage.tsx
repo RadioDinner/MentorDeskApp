@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
 import type { Offering, Lesson, LessonQuestion, QuizOption } from '../types'
 
@@ -15,6 +16,11 @@ export default function CourseBuilderPage() {
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   // Selected lesson
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null)
@@ -124,7 +130,7 @@ export default function CourseBuilderPage() {
     const newLesson = data[0] as Lesson
     setLessons(prev => [...prev, newLesson])
     setSelectedLessonId(newLesson.id)
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: newLesson.id, title: newLesson.title } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: newLesson.id, title: newLesson.title } })
   }
 
   async function deleteLesson(lessonId: string) {
@@ -143,7 +149,7 @@ export default function CourseBuilderPage() {
     if (selectedLessonId === lessonId) {
       setSelectedLessonId(updated.length > 0 ? updated[0].id : null)
     }
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: lessonId } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: lessonId } })
   }
 
   async function saveLesson() {
@@ -167,7 +173,7 @@ export default function CourseBuilderPage() {
       console.log('[CourseBuilder] saveLesson: SUCCESS')
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
       setLessonMsg({ type: 'success', text: 'Lesson saved.' })
-      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: course?.id ?? '', details: { sub: 'lesson', lesson_id: selectedLesson.id, title: lessonTitle.trim() } })
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: course?.id ?? '', details: { sub: 'lesson', lesson_id: selectedLesson.id, title: lessonTitle.trim() } })
     } catch (err) {
       setLessonMsg({ type: 'error', text: (err as Error).message || 'Failed to save lesson' })
       console.error(err)

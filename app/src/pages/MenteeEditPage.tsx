@@ -128,7 +128,7 @@ export default function MenteeEditPage() {
     const { error } = await supabase.from('mentees').update({ archived_at: now }).eq('id', mentee.id)
     if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
     setMentee({ ...mentee, archived_at: now } as Mentee)
-    logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: isDeactivated ? 'reactivated' : 'deactivated', entity_type: 'mentee', entity_id: mentee.id })
+    await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: isDeactivated ? 'reactivated' : 'deactivated', entity_type: 'mentee', entity_id: mentee.id })
     setDangerMsg({ type: 'success', text: isDeactivated ? 'Mentee re-activated.' : 'Mentee de-activated.' })
   }
 
@@ -138,7 +138,7 @@ export default function MenteeEditPage() {
     const { error } = await supabase.from('mentees').delete().eq('id', mentee.id)
     setDeleting(false)
     if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
-    logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'mentee', entity_id: mentee.id })
+    await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'mentee', entity_id: mentee.id })
     navigate('/mentees')
   }
 

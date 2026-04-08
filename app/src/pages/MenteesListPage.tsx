@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Mentee } from '../types'
 
 export default function MenteesListPage() {
@@ -13,6 +14,11 @@ export default function MenteesListPage() {
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. Please refresh the page.')
+  }, []))
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[MenteesListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
@@ -45,7 +51,7 @@ export default function MenteesListPage() {
     const { error: e } = await supabase.from('mentees').update({ archived_at: now }).eq('id', id)
     if (e) return
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: now } : m))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'mentee', entity_id: id })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'mentee', entity_id: id })
   }
 
   async function unarchiveMentee(id: string) {
@@ -53,7 +59,7 @@ export default function MenteesListPage() {
     const { error: e } = await supabase.from('mentees').update({ archived_at: null }).eq('id', id)
     if (e) return
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: null } : m))
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'mentee', entity_id: id })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'mentee', entity_id: id })
   }
 
   async function deleteMentee(id: string) {
@@ -62,7 +68,7 @@ export default function MenteesListPage() {
     if (e) return
     setMentees(ms => ms.filter(m => m.id !== id))
     setConfirmDelete(null)
-    logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'mentee', entity_id: id })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'mentee', entity_id: id })
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>

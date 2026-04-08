@@ -51,7 +51,7 @@ export default function MenteeCreatePage() {
     }
 
     if (data && data.length > 0) {
-      logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'mentee', entity_id: data[0].id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'mentee', entity_id: data[0].id, details: { name: `${firstName.trim()} ${lastName.trim()}` } })
       navigate(`/mentees/${data[0].id}/edit`)
     } else {
       navigate('/mentees')
