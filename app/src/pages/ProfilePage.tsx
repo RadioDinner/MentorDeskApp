@@ -4,8 +4,22 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 
+const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
+  admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
+  staff:            { bg: 'bg-slate-50', text: 'text-slate-700', dot: 'bg-slate-400', label: 'Staff' },
+  mentor:           { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400', label: 'Mentor' },
+  assistant_mentor: { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-400', label: 'Asst. Mentor' },
+  mentee:           { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400', label: 'Mentee' },
+}
+
+const CREATABLE_ROLES: { role: string; label: string; desc: string; table: 'staff' | 'mentees' }[] = [
+  { role: 'mentor', label: 'Mentor', desc: 'Access the mentor portal and manage your mentees', table: 'staff' },
+  { role: 'assistant_mentor', label: 'Assistant Mentor', desc: 'Support mentors and shadow mentee sessions', table: 'staff' },
+  { role: 'mentee', label: 'Mentee', desc: 'Test the mentee experience and view courses', table: 'mentees' },
+]
+
 export default function ProfilePage() {
-  const { profile, session, refreshProfile } = useAuth()
+  const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile } = useAuth()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -19,6 +33,40 @@ export default function ProfilePage() {
   const [country, setCountry] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Account creation
+  const [creatingRole, setCreatingRole] = useState<string | null>(null)
+  const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  async function createRoleAccount(role: string, table: 'staff' | 'mentees') {
+    if (!profile || !session?.user) return
+    setCreatingRole(role)
+    setAccountMsg(null)
+
+    try {
+      const record: Record<string, unknown> = {
+        organization_id: profile.organization_id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+        phone: profile.phone,
+        user_id: session.user.id,
+      }
+      if (table === 'staff') {
+        record.role = role
+      }
+
+      const { error } = await supabase.from(table).insert(record)
+      if (error) { setAccountMsg({ type: 'error', text: error.message }); return }
+
+      await refreshProfile()
+      setAccountMsg({ type: 'success', text: `${ROLE_STYLES[role]?.label ?? role} account created. You can now switch to it from the top bar.` })
+    } catch (err) {
+      setAccountMsg({ type: 'error', text: (err as Error).message || 'Failed to create account' })
+    } finally {
+      setCreatingRole(null)
+    }
+  }
 
   // Password form state
   const [newPassword, setNewPassword] = useState('')
@@ -241,6 +289,82 @@ export default function ProfilePage() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* --- My Accounts --- */}
+      <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">My Accounts</h2>
+        <p className="text-sm text-gray-500 mb-6">Switch between roles or create additional accounts to test different user experiences.</p>
+
+        {accountMsg && (
+          <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
+            accountMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            <span className="mt-0.5">{accountMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
+            {accountMsg.text}
+          </div>
+        )}
+
+        {/* Existing accounts */}
+        <div className="space-y-2 mb-6">
+          {allProfiles.map(p => {
+            const style = ROLE_STYLES[p.role] ?? { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-400', label: p.role }
+            const isActive = p.id === activeProfileId
+            return (
+              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 rounded-md border transition-colors ${isActive ? 'border-brand bg-brand-light' : 'border-gray-200'}`}>
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} />
+                <span className={`text-sm font-medium flex-1 ${isActive ? 'text-gray-900' : 'text-gray-700'}`}>
+                  {style.label}
+                </span>
+                {isActive ? (
+                  <span className="text-xs font-medium text-brand">Active</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => switchProfile(p.id)}
+                    className="text-xs font-medium text-brand hover:text-brand-hover transition-colors"
+                  >
+                    Switch
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Create additional accounts */}
+        {profile.role === 'admin' && (
+          <>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Add a role account</h3>
+            <div className="space-y-2">
+              {CREATABLE_ROLES.map(({ role, label, desc, table }) => {
+                const alreadyExists = allProfiles.some(p => p.role === role)
+                if (alreadyExists) return null
+                const isCreating = creatingRole === role
+                return (
+                  <div key={role} className="flex items-center gap-3 px-4 py-3 rounded-md border border-dashed border-gray-300 hover:border-gray-400 transition-colors">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${ROLE_STYLES[role]?.dot ?? 'bg-gray-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isCreating}
+                      onClick={() => createRoleAccount(role, table)}
+                      className="shrink-0 px-3 py-1.5 text-xs font-medium rounded border border-brand text-brand bg-white hover:bg-brand-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isCreating ? 'Creating…' : '+ Create'}
+                    </button>
+                  </div>
+                )
+              })}
+              {CREATABLE_ROLES.every(({ role }) => allProfiles.some(p => p.role === role)) && (
+                <p className="text-xs text-gray-400 italic">All role accounts have been created.</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- Change Password --- */}

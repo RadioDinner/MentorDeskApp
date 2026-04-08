@@ -36,3 +36,5 @@ SESSION 005 - PROMPT HISTORY
 17. I don't see an option to delete people from their edit page. I want that added, along with a warning that deleting them is permanent and cannot be undone. Ask them if they want to archive or delete. For Mentees in the archive system, use "De-activate" instead of "Archive" and "Re-activate" instead of "Restore".
 
 18. As part of the audit log process, when data is changed, I want the old value saved and the new value saved, as long as the option to Undo whatever was done. For example, if the compensation for a person gets updated from $23 to $25, I want to A) know what happened, and B) be able to revert it if I am an admin.
+
+19. Why am I needing to re-prompt you so often to redo work? Multi-role account switcher still not done. Want: single user can be admin + mentor + assistant mentor + mentee. UI switcher dropdown in profile/topbar. Only shows roles the user actually has. Switch between them without logging out.
