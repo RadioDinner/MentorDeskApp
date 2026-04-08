@@ -1,0 +1,191 @@
+SESSION 005 - HANDOFF LOG
+==========================
+Date: 2026-04-08
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Major cleanup and stabilization session. Discovered the entire root src/
+directory was copied from the CourseCorrect repo and was NOT the real
+MentorDeskApp codebase. The real codebase is in app/ (TypeScript/TSX).
+Deleted all CourseCorrect files, restored app/, fixed build errors, and
+made numerous feature additions and bug fixes to the REAL app/ codebase.
+
+
+CRITICAL CONTEXT FOR FUTURE SESSIONS
+--------------------------------------
+1. The codebase lives in app/ ONLY. See CLAUDE.md for rules.
+2. NEVER reference, copy, or import from RadioDinner/CourseCorrect.
+3. Do NOT create root-level src/, package.json, vite.config.*, or index.html.
+4. Build command: cd app && npm run build
+5. Vercel deploys from app/ via vercel.json.
+6. Save user prompts VERBATIM in prompt_history.txt — do NOT summarize.
+7. Always push to main unless told to create a branch.
+
+
+CHANGES MADE
+-------------
+
+1. COURSECORRECT CLEANUP:
+   - Discovered root src/ was entirely from CourseCorrect repo (65 files)
+   - Deleted all 65 matching files + root package.json, vite.config.js,
+     package-lock.json, index.html, node_modules, dist
+   - Restored real app/ directory from git history (commit eb60c73)
+   - Fixed AuthContext.tsx TypeScript error (unused menteeRec parameter)
+   - Restored vercel.json to build from app/
+
+2. CLAUDE.md CREATED:
+   - Permanent guardrails against codebase contamination
+   - Rules: no CourseCorrect, code lives in app/ only, no unauthorized files
+   - Copy of new_session_instructions included
+   - Verbatim prompt saving rule added
+
+3. LOADING BUG FIX (app/ codebase):
+   - All 7 pages without try/catch now wrapped in try/catch/finally
+   - setLoading(false) in finally block guarantees loading always resets
+   - Console.warn added to all profile?.organization_id guards
+   - Pages fixed: MenteesListPage, OfferingsPage, PairingsPage,
+     PeopleListPage, CompanySettingsPage, PairingCreatePage,
+     PairingEditPage, OfferingEditPage
+
+4. COURSE BUILDER FIXES (app/ codebase):
+   - saveLesson() wrapped in try/catch/finally
+   - addQuestion() wrapped in try/catch with error messages
+   - +Response and +Quiz restyled as visible bordered buttons
+   - Console logging on all Supabase operations
+
+5. ENGAGEMENT CREATE FIX (app/ codebase):
+   - handleSubmit() wrapped in try/catch/finally
+   - Monthly pricing section added (recurring_price_cents, setup_fee_cents)
+   - billing_mode always 'recurring' for engagements
+   - Console logging on insert operations
+
+6. BILLING MODULE MOVED TO SYSTEM GROUP:
+   - modules.ts: Billing group changed from 'Finance' to 'System'
+   - DashboardPage: Billing card moved to System section
+   - Description: "Your MentorDesk subscription & payment"
+
+7. RICH TEXT EDITOR (Word-like):
+   - New component: app/src/components/RichTextEditor.tsx
+   - 20 TipTap extensions (bold, italic, underline, strikethrough,
+     headings, font family, text color, highlight, lists, checklists,
+     alignment, images, links, tables, code blocks, blockquotes, etc.)
+   - HTML source mode toggle for raw HTML editing
+   - Inline image paste from clipboard (base64)
+   - Replaces plain textarea in CourseBuilderPage
+
+8. DELETE/ARCHIVE ON EDIT PAGES:
+   - PersonEditPage: Danger Zone with Archive/Restore + Delete buttons
+   - MenteeEditPage: Danger Zone with De-activate/Re-activate + Delete
+   - Two-step delete confirmation with permanent deletion warning
+   - Suggests archive/de-activate as alternative
+
+9. MENTEE VERBIAGE:
+   - MenteesListPage: "Archived" -> "De-activated", "Restore" -> "Re-activate"
+   - All badges, buttons, and tooltips updated
+
+10. AUDIT LOG WITH OLD/NEW VALUES + UNDO:
+    - logAudit() now accepts old_values and new_values
+    - revertAuditEntry() applies old_values back to DB
+    - AuditLogPage: expandable rows show field-level diffs (old->new)
+    - Undo button for admins on update entries
+    - Revert logs itself as 'reverted' action
+    - Updated call sites: PersonEditPage, MenteeEditPage,
+      CompanySettingsPage, OfferingEditPage
+
+11. MULTI-ROLE ACCOUNT CREATION:
+    - ProfilePage "My Accounts" section
+    - Shows existing role accounts with Switch buttons
+    - Admins can create Mentor, Asst. Mentor, Mentee accounts
+    - Auto-links user_id for single-login switching
+    - Topbar dropdown already had the switcher (from prior sessions)
+
+12. COMPREHENSIVE DEBUG LOGGING:
+    - AuthContext: logs auth events, profile fetch results, errors
+    - All list pages: console.warn when profile.organization_id missing
+    - CourseBuilder: logs every add/save/question operation
+    - OfferingCreate: logs insert record and response
+
+13. DATABASE SCHEMA AUDIT:
+    - All 9 data tables have organization_id (multi-tenant ready)
+    - All tables have RLS with org-aware policies
+    - Code-schema alignment: perfect (no orphaned references)
+    - Migration 983_audit_and_indexes.sql created for gaps
+
+14. SESSION INSTRUCTIONS UPDATED:
+    - Added "Always merge and push to main" rule
+    - Added VERBATIM prompt saving rule (do NOT summarize)
+
+
+DATABASE (Migrations to run in order):
+- schema.sql (base tables)
+- 984_all_in_one.sql (combines 985-999)
+- 983_audit_and_indexes.sql (audit columns + performance indexes)
+USER CONFIRMED: Migrations have been run.
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. VERCEL DEPLOYMENT:
+   - vercel.json points to app/ correctly
+   - Build passes locally (cd app && npm run build)
+   - User reported blank login page — needs Vercel to redeploy
+   - Check: is Vercel actually deploying? May need manual redeploy.
+
+2. RUNTIME VERIFICATION NEEDED:
+   - Now that migrations are run, verify Loading... bug is fixed
+   - Verify Course Builder save works
+   - Verify +Quiz/+Response buttons work
+   - Verify Engagement create works
+   - Open browser console (F12) and look for [AuthContext],
+     [CourseBuilder], [OfferingCreate] logs
+
+3. FEATURES STILL COMING SOON (placeholder pages):
+   - Reports module
+   - Invoicing module (table exists, page is ComingSoonPage)
+   - Payroll module (table exists, page is ComingSoonPage)
+   - Billing module (platform subscription — ComingSoonPage)
+
+4. SESSION PROMPT AUDIT FINDINGS:
+   - Many features from Sessions 003-004 were implemented in the
+     CourseCorrect codebase (root src/) which was deleted
+   - Those features do NOT exist in the real app/ codebase
+   - Key missing features from prior sessions:
+     a. Mentor Dashboard / Mentee Dashboard / Asst. Mentor Dashboard
+     b. Full mentee detail page with offerings, meetings, invoices
+     c. Mentor payroll page
+     d. Invoicing page with batch generation
+     e. Staff permissions per-module (ManageStaffRoles)
+     f. Signup/invite flows
+     g. Pairings grid column filtering
+     h. Drag-and-drop lesson reorder (partial — exists but basic)
+   - These should be rebuilt in the app/ TypeScript codebase
+
+5. RECURRING BILLING:
+   - Was implemented in the deleted CourseCorrect code
+   - Needs to be rebuilt in app/ if wanted
+   - Auto-invoice on assignment + monthly recurring check
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- Real codebase: app/ (TypeScript/React 19/Vite/Tailwind CSS 4)
+- Backend: Supabase (Postgres + Auth + RLS)
+- Deployment: Vercel (auto-deploys from main)
+- All data tables have organization_id for multi-tenancy
+- 9 tables: organizations, staff, mentees, offerings, assignments,
+  lessons, lesson_questions, audit_log, invoices, payroll
+- 22 page components in app/src/pages/
+- Build passes clean (tsc + vite)
+- CLAUDE.md prevents future codebase contamination
+
+REPO STRUCTURE:
+- app/ — React frontend (TypeScript)
+- supabase/schemas/ — base schema
+- supabase/migrations/ — 983-999
+- docs/ — integration roadmap
+- Session log/ — sessions 000-005
+- CLAUDE.md — permanent rules
+- vercel.json — deployment config

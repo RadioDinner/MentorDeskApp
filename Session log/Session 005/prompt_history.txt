@@ -42,3 +42,5 @@ SESSION 005 - PROMPT HISTORY
 20. Lessons are still not saving in the editor. And I still have the loading... bug. Have you put provisions in place to debug this with the browser console or anything? Course builder save, +Response/+Quiz, engagement create still broken.
 
 21. Do we have the appropriate tables and fields in them so far? I want that audited to verify multi-tenancy viabliity in the future. Remember, this is a test org and we'll build a platform super admin console for the platform as a company later. I also want you to go back across all sessions and all prompts in those sessions, and ensure that the changes I've requested across those sessions have been honored. I also want you to update the session document that when I say I want my prompt saved, I want it saved VERBATIM. Not summarized by you, the Idiot.
+
+22. I ran the migration. Wrap up the broken stuff and then merge to main, delete the stale branches and wrap the session.
