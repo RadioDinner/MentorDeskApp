@@ -42,27 +42,29 @@ export default function PairingEditPage() {
     if (!id) return
 
     async function fetchPairing() {
-      const { data, error } = await supabase
-        .from('assignments')
-        .select(`
-          id, organization_id, status, started_at, ended_at, notes, created_at,
-          mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name, email ),
-          mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email )
-        `)
-        .eq('id', id!)
-        .single()
+      try {
+        const { data, error } = await supabase
+          .from('assignments')
+          .select(`
+            id, organization_id, status, started_at, ended_at, notes, created_at,
+            mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name, email ),
+            mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email )
+          `)
+          .eq('id', id!)
+          .single()
 
-      if (error) {
-        setFetchError(error.message)
+        if (error) { setFetchError(error.message); return }
+
+        const a = data as unknown as PairingDetail
+        setPairing(a)
+        setStatus(a.status)
+        setNotes(a.notes ?? '')
+      } catch (err) {
+        setFetchError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      const a = data as unknown as PairingDetail
-      setPairing(a)
-      setStatus(a.status)
-      setNotes(a.notes ?? '')
-      setLoading(false)
     }
 
     fetchPairing()

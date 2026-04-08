@@ -43,19 +43,25 @@ export default function CourseBuilderPage() {
     if (!id || !profile) return
     async function fetchData() {
       setLoading(true)
-      const [courseRes, lessonsRes, orgRes] = await Promise.all([
-        supabase.from('offerings').select('*').eq('id', id!).single(),
-        supabase.from('lessons').select('*').eq('offering_id', id!).order('order_index', { ascending: true }),
-        supabase.from('organizations').select('enable_lesson_due_dates').eq('id', profile!.organization_id).single(),
-      ])
+      try {
+        const [courseRes, lessonsRes, orgRes] = await Promise.all([
+          supabase.from('offerings').select('*').eq('id', id!).single(),
+          supabase.from('lessons').select('*').eq('offering_id', id!).order('order_index', { ascending: true }),
+          supabase.from('organizations').select('enable_lesson_due_dates').eq('id', profile!.organization_id).single(),
+        ])
 
-      if (courseRes.error) { setError(courseRes.error.message); setLoading(false); return }
-      if ((courseRes.data as Offering).type !== 'course') { setError('This offering is not a course.'); setLoading(false); return }
+        if (courseRes.error) { setError(courseRes.error.message); return }
+        if ((courseRes.data as Offering).type !== 'course') { setError('This offering is not a course.'); return }
 
-      setCourse(courseRes.data as Offering)
-      setLessons((lessonsRes.data as Lesson[]) ?? [])
-      setEnableLessonDueDates(orgRes.data?.enable_lesson_due_dates ?? false)
-      setLoading(false)
+        setCourse(courseRes.data as Offering)
+        setLessons((lessonsRes.data as Lesson[]) ?? [])
+        setEnableLessonDueDates(orgRes.data?.enable_lesson_due_dates ?? false)
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchData()
   }, [id, profile?.organization_id])
@@ -65,13 +71,18 @@ export default function CourseBuilderPage() {
     if (!selectedLessonId) { setQuestions([]); return }
     async function fetchQuestions() {
       setQuestionsLoading(true)
-      const { data } = await supabase
-        .from('lesson_questions')
-        .select('*')
-        .eq('lesson_id', selectedLessonId!)
-        .order('order_index', { ascending: true })
-      setQuestions((data as LessonQuestion[]) ?? [])
-      setQuestionsLoading(false)
+      try {
+        const { data } = await supabase
+          .from('lesson_questions')
+          .select('*')
+          .eq('lesson_id', selectedLessonId!)
+          .order('order_index', { ascending: true })
+        setQuestions((data as LessonQuestion[]) ?? [])
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setQuestionsLoading(false)
+      }
     }
     fetchQuestions()
   }, [selectedLessonId])

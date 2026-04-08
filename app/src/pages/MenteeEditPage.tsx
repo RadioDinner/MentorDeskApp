@@ -35,43 +35,47 @@ export default function MenteeEditPage() {
     if (!id) return
 
     async function fetchMentee() {
-      const { data, error } = await supabase
-        .from('mentees')
-        .select('*')
-        .eq('id', id!)
-        .single()
+      try {
+        const { data, error } = await supabase
+          .from('mentees')
+          .select('*')
+          .eq('id', id!)
+          .single()
 
-      if (error) {
-        setFetchError(error.message)
+        if (error) {
+          setFetchError(error.message)
+          return
+        }
+
+        const m = data as Mentee
+        setMentee(m)
+        setFirstName(m.first_name)
+        setLastName(m.last_name)
+        setEmail(m.email)
+        setPhone(m.phone ?? '')
+        setStreet(m.street ?? '')
+        setCity(m.city ?? '')
+        setState(m.state ?? '')
+        setZip(m.zip ?? '')
+        setCountry(m.country ?? '')
+        setFlowStepId(m.flow_step_id ?? '')
+
+        // Fetch org's mentee flow
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('mentee_flow')
+          .eq('id', m.organization_id)
+          .single()
+
+        if (orgData?.mentee_flow) {
+          setFlowSteps((orgData.mentee_flow as { steps: FlowStep[] }).steps ?? [])
+        }
+      } catch (err) {
+        setFetchError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      const m = data as Mentee
-      setMentee(m)
-      setFirstName(m.first_name)
-      setLastName(m.last_name)
-      setEmail(m.email)
-      setPhone(m.phone ?? '')
-      setStreet(m.street ?? '')
-      setCity(m.city ?? '')
-      setState(m.state ?? '')
-      setZip(m.zip ?? '')
-      setCountry(m.country ?? '')
-      setFlowStepId(m.flow_step_id ?? '')
-
-      // Fetch org's mentee flow
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('mentee_flow')
-        .eq('id', m.organization_id)
-        .single()
-
-      if (orgData?.mentee_flow) {
-        setFlowSteps((orgData.mentee_flow as { steps: FlowStep[] }).steps ?? [])
-      }
-
-      setLoading(false)
     }
 
     fetchMentee()

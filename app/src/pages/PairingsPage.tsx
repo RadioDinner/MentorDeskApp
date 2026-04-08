@@ -44,29 +44,33 @@ export default function PairingsPage() {
     if (!profile?.organization_id) { setLoading(false); return }
     setLoading(true)
     setError(null)
+    try {
+      const [mentorRes, menteeRes, pairingRes, orgRes] = await Promise.all([
+        supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).eq('role', 'mentor').order('first_name'),
+        supabase.from('mentees').select('id, first_name, last_name, email, flow_step_id').eq('organization_id', profile.organization_id).order('first_name'),
+        supabase.from('assignments').select(`
+          id, status, mentor_id, mentee_id,
+          mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name ),
+          mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email, flow_step_id )
+        `).eq('organization_id', profile.organization_id).neq('status', 'ended'),
+        supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single(),
+      ])
 
-    const [mentorRes, menteeRes, pairingRes, orgRes] = await Promise.all([
-      supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).eq('role', 'mentor').order('first_name'),
-      supabase.from('mentees').select('id, first_name, last_name, email, flow_step_id').eq('organization_id', profile.organization_id).order('first_name'),
-      supabase.from('assignments').select(`
-        id, status, mentor_id, mentee_id,
-        mentor:staff!assignments_mentor_id_fkey ( id, first_name, last_name ),
-        mentee:mentees!assignments_mentee_id_fkey ( id, first_name, last_name, email, flow_step_id )
-      `).eq('organization_id', profile.organization_id).neq('status', 'ended'),
-      supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single(),
-    ])
+      if (mentorRes.error || menteeRes.error || pairingRes.error) {
+        setError(mentorRes.error?.message || menteeRes.error?.message || pairingRes.error?.message || 'Failed to load')
+        return
+      }
 
-    if (mentorRes.error || menteeRes.error || pairingRes.error) {
-      setError(mentorRes.error?.message || menteeRes.error?.message || pairingRes.error?.message || 'Failed to load')
+      setMentors(mentorRes.data ?? [])
+      setMentees(menteeRes.data as MenteeRow[] ?? [])
+      setPairings(pairingRes.data as unknown as PairingRow[] ?? [])
+      setFlowSteps((orgRes.data?.mentee_flow as { steps: FlowStep[] })?.steps ?? [])
+    } catch (err) {
+      setError((err as Error).message || 'Failed to load')
+      console.error(err)
+    } finally {
       setLoading(false)
-      return
     }
-
-    setMentors(mentorRes.data ?? [])
-    setMentees(menteeRes.data as MenteeRow[] ?? [])
-    setPairings(pairingRes.data as unknown as PairingRow[] ?? [])
-    setFlowSteps((orgRes.data?.mentee_flow as { steps: FlowStep[] })?.steps ?? [])
-    setLoading(false)
   }
 
   useEffect(() => { fetchAll() }, [profile?.organization_id])

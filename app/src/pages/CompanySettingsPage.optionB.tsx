@@ -62,16 +62,22 @@ export default function CompanySettingsPage() {
   useEffect(() => {
     if (!profile) return
     async function fetchOrg() {
-      const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()
-      if (error) { setMsg({ type: 'error', text: 'Failed to load: ' + error.message }); setLoading(false); return }
-      const o = data as Organization
-      setOrg(o)
-      setName(o.name); setSlug(o.slug); setLogoUrl(o.logo_url ?? '')
-      setPrimaryColor(o.primary_color); setSecondaryColor(o.secondary_color); setTertiaryColor(o.tertiary_color)
-      setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
-      setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
-      setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
-      setLoading(false)
+      try {
+        const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()
+        if (error) { setMsg({ type: 'error', text: 'Failed to load: ' + error.message }); return }
+        const o = data as Organization
+        setOrg(o)
+        setName(o.name); setSlug(o.slug); setLogoUrl(o.logo_url ?? '')
+        setPrimaryColor(o.primary_color); setSecondaryColor(o.secondary_color); setTertiaryColor(o.tertiary_color)
+        setPaySettings(o.pay_type_settings ?? DEFAULT_PAY_SETTINGS)
+        setFlowSteps((o.mentee_flow as MenteeFlow)?.steps ?? [])
+        setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
+      } catch (err) {
+        setMsg({ type: 'error', text: (err as Error).message || 'Failed to load' })
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchOrg()
   }, [profile])

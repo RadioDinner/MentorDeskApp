@@ -15,15 +15,21 @@ export default function CoursesPage() {
     if (!profile?.organization_id) { setLoading(false); return }
     async function fetch() {
       setLoading(true)
-      const { data, error: e } = await supabase
-        .from('offerings')
-        .select('*')
-        .eq('organization_id', profile!.organization_id)
-        .eq('type', 'course')
-        .order('name', { ascending: true })
-      if (e) { setError(e.message); setLoading(false); return }
-      setItems(data as Offering[])
-      setLoading(false)
+      try {
+        const { data, error: e } = await supabase
+          .from('offerings')
+          .select('*')
+          .eq('organization_id', profile!.organization_id)
+          .eq('type', 'course')
+          .order('name', { ascending: true })
+        if (e) { setError(e.message); return }
+        setItems(data as Offering[])
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
     fetch()
   }, [profile?.organization_id])

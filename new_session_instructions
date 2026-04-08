@@ -30,7 +30,10 @@ At the beginning of each new session, follow these instructions:
      understand where things left off.
    - Review any open items or unresolved decisions from prior sessions.
 
-5. GENERAL
+5. GIT WORKFLOW
+   - Always merge and push to main in this session unless told to create a branch.
    - Always commit and push session logs before ending a session.
+
+6. GENERAL
    - Keep prompt_history.txt updated throughout the session, not just at the end.
    - These instructions may be updated by the user at any time.

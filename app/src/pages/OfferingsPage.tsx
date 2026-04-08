@@ -25,22 +25,22 @@ export default function OfferingsPage() {
     async function fetchOfferings() {
       setLoading(true)
       setError(null)
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('offerings')
+          .select('*')
+          .eq('organization_id', profile!.organization_id)
+          .eq('type', activeTab)
+          .order('name', { ascending: true })
 
-      const { data, error: fetchError } = await supabase
-        .from('offerings')
-        .select('*')
-        .eq('organization_id', profile!.organization_id)
-        .eq('type', activeTab)
-        .order('name', { ascending: true })
-
-      if (fetchError) {
-        setError(fetchError.message)
+        if (fetchError) { setError(fetchError.message); return }
+        setItems(data as Offering[])
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      setItems(data as Offering[])
-      setLoading(false)
     }
 
     fetchOfferings()

@@ -38,40 +38,42 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
         return
       }
 
-      let query = supabase
-        .from('staff')
-        .select('*')
-        .eq('organization_id', profile!.organization_id)
-        .order('first_name', { ascending: true })
+      try {
+        let query = supabase
+          .from('staff')
+          .select('*')
+          .eq('organization_id', profile!.organization_id)
+          .order('first_name', { ascending: true })
 
-      if (roles.length === 1) {
-        query = query.eq('role', roles[0])
-      } else {
-        query = query.in('role', roles)
-      }
+        if (roles.length === 1) {
+          query = query.eq('role', roles[0])
+        } else {
+          query = query.in('role', roles)
+        }
 
-      const [{ data, error: fetchError }, allStaffRes, orgRes] = await Promise.all([
-        query,
-        showAccessGroups
-          ? supabase.from('staff').select('*').eq('organization_id', profile!.organization_id).order('first_name')
-          : Promise.resolve({ data: [], error: null }),
-        showAccessGroups
-          ? supabase.from('organizations').select('role_groups').eq('id', profile!.organization_id).single()
-          : Promise.resolve({ data: null, error: null }),
-      ])
+        const [{ data, error: fetchError }, allStaffRes, orgRes] = await Promise.all([
+          query,
+          showAccessGroups
+            ? supabase.from('staff').select('*').eq('organization_id', profile!.organization_id).order('first_name')
+            : Promise.resolve({ data: [], error: null }),
+          showAccessGroups
+            ? supabase.from('organizations').select('role_groups').eq('id', profile!.organization_id).single()
+            : Promise.resolve({ data: null, error: null }),
+        ])
 
-      if (fetchError) {
-        setError(fetchError.message)
+        if (fetchError) { setError(fetchError.message); return }
+
+        setPeople(data as StaffMember[])
+        if (showAccessGroups) {
+          setAllStaff((allStaffRes.data ?? []) as StaffMember[])
+          setPermissionGroups((orgRes.data?.role_groups as RoleGroup[]) ?? [])
+        }
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      setPeople(data as StaffMember[])
-      if (showAccessGroups) {
-        setAllStaff((allStaffRes.data ?? []) as StaffMember[])
-        setPermissionGroups((orgRes.data?.role_groups as RoleGroup[]) ?? [])
-      }
-      setLoading(false)
     }
 
     fetchPeople()

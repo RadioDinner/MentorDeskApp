@@ -56,36 +56,38 @@ export default function OfferingEditPage() {
     if (!id) return
 
     async function fetchOffering() {
-      const { data, error } = await supabase
-        .from('offerings')
-        .select('*')
-        .eq('id', id!)
-        .single()
+      try {
+        const { data, error } = await supabase
+          .from('offerings')
+          .select('*')
+          .eq('id', id!)
+          .single()
 
-      if (error) {
-        setFetchError(error.message)
+        if (error) { setFetchError(error.message); return }
+
+        const o = data as Offering
+        setOffering(o)
+        setName(o.name)
+        setDescription(o.description ?? '')
+        setBillingMode(o.billing_mode ?? 'one_time')
+        setPrice(o.price_cents ? (o.price_cents / 100).toFixed(2) : '')
+        setRecurringPrice(o.recurring_price_cents ? (o.recurring_price_cents / 100).toFixed(2) : '')
+        setSetupFee(o.setup_fee_cents ? (o.setup_fee_cents / 100).toFixed(2) : '')
+        setDispenseMode(o.dispense_mode)
+        setIntervalDays(o.dispense_interval_days ? String(o.dispense_interval_days) : '')
+        setLessonCount(o.lesson_count ? String(o.lesson_count) : '')
+        setDueDate(o.course_due_date ?? '')
+        setPreviewMode(o.preview_mode)
+        setMeetingCount(o.meeting_count ? String(o.meeting_count) : '')
+        setAllocationPeriod(o.allocation_period ?? 'monthly')
+        setUseOrgDefault(o.use_org_default_cancellation ?? true)
+        setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
+      } catch (err) {
+        setFetchError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      const o = data as Offering
-      setOffering(o)
-      setName(o.name)
-      setDescription(o.description ?? '')
-      setBillingMode(o.billing_mode ?? 'one_time')
-      setPrice(o.price_cents ? (o.price_cents / 100).toFixed(2) : '')
-      setRecurringPrice(o.recurring_price_cents ? (o.recurring_price_cents / 100).toFixed(2) : '')
-      setSetupFee(o.setup_fee_cents ? (o.setup_fee_cents / 100).toFixed(2) : '')
-      setDispenseMode(o.dispense_mode)
-      setIntervalDays(o.dispense_interval_days ? String(o.dispense_interval_days) : '')
-      setLessonCount(o.lesson_count ? String(o.lesson_count) : '')
-      setDueDate(o.course_due_date ?? '')
-      setPreviewMode(o.preview_mode)
-      setMeetingCount(o.meeting_count ? String(o.meeting_count) : '')
-      setAllocationPeriod(o.allocation_period ?? 'monthly')
-      setUseOrgDefault(o.use_org_default_cancellation ?? true)
-      setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
-      setLoading(false)
     }
 
     fetchOffering()

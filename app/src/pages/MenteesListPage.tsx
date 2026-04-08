@@ -19,20 +19,21 @@ export default function MenteesListPage() {
 
     async function fetchMentees() {
       setLoading(true)
-      const { data, error: fetchError } = await supabase
-        .from('mentees')
-        .select('*')
-        .eq('organization_id', profile!.organization_id)
-        .order('first_name', { ascending: true })
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('mentees')
+          .select('*')
+          .eq('organization_id', profile!.organization_id)
+          .order('first_name', { ascending: true })
 
-      if (fetchError) {
-        setError(fetchError.message)
+        if (fetchError) { setError(fetchError.message); return }
+        setMentees(data as Mentee[])
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      setMentees(data as Mentee[])
-      setLoading(false)
     }
 
     fetchMentees()

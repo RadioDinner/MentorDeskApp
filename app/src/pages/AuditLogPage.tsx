@@ -62,12 +62,16 @@ export default function AuditLogPage() {
     if (!profile) return
 
     async function loadStaff() {
-      const { data } = await supabase
-        .from('staff')
-        .select('id, first_name, last_name')
-        .eq('organization_id', profile!.organization_id)
-        .order('first_name')
-      if (data) setStaffOptions(data)
+      try {
+        const { data } = await supabase
+          .from('staff')
+          .select('id, first_name, last_name')
+          .eq('organization_id', profile!.organization_id)
+          .order('first_name')
+        if (data) setStaffOptions(data)
+      } catch (err) {
+        console.error(err)
+      }
     }
 
     loadStaff()
@@ -80,33 +84,38 @@ export default function AuditLogPage() {
       setLoading(true)
       setError(null)
 
-      let query = supabase
-        .from('audit_log')
-        .select(`
-          id, action, entity_type, entity_id, details, created_at,
-          actor:staff!audit_log_actor_id_fkey ( id, first_name, last_name )
-        `)
-        .eq('organization_id', profile!.organization_id)
-        .order('created_at', { ascending: false })
-        .limit(200)
+      try {
+        let query = supabase
+          .from('audit_log')
+          .select(`
+            id, action, entity_type, entity_id, details, created_at,
+            actor:staff!audit_log_actor_id_fkey ( id, first_name, last_name )
+          `)
+          .eq('organization_id', profile!.organization_id)
+          .order('created_at', { ascending: false })
+          .limit(200)
 
-      if (filterActor) {
-        query = query.eq('actor_id', filterActor)
-      }
-      if (filterType) {
-        query = query.eq('entity_type', filterType)
-      }
+        if (filterActor) {
+          query = query.eq('actor_id', filterActor)
+        }
+        if (filterType) {
+          query = query.eq('entity_type', filterType)
+        }
 
-      const { data, error: fetchError } = await query
+        const { data, error: fetchError } = await query
 
-      if (fetchError) {
-        setError(fetchError.message)
+        if (fetchError) {
+          setError(fetchError.message)
+          return
+        }
+
+        setEntries(data as unknown as AuditRow[])
+      } catch (err) {
+        setError((err as Error).message || 'Failed to load')
+        console.error(err)
+      } finally {
         setLoading(false)
-        return
       }
-
-      setEntries(data as unknown as AuditRow[])
-      setLoading(false)
     }
 
     fetchLog()

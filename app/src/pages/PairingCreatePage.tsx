@@ -29,23 +29,28 @@ export default function PairingCreatePage() {
     if (!profile) return
 
     async function fetchOptions() {
-      const [mentorRes, menteeRes] = await Promise.all([
-        supabase
-          .from('staff')
-          .select('id, first_name, last_name, email')
-          .eq('organization_id', profile!.organization_id)
-          .eq('role', 'mentor')
-          .order('first_name'),
-        supabase
-          .from('mentees')
-          .select('id, first_name, last_name, email')
-          .eq('organization_id', profile!.organization_id)
-          .order('first_name'),
-      ])
+      try {
+        const [mentorRes, menteeRes] = await Promise.all([
+          supabase
+            .from('staff')
+            .select('id, first_name, last_name, email')
+            .eq('organization_id', profile!.organization_id)
+            .eq('role', 'mentor')
+            .order('first_name'),
+          supabase
+            .from('mentees')
+            .select('id, first_name, last_name, email')
+            .eq('organization_id', profile!.organization_id)
+            .order('first_name'),
+        ])
 
-      if (mentorRes.data) setMentors(mentorRes.data)
-      if (menteeRes.data) setMentees(menteeRes.data)
-      setLoadingOptions(false)
+        if (mentorRes.data) setMentors(mentorRes.data)
+        if (menteeRes.data) setMentees(menteeRes.data)
+      } catch (err) {
+        console.error('Failed to load options:', err)
+      } finally {
+        setLoadingOptions(false)
+      }
     }
 
     fetchOptions()
