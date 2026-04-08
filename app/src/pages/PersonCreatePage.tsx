@@ -14,7 +14,7 @@ interface PersonCreatePageProps {
 }
 
 export default function PersonCreatePage({ title, defaultRole, backRoute }: PersonCreatePageProps) {
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
 
   const [firstName, setFirstName] = useState('')
@@ -80,6 +80,11 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
 
     if (data && data.length > 0) {
       await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'staff', entity_id: data[0].id, details: { role: defaultRole, name: `${firstName.trim()} ${lastName.trim()}` } })
+      // If we linked the new record to the current user, refresh the profile
+      // switcher so the new role appears in the Topbar dropdown immediately
+      if (linkedUserId) {
+        await refreshProfile()
+      }
       navigate(`/people/${data[0].id}/edit`)
     } else {
       navigate(backRoute)
