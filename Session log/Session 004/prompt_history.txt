@@ -2,3 +2,11 @@ SESSION 004 - PROMPT HISTORY
 ==============================
 
 1. Pull the new session instructions, review the last session, and let's get started building and shipping features
+
+2. Merge to main and continue merging to main for this session
+
+3. Sometimes when I click a module, it'll navigate to the right URL but it'll just show "Loading...". If I refresh it typically loads in ok.
+
+4. maybe it is fixed. I'll let you know if I run into it again
+
+5. When I click the "Course Builder" button it redirects me to the dashboard. Also, do we have all the tables in supabase that we need to for the features we've built so far? If not, please build those and put them in a migration file.

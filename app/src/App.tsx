@@ -20,6 +20,7 @@ import MenteeEditPage from './pages/MenteeEditPage'
 import PairingsPage from './pages/PairingsPage'
 import PairingCreatePage from './pages/PairingCreatePage'
 import PairingEditPage from './pages/PairingEditPage'
+import CourseBuilderPage from './pages/CourseBuilderPage'
 import AuditLogPage from './pages/AuditLogPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
             <Route path="/courses/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/courses/:id/builder" element={<CourseBuilderPage />} />
             <Route path="/engagements" element={<EngagementsPage />} />
             <Route path="/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
             <Route path="/engagements/:id/edit" element={<OfferingEditPage />} />
