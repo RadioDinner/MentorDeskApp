@@ -55,14 +55,56 @@ export default function Sidebar() {
     )
   }
 
-  // Build visible modules for staff/mentor/admin
+  // Mentor/Asst Mentor gets a dedicated sidebar
+  if (isMentor) {
+    const mentorModules = [
+      { key: 'home',        label: 'Home',        letter: 'H', path: '/dashboard',    gradient: 'from-slate-500 to-slate-700' },
+      { key: 'my-mentees',  label: 'My Mentees',  letter: 'M', path: '/mentees',      gradient: 'from-green-400 to-green-600' },
+      { key: 'reports',     label: 'Reports',     letter: 'R', path: '/reports',      gradient: 'from-cyan-400 to-cyan-600' },
+    ]
+
+    return (
+      <aside className="w-56 shrink-0 flex flex-col bg-slate-900 min-h-screen">
+        <div className="px-5 py-5 border-b border-slate-700/50">
+          <span className="text-base font-semibold text-white tracking-tight">MentorDesk</span>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {mentorModules.map(mod => (
+            <NavLink
+              key={mod.path}
+              to={mod.path}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-brand text-white'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`
+              }
+            >
+              <span className={`w-5 h-5 rounded-full bg-gradient-to-br ${mod.gradient} flex items-center justify-center text-[9px] font-bold text-white shadow-sm border border-white/20 shrink-0`}>
+                {mod.letter}
+              </span>
+              {mod.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="px-4 py-4 border-t border-slate-700/50">
+          <p className="text-xs font-medium text-slate-200 truncate">
+            {profile.first_name} {profile.last_name}
+          </p>
+          <p className="text-xs text-slate-400 capitalize">
+            {profile.role.replace('_', ' ')}
+          </p>
+        </div>
+      </aside>
+    )
+  }
+
+  // Build visible modules for staff/admin
   const visibleKeys = new Set<string>(ALWAYS_VISIBLE)
 
   if (isAdmin) {
     for (const mod of ALL_MODULES) visibleKeys.add(mod.key)
-  } else if (isMentor) {
-    visibleKeys.add('mentees')
-    for (const key of allowedKeys) visibleKeys.add(key)
   } else {
     for (const key of allowedKeys) visibleKeys.add(key)
   }

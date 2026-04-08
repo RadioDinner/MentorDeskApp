@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { Offering } from '../types'
+import type { Offering, StaffMember } from '../types'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -161,6 +161,12 @@ export default function DashboardPage() {
   }
 
   const isAdmin = profile.role === 'admin'
+  const isMentor = profile.role === 'mentor' || profile.role === 'assistant_mentor'
+
+  // ====== MENTOR DASHBOARD ======
+  if (isMentor) {
+    return <MentorDashboard profile={profile} navigate={navigate} />
+  }
 
   const statCards = [
     { label: 'Mentors', count: stats.mentors, color: 'bg-blue-500', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
@@ -274,6 +280,177 @@ export default function DashboardPage() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// ====== MENTOR DASHBOARD COMPONENT ======
+
+interface MentorMentee {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  pairings: { id: string; status: string; offering_id: string | null; offering_name: string | null; offering_type: string | null }[]
+}
+
+function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate: (path: string) => void }) {
+  const [mentees, setMentees] = useState<MentorMentee[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true)
+      try {
+        // Get all active pairings for this mentor
+        const { data: pairingsData } = await supabase
+          .from('pairings')
+          .select('id, status, mentee_id, offering_id')
+          .eq('mentor_id', profile.id)
+          .in('status', ['active', 'paused'])
+
+        if (!pairingsData?.length) { setMentees([]); return }
+
+        // Get unique mentee IDs
+        const menteeIds = [...new Set(pairingsData.map(p => p.mentee_id))]
+
+        // Fetch mentee details
+        const { data: menteesData } = await supabase
+          .from('mentees')
+          .select('id, first_name, last_name, email')
+          .in('id', menteeIds)
+
+        // Fetch offering names for pairings that have one
+        const offeringIds = pairingsData.map(p => p.offering_id).filter(Boolean) as string[]
+        let offeringsMap: Record<string, { name: string; type: string }> = {}
+        if (offeringIds.length > 0) {
+          const { data: offerings } = await supabase
+            .from('offerings')
+            .select('id, name, type')
+            .in('id', offeringIds)
+          if (offerings) {
+            offeringsMap = Object.fromEntries(offerings.map(o => [o.id, { name: o.name, type: o.type }]))
+          }
+        }
+
+        // Group pairings by mentee
+        const menteesMap = new Map<string, MentorMentee>()
+        for (const m of (menteesData ?? [])) {
+          menteesMap.set(m.id, { ...m, pairings: [] })
+        }
+        for (const p of pairingsData) {
+          const mentee = menteesMap.get(p.mentee_id)
+          if (mentee) {
+            const off = p.offering_id ? offeringsMap[p.offering_id] : null
+            mentee.pairings.push({
+              id: p.id,
+              status: p.status,
+              offering_id: p.offering_id,
+              offering_name: off?.name ?? null,
+              offering_type: off?.type ?? null,
+            })
+          }
+        }
+
+        setMentees(Array.from(menteesMap.values()))
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [profile.id])
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {profile.first_name}</h1>
+        <p className="text-sm text-gray-500 mt-1">{formatDate()}</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
+          <p className="text-2xl font-bold text-gray-900">{mentees.length}</p>
+          <p className="text-xs text-gray-500">Active mentees</p>
+        </div>
+        <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
+          <p className="text-2xl font-bold text-gray-900">{mentees.reduce((sum, m) => sum + m.pairings.length, 0)}</p>
+          <p className="text-xs text-gray-500">Active pairings</p>
+        </div>
+      </div>
+
+      {/* Mentees list with their engagements */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">My Mentees</h3>
+          <button
+            onClick={() => navigate('/mentees')}
+            className="text-xs font-medium text-brand hover:text-brand-hover transition-colors"
+          >
+            View all &rarr;
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading...</div>
+        ) : mentees.length === 0 ? (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
+            <p className="text-sm text-gray-500">No mentees assigned to you yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {mentees.map(mentee => (
+              <div key={mentee.id} className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
+                      {mentee.first_name[0]}{mentee.last_name[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{mentee.first_name} {mentee.last_name}</p>
+                      <p className="text-xs text-gray-500">{mentee.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/mentees/${mentee.id}/edit`)}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    View
+                  </button>
+                </div>
+
+                {/* Engagements for this mentee */}
+                {mentee.pairings.length > 0 && (
+                  <div className="mt-2 pl-12 space-y-1.5">
+                    {mentee.pairings.map(p => (
+                      <div key={p.id} className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.status === 'active' ? 'bg-green-400' : 'bg-amber-400'}`} />
+                        <p className="text-xs text-gray-600">
+                          {p.offering_name ?? 'General Mentoring'}
+                          {p.offering_type === 'course' && (
+                            <span className="text-gray-400 ml-1">(Course)</span>
+                          )}
+                          {p.offering_type === 'engagement' && (
+                            <span className="text-gray-400 ml-1">(Engagement)</span>
+                          )}
+                        </p>
+                        <span className={`text-[9px] font-medium px-1 py-0.5 rounded capitalize ${
+                          p.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
