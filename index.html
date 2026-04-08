@@ -7,34 +7,55 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      @keyframes spin{to{transform:rotate(360deg)}}
+      #loading-fallback{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,sans-serif;background:#f0f2f7}
+      #loading-fallback .inner{text-align:center}
+      #loading-fallback .spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem}
+      #loading-fallback p{color:#6b7280;font-size:0.9rem}
+      #loading-fallback .build-id{color:#d1d5db;font-size:0.7rem;margin-top:1rem}
+      #app-error{display:none;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,sans-serif;padding:2rem}
+      #app-error .card{max-width:500px;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:2rem;text-align:center}
+      #app-error pre{background:#fef2f2;padding:0.75rem;border-radius:6px;font-size:0.78rem;color:#991b1b;text-align:left;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto}
+    </style>
   </head>
   <body>
     <div id="root">
-      <!-- This content shows while React loads. React replaces it on mount. -->
-      <div id="loading-fallback" style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,sans-serif;background:#f0f2f7">
-        <div style="text-align:center">
-          <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem"></div>
-          <p style="color:#6b7280;font-size:0.9rem">Loading MentorDesk...</p>
+      <div id="loading-fallback">
+        <div class="inner">
+          <div class="spinner"></div>
+          <p>Loading MentorDesk...</p>
+          <div class="build-id">Build: 2026-04-08-v5</div>
         </div>
       </div>
     </div>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <div id="app-error">
+      <div class="card">
+        <p style="font-weight:700;color:#dc2626;margin-bottom:0.5rem;font-size:1.1rem">App failed to load</p>
+        <pre id="error-detail"></pre>
+        <button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#6366f1;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Reload</button>
+      </div>
+    </div>
     <script>
-      // Global error catcher - shows errors that crash React before it can mount
+      window.__appErrors = [];
       window.addEventListener('error', function(e) {
-        var root = document.getElementById('root');
-        if (root && !root.dataset.reactMounted) {
-          root.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,sans-serif;padding:2rem">' +
-            '<div style="max-width:500px;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:2rem;text-align:center">' +
-            '<p style="font-weight:700;color:#dc2626;margin-bottom:0.5rem">App failed to load</p>' +
-            '<pre style="background:#fef2f2;padding:0.75rem;border-radius:6px;font-size:0.78rem;color:#991b1b;text-align:left;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto">' + (e.message || e) + '</pre>' +
-            '<button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#6366f1;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Reload</button>' +
-            '</div></div>';
-        }
+        window.__appErrors.push(e.message || String(e));
+        showError();
       });
       window.addEventListener('unhandledrejection', function(e) {
-        console.error('Unhandled rejection:', e.reason);
+        window.__appErrors.push('Promise: ' + (e.reason?.message || e.reason || 'unknown'));
+        showError();
       });
+      function showError() {
+        var el = document.getElementById('app-error');
+        var detail = document.getElementById('error-detail');
+        var loading = document.getElementById('loading-fallback');
+        if (el && detail) {
+          if (loading) loading.style.display = 'none';
+          el.style.display = 'flex';
+          detail.textContent = window.__appErrors.join('\n');
+        }
+      }
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>

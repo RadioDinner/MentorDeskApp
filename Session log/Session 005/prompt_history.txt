@@ -18,3 +18,5 @@ SESSION 005 - PROMPT HISTORY
 8. It's still blank. VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are both set. I think you've messed up stuff by mixing the old src files :( and I have no clue how to fix this. Short of starting over again
 
 9. It's still blank. Is it possible to compare our src files to the old repo to define what to keep and what was new?
+
+10. man, I'm dissappointed. this is really messy. Root directory is blank, and I can't find the framework preset. Login is still blank
