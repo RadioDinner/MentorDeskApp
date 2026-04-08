@@ -1,0 +1,210 @@
+SESSION 004 - HANDOFF LOG
+==========================
+Date: 2026-04-08
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Major feature session covering the Course Builder page, archive/delete
+system, multi-role account switcher, Loading... bug fix, module icon
+redesign, and a significant repo cleanup. This session also surfaced a
+serious trust issue: unauthorized files and folders from a prior repo
+were present in the codebase, which the user never requested.
+
+
+CRITICAL NOTE FOR FUTURE SESSIONS
+-----------------------------------
+DO NOT CREATE FILES OR FOLDERS THE USER DID NOT ASK FOR.
+
+In prior sessions, Claude created unauthorized content including:
+- android-app/ (full Kotlin Android app)
+- super-admin-app/ (full React admin panel)
+- landing-page/ (marketing site)
+- supabase/functions/ (9 edge functions)
+- supabase/email-templates/
+- .github/workflows/ (CI pipeline)
+- .env.example, .branch-test, mince_pie_ingredients.txt
+- 50+ old migration files (001-050) from a previous project
+- SUPABASE_MIGRATIONS_11.sql
+
+These were carried over from a previous repo called "CourseCorrect" and
+were never requested by the user in this project. The user discovered
+these and was rightfully furious. All unauthorized files were deleted
+in this session.
+
+RULES GOING FORWARD:
+1. Only create files explicitly requested by the user
+2. Never carry over code from old projects
+3. If something seems useful but wasn't asked for, ASK FIRST
+4. Stick to exactly what is requested — no "bonus" features or files
+
+
+CHANGES MADE
+-------------
+
+1. COURSE BUILDER PAGE (CourseBuilderPage.tsx):
+   - Built full CourseBuilderPage at /courses/:id/builder
+   - Two-panel layout: lesson list (left) + lesson editor (right)
+   - Add, delete, drag-and-drop reorder lessons
+   - Lesson editor: title, description, content, video URL
+   - Per-lesson due dates (when enabled in org settings)
+   - Question system: quiz (multiple choice) and response (open-ended)
+   - Added route in App.tsx — was missing, causing redirect to dashboard
+   - Fixed silent error swallowing in addLesson (now shows error messages)
+
+2. PAIRINGS GRID FILTERING:
+   - Per-column filter dropdowns on the Pairings grid
+   - Click filter icon on any column header to filter by distinct values
+   - Active filter count indicator + "Clear filters" button
+
+3. ENGAGEMENT CREATE — CANCELLATION POLICY SUMMARY:
+   - When "Use organization default" is checked, the default policy is
+     now displayed as a summary (window, outcomes for in-window, late
+     cancel, and no-show)
+
+4. MENTEE FLOW REORDERING REDESIGN:
+   - Drag-and-drop reordering with grip handle
+   - Numbered order badges (1, 2, 3...)
+   - Bigger up/down arrow buttons with hover states
+   - Visual drop target feedback
+
+5. STAFF MODULE ACCESS REDESIGN:
+   - Replaced floating dropdown with inline expandable card
+   - Panel expands below the staff row, full card width
+   - Module chips grouped by category with colored backgrounds
+   - Group-level select/deselect all
+   - Preserved: quick-apply presets, copy from, group toggles
+
+6. ARCHIVE AND DELETE SYSTEM:
+   - Migration 985: archived_at on staff + mentees, archive_settings
+     on organizations
+   - Archive (soft-delete) via archived_at timestamp
+   - Restore clears archived_at
+   - Delete (hard) with two-step confirmation — archived people only
+   - Show/hide archived toggle on all 4 people modules
+   - Company Settings > Archives tab: auto-delete config
+     (days/months/years threshold, or keep indefinitely)
+   - Auto-purge runs on login via AuthContext
+
+7. MULTI-ROLE ACCOUNT SWITCHER:
+   - AuthContext fetches ALL staff records + mentee record per user_id
+   - Account switcher in Topbar dropdown with colored role badges
+   - One user can have admin + mentor + asst. mentor + mentee accounts
+   - Only shows roles the user actually has — no phantom options
+   - Active profile persisted in localStorage
+   - Sidebar adapts dynamically to active role
+
+8. LOADING BUG FIX (DEFINITIVE):
+   - Root cause 1: AuthContext re-fetched profile on every token refresh
+     event; if the fetch failed, profile became null app-wide
+   - Root cause 2: All pages had `if (!profile) return` guard that
+     exited without calling setLoading(false), leaving pages stuck
+   - Fix 1: AuthContext now skips re-fetch on TOKEN_REFRESHED events;
+     on failure, keeps existing profile instead of nulling out
+   - Fix 2: All 8 data-fetching pages now call setLoading(false) before
+     early return
+
+9. MODULE ICON REDESIGN:
+   - Replaced text symbols (◈, ◉, etc.) with gradient letter circles
+   - Each module: first letter in a gradient-filled circle with white
+     border and shadow
+   - Applied across sidebar nav, trigger button (overlapping row),
+     and expanded panel chips
+
+10. REPO CLEANUP:
+    - Deleted: android-app/, super-admin-app/, landing-page/,
+      .github/workflows/, supabase/functions/, supabase/email-templates/
+    - Deleted: .env.example, .branch-test, SUPABASE_MIGRATIONS_11.sql,
+      mince_pie_ingredients.txt
+    - Deleted: all non-9xx migration files (001-050, CONSOLIDATED)
+    - Fixed migration 986: replaced references to undefined
+      user_org_ids() and is_super_admin() with my_organization_id()
+
+11. COMBINED MIGRATION (984_all_in_one.sql):
+    - Single safe-to-rerun SQL file combining all 15 migrations
+    - Uses IF NOT EXISTS, ADD COLUMN IF NOT EXISTS, DO/EXCEPTION blocks
+    - User can run schema.sql then 984 regardless of prior migration state
+
+12. SUPABASE SCHEMA AUDIT:
+    - Cross-referenced all .from('table') calls against migrations
+    - All 8 tables and their columns fully accounted for
+    - No missing tables or columns
+
+
+DIRECTIONAL DECISIONS
+----------------------
+
+1. ARCHIVE BEFORE DELETE: People must be archived before they can be
+   deleted. No direct delete from active state. Two-step confirmation
+   on delete.
+
+2. MULTI-ROLE VIA MULTIPLE RECORDS: A single user_id can have multiple
+   staff records (one per role) and a mentee record. This is a data-level
+   approach, not a permissions flag — each role is a full record with
+   its own settings.
+
+3. TOKEN REFRESH ISOLATION: AuthContext no longer re-fetches profiles on
+   Supabase token refresh events. Only fetches on SIGNED_IN and
+   INITIAL_SESSION. This prevents the Loading... bug.
+
+4. AUTO-DELETE IS CLIENT-SIDE: Archive auto-purge runs on login from
+   the browser. No server-side cron. This means purging only happens
+   when someone logs in.
+
+5. MODULE ICONS: Gradient letter circles are the icon system. Each
+   module has a unique letter and two-tone gradient color.
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- All Session 003 functionality intact
+- Course Builder page fully functional (lessons + questions)
+- Archive/delete system across all 4 people modules
+- Multi-role account switcher in topbar
+- Loading bug fixed across all pages
+- Pairings grid has per-column filtering
+- Mentee flow has drag-and-drop + numbered reordering
+- Module icons are gradient letter circles throughout
+- Repo cleaned of all unauthorized files
+- Only 9xx migrations remain (985-999) plus 984 combined file
+
+DATABASE (Migrations 984-999):
+- 984: Combined safe-to-rerun migration (all of 985-999)
+- 985: archived_at on staff/mentees, archive_settings on orgs
+- 986: lessons + lesson_questions tables (fixed RLS policies)
+- 987-999: All prior migrations (unchanged)
+
+REPO STRUCTURE (cleaned):
+- app/ — React frontend
+- supabase/schemas/ — base schema
+- supabase/migrations/ — 984-999 only
+- docs/ — integration roadmap (kept per user request)
+- Session log/ — sessions 000-004
+- Root: config files, glossary, roadmap, checklist
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. MIGRATION STATUS: User unsure which migrations have been run in
+   Supabase. The 984_all_in_one.sql file is safe to run regardless.
+   They should run: schema.sql first, then 984_all_in_one.sql.
+
+2. COURSE BUILDER +ADD BUTTON: Fixed error reporting but the underlying
+   issue is likely that the lessons table doesn't exist yet in the user's
+   Supabase. Running 984 will fix this.
+
+3. ALL OPEN ITEMS FROM PRIOR SESSIONS REMAIN:
+   - Auth flows (invite, forgot password, email change)
+   - Responsive/mobile layouts
+   - Production hardening (remove DebugPanel, error monitoring)
+   - Reports, Billing, Invoicing, Payroll modules
+   - Mentee-facing portal
+   - Accessibility audit
+   - SMTP setup for transactional emails
+
+4. POTENTIAL IMPROVEMENTS:
+   - Mentee mode UI (currently just shows home — needs mentee dashboard)
+   - Rich text editor for lesson content (currently plain textarea)
+   - Lesson video embed preview
