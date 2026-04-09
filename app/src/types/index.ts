@@ -122,10 +122,28 @@ export interface Pairing {
   organization_id: string
   mentor_id: string
   mentee_id: string
+  offering_id: string | null
   status: PairingStatus
   started_at: string
   ended_at: string | null
   notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type MenteeOfferingStatus = 'active' | 'completed' | 'cancelled'
+
+export interface MenteeOffering {
+  id: string
+  organization_id: string
+  mentee_id: string
+  offering_id: string
+  assigned_by: string | null
+  status: MenteeOfferingStatus
+  sessions_used: number
+  assigned_at: string
+  started_at: string | null
+  completed_at: string | null
   created_at: string
   updated_at: string
 }

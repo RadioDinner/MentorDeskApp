@@ -12,3 +12,5 @@ SESSION 007 - PROMPT HISTORY
 5. merge to main and delete the branch, continue merging to main for the remainder of this session
 
 I want to start building out the ability for staff, mentors and assistant mentors ability to "Assign" courses OR "Open" an engagement. I want to make these changes universal to the staff, mentor and assistant mentor roles. I want to build this system from the Mentees module for now. I want a little gear icon to appear on their line in the list in the mentees module. Make that change now.
+
+6. Probably a popover would be the best. I want to be able to assign a course or open an engagement. In this popover, I also want a view of what courses are currently assigned, along with their current progress. I want to view open engagements too, and how many "Session credits" they have, how many they've used, etc
