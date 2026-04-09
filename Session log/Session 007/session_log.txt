@@ -1,0 +1,142 @@
+SESSION 007 - HANDOFF LOG
+==========================
+Date: 2026-04-09
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Bug-fix session followed by building the mentee management system.
+Fixed 17+ bugs across 11 files, then built the "Manage" workflow for
+assigning courses and opening engagements from the Mentees module.
+Introduced mentee_offerings table with per-mentee pricing overrides
+and inline editing.
+
+
+CHANGES MADE
+-------------
+
+1. BUG FIXES - ROUND 1 (navigation & audit trail):
+   - OfferingsPage: fixed 3 broken navigation routes
+     (/offerings/courses/new → /courses/new, etc.)
+   - OfferingsPage: edit button now routes based on offering type
+   - PairingEditPage: "Assignment not found" → "Pairing not found"
+   - PairingEditPage: added offering_id to PairingDetail interface
+   - Added missing await on logAudit calls in MenteeEditPage,
+     PersonEditPage, PairingEditPage, ProfilePage (6 calls)
+   - PairingsPage: quickPair now captures inserted ID for audit log
+
+2. BUG FIXES - ROUND 2 (error handling & data integrity):
+   - AuthContext: track safetyTimeout so it's cleared on unmount and
+     on rapid auth state changes (prevents memory leak + stale updates)
+   - CourseBuilderPage: try/catch around deleteLesson reindex loop
+   - CourseBuilderPage: revert lesson order on failed drag-drop persist
+   - CourseBuilderPage: show user-visible errors for failed question
+     update/delete (were silent before)
+   - PairingCreatePage: wrap handleSubmit in try/catch/finally
+   - CompanySettingsPage: wrap handleSave in try/catch/finally
+
+3. BUG FIXES - ROUND 3 (hooks & utilities):
+   - useLoadingGuard: added onTimeout to useEffect dependency array
+   - errorReporter: broadened not-null pattern to match actual Postgres
+     messages ("null value", "not null")
+
+4. ENGAGEMENT PRICING BUG FIX:
+   - OfferingEditPage: pricing section was wrapped in {isCourse && ...}
+     which hid it for engagements. Now shows for both types.
+   - Save handler now persists recurring_price_cents and setup_fee_cents
+     for engagements (was missing entirely)
+
+5. MENTEE MANAGEMENT SYSTEM (new feature):
+   - New mentee_offerings table (migration 978) tracks course
+     assignments and engagement openings per mentee
+   - Migration 977: per-mentee override columns (recurring_price_cents,
+     setup_fee_cents, meeting_count, allocation_period, notes)
+   - MenteeOffering TypeScript type with all fields
+   - Pairing type updated to include offering_id
+   - mentee_offering added to audit EntityType
+
+6. MENTEES MODULE UI:
+   - Gear icon → "Manage" button with text on mentee list rows
+   - "Edit" button with pencil icon + text
+   - "Archive" button with box icon + text
+   - All visible to admin, staff, mentor, assistant_mentor roles
+
+7. MENTEE MANAGE PANEL (inline split layout):
+   - Clicking "Manage" compresses mentee list to a w-64 sidebar
+   - Compact list shows initials + name + email, selected highlighted
+   - Manage panel fills remaining space with:
+     * Summary cards: Active Courses, Open Engagements
+     * Two-column layout: Courses (left) and Engagements (right)
+     * Course cards: progress bar, percentage, lesson count, dates
+     * Engagement cards: SVG donut charts for Allocated and Used,
+       remaining count, pricing info, inline edit capability
+     * Assign Course / Open Engagement dropdowns
+   - Multi-engagement gating: respects org allow_multi_engagement
+     setting. If disabled, "+ Open" button is greyed with tooltip.
+   - Template values (pricing, sessions) copied to mentee_offering
+     on assignment; editable per-mentee without affecting template
+   - Inline editing on engagement cards: price, setup fee, sessions
+
+8. ERROR REPORTING:
+   - Confirmed edge function is deployed (from Session 006 open item)
+
+
+DATABASE MIGRATIONS TO RUN (in order):
+---------------------------------------
+- 978_mentee_offerings.sql (new table for course/engagement assignments)
+- 977_mentee_offering_overrides.sql (per-mentee override columns)
+
+Also: confirm NOTIFY pgrst, 'reload schema' was run (from Session 006)
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. LESSON PROGRESS TRACKING:
+   - Course cards show "0/N lessons" — need a lesson_progress table
+     to track mentee completion of individual lessons
+   - Will need: lesson_progress(id, mentee_id, lesson_id, completed_at)
+
+2. SESSION LOGGING FOR ENGAGEMENTS:
+   - sessions_used starts at 0 — need UI/mechanism to log sessions
+   - Could be: engagement_sessions table or manual increment
+
+3. COURSE VIEWER FOR MENTEES:
+   - Mentees need to be able to view and progress through course content
+   - Lesson-by-lesson view with content, video, questions
+
+4. STALE REMOTE BRANCH:
+   - remotes/origin/claude/review-and-start-Mqrl0 could not be deleted
+     (403 permissions). Should be cleaned up manually.
+
+5. REMAINING FEATURES FROM SESSION 005/006:
+   - Reports module
+   - Admin invoicing/payroll/billing pages
+   - Signup/invite flows
+   - Stripe integration for payments
+   - Meeting scheduling
+   - Messaging between mentee and mentor
+
+6. SUPABASE SDK WRITE HANG:
+   - Still using raw fetch() workaround for Course Builder
+   - Root cause still unknown
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- Real codebase: app/ (TypeScript/React 19/Vite/Tailwind CSS 4)
+- Backend: Supabase (Postgres + Auth + RLS)
+- Deployment: Vercel (auto-deploys from main)
+- 11 tables: organizations, staff, mentees, offerings, pairings, lessons,
+  lesson_questions, audit_log, invoices, payroll, error_reports,
+  mentee_offerings
+- 25+ page components in app/src/pages/
+- 3 role-specific portals: Admin (full), Mentor (mentees + reports),
+  Mentee (engagements + billing)
+- Mentee management panel with inline split layout
+- Per-mentee engagement overrides (pricing, sessions)
+- Multi-role accounts: same person can be admin + mentor + mentee
+- Profile switcher in Topbar dropdown
+- Error reporting system (client → Supabase → GitHub Issues)
+- Build passes clean (tsc + vite)
