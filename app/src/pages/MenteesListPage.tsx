@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
-import MenteeActionsPopover from '../components/MenteeActionsPopover'
+import MenteeManageSlideOver from '../components/MenteeManageSlideOver'
 import type { Mentee } from '../types'
 
 export default function MenteesListPage() {
@@ -15,8 +15,7 @@ export default function MenteesListPage() {
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [popoverMenteeId, setPopoverMenteeId] = useState<string | null>(null)
-  const gearButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [slideOverMenteeId, setSlideOverMenteeId] = useState<string | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -181,10 +180,9 @@ export default function MenteesListPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   {!isArchived && (
                     <button
-                      ref={el => { gearButtonRefs.current[mentee.id] = el }}
-                      onClick={() => setPopoverMenteeId(popoverMenteeId === mentee.id ? null : mentee.id)}
+                      onClick={() => setSlideOverMenteeId(mentee.id)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded transition-colors ${
-                        popoverMenteeId === mentee.id
+                        slideOverMenteeId === mentee.id
                           ? 'text-brand border-brand bg-brand-light'
                           : 'text-gray-600 border-gray-200 hover:text-brand hover:border-brand hover:bg-brand-light'
                       }`}
@@ -195,14 +193,6 @@ export default function MenteesListPage() {
                       </svg>
                       Manage
                     </button>
-                  )}
-                  {popoverMenteeId === mentee.id && profile && (
-                    <MenteeActionsPopover
-                      mentee={mentee}
-                      profile={profile}
-                      onClose={() => setPopoverMenteeId(null)}
-                      anchorRef={gearButtonRefs.current[mentee.id]}
-                    />
                   )}
                   {isMentor ? (
                     <button
@@ -271,6 +261,19 @@ export default function MenteesListPage() {
           })}
         </div>
       )}
+
+      {/* Slide-over */}
+      {slideOverMenteeId && profile && (() => {
+        const m = mentees.find(x => x.id === slideOverMenteeId)
+        if (!m) return null
+        return (
+          <MenteeManageSlideOver
+            mentee={m}
+            profile={profile}
+            onClose={() => setSlideOverMenteeId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -20,3 +20,7 @@ I want to start building out the ability for staff, mentors and assistant mentor
 8. fix the numbering of the migrations to be reverse sorted according to when they were created. Your  983_mentee_offerings.sql document matched a 983 prefix
 
 9. All migrations are run. I want to change what happens when I click the "Manage" button. Maybe popover was the wrong word to use. I want the majority of the screen to be covered except the sidebar, by like, a "window" that has a mini dashboard. Or maybe we should have it open a different window?
+
+10. a different tab, rather
+
+11. Let's go slideover
