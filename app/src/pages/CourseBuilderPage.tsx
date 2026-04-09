@@ -152,21 +152,27 @@ export default function CourseBuilderPage() {
 
   async function deleteLesson(lessonId: string) {
     if (!profile || !id) return
-    const { error: e } = await withTimeout(supabase.from('lessons').delete().eq('id', lessonId), 15000, 'deleteLesson')
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete lesson: ' + e.message }); return }
-    const updated = lessons.filter(l => l.id !== lessonId)
-    // Reindex
-    for (let i = 0; i < updated.length; i++) {
-      if (updated[i].order_index !== i) {
-        updated[i] = { ...updated[i], order_index: i }
-        await supabase.from('lessons').update({ order_index: i }).eq('id', updated[i].id)
+    try {
+      const { error: e } = await withTimeout(supabase.from('lessons').delete().eq('id', lessonId), 15000, 'deleteLesson')
+      if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete lesson: ' + e.message }); return }
+      const updated = lessons.filter(l => l.id !== lessonId)
+      // Reindex
+      for (let i = 0; i < updated.length; i++) {
+        if (updated[i].order_index !== i) {
+          updated[i] = { ...updated[i], order_index: i }
+          const { error: reindexErr } = await supabase.from('lessons').update({ order_index: i }).eq('id', updated[i].id)
+          if (reindexErr) { console.error('[CourseBuilder] reindex failed for lesson', updated[i].id, reindexErr.message); break }
+        }
       }
+      setLessons(updated)
+      if (selectedLessonId === lessonId) {
+        setSelectedLessonId(updated.length > 0 ? updated[0].id : null)
+      }
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: lessonId } })
+    } catch (err) {
+      console.error('[CourseBuilder] deleteLesson error:', err)
+      setLessonMsg({ type: 'error', text: 'Failed to delete lesson: ' + ((err as Error).message || 'Unknown error') })
     }
-    setLessons(updated)
-    if (selectedLessonId === lessonId) {
-      setSelectedLessonId(updated.length > 0 ? updated[0].id : null)
-    }
-    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'offering', entity_id: id, details: { sub: 'lesson', lesson_id: lessonId } })
   }
 
   async function saveLesson() {
@@ -223,6 +229,7 @@ export default function CourseBuilderPage() {
       return
     }
 
+    const previousLessons = [...lessons]
     const reordered = [...lessons]
     const [moved] = reordered.splice(fromIndex, 1)
     reordered.splice(targetIndex, 0, moved)
@@ -233,8 +240,20 @@ export default function CourseBuilderPage() {
     setDragOverIndex(null)
 
     // Persist new order
-    for (const l of updated) {
-      await supabase.from('lessons').update({ order_index: l.order_index }).eq('id', l.id)
+    try {
+      for (const l of updated) {
+        const { error } = await supabase.from('lessons').update({ order_index: l.order_index }).eq('id', l.id)
+        if (error) {
+          console.error('[CourseBuilder] handleDrop reorder failed:', error.message)
+          setLessons(previousLessons)
+          setLessonMsg({ type: 'error', text: 'Failed to save lesson order.' })
+          return
+        }
+      }
+    } catch (err) {
+      console.error('[CourseBuilder] handleDrop error:', err)
+      setLessons(previousLessons)
+      setLessonMsg({ type: 'error', text: 'Failed to save lesson order.' })
     }
   }
 
@@ -273,13 +292,13 @@ export default function CourseBuilderPage() {
 
   async function updateQuestion(questionId: string, updates: Partial<LessonQuestion>) {
     const { error: e } = await withTimeout(supabase.from('lesson_questions').update(updates).eq('id', questionId), 15000, 'updateQuestion')
-    if (e) { console.error('[CourseBuilder] updateQuestion FAILED:', e.message); return }
+    if (e) { console.error('[CourseBuilder] updateQuestion FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Failed to save question.' }); return }
     setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } as LessonQuestion : q))
   }
 
   async function deleteQuestion(questionId: string) {
     const { error: e } = await withTimeout(supabase.from('lesson_questions').delete().eq('id', questionId), 15000, 'deleteQuestion')
-    if (e) { console.error('[CourseBuilder] deleteQuestion FAILED:', e.message); return }
+    if (e) { console.error('[CourseBuilder] deleteQuestion FAILED:', e.message); setLessonMsg({ type: 'error', text: 'Failed to delete question.' }); return }
     setQuestions(prev => prev.filter(q => q.id !== questionId))
   }
 

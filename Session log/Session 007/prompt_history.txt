@@ -6,3 +6,5 @@ SESSION 007 - PROMPT HISTORY
 2. start working on bugs
 
 3. error reporting function is deployed this is confirme
+
+4. keep bug digging

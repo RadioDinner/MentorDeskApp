@@ -165,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let didInit = false
+    let activeSafetyTimeout: ReturnType<typeof setTimeout> | null = null
 
     const initTimeout = setTimeout(() => {
       if (!didInit) {
@@ -183,9 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
 
+      // Clear any previous safety timeout before starting a new one
+      if (activeSafetyTimeout) clearTimeout(activeSafetyTimeout)
+
       // Safety timeout: if fetchAllProfiles hangs (network issue, etc.),
       // ensure loading is cleared so the app doesn't get stuck on "Loading..."
-      const safetyTimeout = setTimeout(() => {
+      activeSafetyTimeout = setTimeout(() => {
         console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
         setLoading(false)
       }, 6000)
@@ -212,7 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('[AuthContext] Error during auth state change:', err)
       } finally {
-        clearTimeout(safetyTimeout)
+        if (activeSafetyTimeout) {
+          clearTimeout(activeSafetyTimeout)
+          activeSafetyTimeout = null
+        }
         setLoading(false)
       }
     })
@@ -228,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearTimeout(initTimeout)
+      if (activeSafetyTimeout) clearTimeout(activeSafetyTimeout)
       subscription.unsubscribe()
     }
   }, [])

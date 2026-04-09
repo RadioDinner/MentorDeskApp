@@ -125,24 +125,30 @@ export default function CompanySettingsPage() {
     e.preventDefault()
     if (!org) return
     setMsg(null); setSaving(true)
-    const updates = {
-      name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null,
-      primary_color: primaryColor.trim(), secondary_color: secondaryColor.trim(), tertiary_color: tertiaryColor.trim(),
-      pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
-      role_groups: roleGroups,
-      enable_lesson_due_dates: enableLessonDueDates,
-      allow_multi_engagement: allowMultiEngagement,
-      archive_settings: archiveSettings,
+    try {
+      const updates = {
+        name: name.trim(), slug: slug.trim().toLowerCase(), logo_url: logoUrl.trim() || null,
+        primary_color: primaryColor.trim(), secondary_color: secondaryColor.trim(), tertiary_color: tertiaryColor.trim(),
+        pay_type_settings: paySettings, mentee_flow: { steps: flowSteps }, default_cancellation_policy: cancellationPolicy,
+        role_groups: roleGroups,
+        enable_lesson_due_dates: enableLessonDueDates,
+        allow_multi_engagement: allowMultiEngagement,
+        archive_settings: archiveSettings,
+      }
+      const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
+      if (error) { setMsg({ type: 'error', text: error.message }); return }
+      const updatedOrg = { ...org, ...updates }
+      setOrg(updatedOrg)
+      refreshTheme(updatedOrg)
+      const oldVals = { name: org.name, slug: org.slug, logo_url: org.logo_url, primary_color: org.primary_color, secondary_color: org.secondary_color, tertiary_color: org.tertiary_color }
+      await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
+      setMsg({ type: 'success', text: 'Settings saved.' })
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Failed to save settings' })
+      console.error(err)
+    } finally {
+      setSaving(false)
     }
-    const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
-    setSaving(false)
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
-    const updatedOrg = { ...org, ...updates }
-    setOrg(updatedOrg)
-    refreshTheme(updatedOrg)
-    const oldVals = { name: org.name, slug: org.slug, logo_url: org.logo_url, primary_color: org.primary_color, secondary_color: org.secondary_color, tertiary_color: org.tertiary_color }
-    await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
-    setMsg({ type: 'success', text: 'Settings saved.' })
   }
 
   async function handleLogoUpload(file: File) {

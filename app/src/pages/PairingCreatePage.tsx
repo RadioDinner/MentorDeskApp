@@ -62,26 +62,33 @@ export default function PairingCreatePage() {
     setMsg(null)
     setSaving(true)
 
-    const { error } = await supabase
-      .from('pairings')
-      .insert({
-        organization_id: profile.organization_id,
-        mentor_id: mentorId,
-        mentee_id: menteeId,
-        notes: notes.trim() || null,
-      })
+    try {
+      const { data: inserted, error } = await supabase
+        .from('pairings')
+        .insert({
+          organization_id: profile.organization_id,
+          mentor_id: mentorId,
+          mentee_id: menteeId,
+          notes: notes.trim() || null,
+        })
+        .select('id')
+        .single()
 
-    setSaving(false)
+      if (error) {
+        setMsg({ type: 'error', text: error.message })
+        return
+      }
 
-    if (error) {
-      setMsg({ type: 'error', text: error.message })
-      return
+      const mentor = mentors.find(m => m.id === mentorId)
+      const mentee = mentees.find(m => m.id === menteeId)
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
+      navigate('/pairings')
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Failed to create pairing' })
+      console.error(err)
+    } finally {
+      setSaving(false)
     }
-
-    const mentor = mentors.find(m => m.id === mentorId)
-    const mentee = mentees.find(m => m.id === menteeId)
-    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
-    navigate('/pairings')
   }
 
   const selectClass =
