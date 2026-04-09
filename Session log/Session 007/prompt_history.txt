@@ -16,3 +16,5 @@ I want to start building out the ability for staff, mentors and assistant mentor
 6. Probably a popover would be the best. I want to be able to assign a course or open an engagement. In this popover, I also want a view of what courses are currently assigned, along with their current progress. I want to view open engagements too, and how many "Session credits" they have, how many they've used, etc
 
 7. I want to make the button meaningful, should we change the 3 buttons to words with icons? Let's add the words "Manage client" next to the gear icon, "edit" next to the icon and "Archive" next to the bankers box icon
+
+8. fix the numbering of the migrations to be reverse sorted according to when they were created. Your  983_mentee_offerings.sql document matched a 983 prefix
