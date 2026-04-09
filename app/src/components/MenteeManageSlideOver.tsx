@@ -25,6 +25,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
@@ -41,6 +42,15 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     async function fetchData() {
       setLoading(true)
       try {
+        // Fetch org settings for multi-engagement flag
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('allow_multi_engagement')
+          .eq('id', profile.organization_id)
+          .single()
+
+        setAllowMultiEngagement(orgData?.allow_multi_engagement ?? false)
+
         const { data: moData } = await supabase
           .from('mentee_offerings')
           .select('*, offering:offerings(*)')
@@ -99,7 +109,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     setAssigning(true)
     setMsg(null)
     try {
-      // Insert first, then fetch separately to avoid RLS read-back issues
       const { data: insertedArr, error: insertErr } = await supabase
         .from('mentee_offerings')
         .insert({
@@ -113,7 +122,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       if (insertErr) { setMsg({ type: 'error', text: insertErr.message }); return }
       const insertedId = insertedArr?.[0]?.id
 
-      // Fetch the full record with offering details
       const { data } = await supabase
         .from('mentee_offerings')
         .select('*, offering:offerings(*)')
@@ -168,6 +176,11 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const completedCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'completed')
   const activeEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'active')
   const completedEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'completed')
+
+  // Engagement open button logic
+  const hasActiveEngagement = activeEngagements.length > 0
+  const canOpenEngagement = availableEngagements.length > 0 && (!hasActiveEngagement || allowMultiEngagement)
+  const showOpenButtonDisabled = availableEngagements.length > 0 && hasActiveEngagement && !allowMultiEngagement
 
   const selectClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
@@ -302,7 +315,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       <h3 className="text-sm font-semibold text-gray-900">Engagements</h3>
                       <p className="text-[11px] text-gray-400">{activeEngagements.length} active, {completedEngagements.length} completed</p>
                     </div>
-                    {availableEngagements.length > 0 && (
+                    {canOpenEngagement ? (
                       <button
                         onClick={() => { setShowEngagementSelect(!showEngagementSelect); setShowCourseSelect(false) }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
@@ -312,7 +325,17 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                         </svg>
                         Open
                       </button>
-                    )}
+                    ) : showOpenButtonDisabled ? (
+                      <span
+                        title="Multiple open engagements are disabled for this organization. Enable in Company Settings."
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 border border-gray-200 rounded cursor-not-allowed"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Open
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="px-4 py-3">
@@ -328,7 +351,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                     {activeEngagements.length === 0 && completedEngagements.length === 0 ? (
                       <div className="text-center py-6">
                         <p className="text-sm text-gray-400">No engagements open.</p>
-                        {availableEngagements.length > 0 && (
+                        {canOpenEngagement && (
                           <button onClick={() => setShowEngagementSelect(true)} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
                             Open first engagement
                           </button>
@@ -358,6 +381,29 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
 // ── Sub-components ──
 
+function DonutChart({ value, total, color, size = 56 }: { value: number; total: number; color: string; size?: number }) {
+  const strokeWidth = 6
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const pct = total > 0 ? Math.min(value / total, 1) : 0
+  const offset = circumference * (1 - pct)
+
+  return (
+    <svg width={size} height={size} className="shrink-0 -rotate-90">
+      {/* Background track */}
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f3f4f6" strokeWidth={strokeWidth} />
+      {/* Filled arc */}
+      <circle
+        cx={size / 2} cy={size / 2} r={radius} fill="none"
+        stroke={color} strokeWidth={strokeWidth}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round"
+        className="transition-all duration-500"
+      />
+    </svg>
+  )
+}
+
 function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   const offering = assignment.offering
   const totalLessons = assignment.lesson_count ?? 0
@@ -366,9 +412,9 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   const isCompleted = assignment.status === 'completed'
 
   return (
-    <div className={`rounded-lg border px-3.5 py-3 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-1.5">
-        <p className={`text-xs font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="flex items-center justify-between mb-2">
+        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
           {offering?.name ?? 'Unknown course'}
         </p>
         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
@@ -377,22 +423,34 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
           {isCompleted ? 'Completed' : 'Active'}
         </span>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
-            style={{ width: `${pct}%` }}
-          />
+
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-gray-500">Progress</span>
+            <span className="text-[11px] font-medium text-gray-700 tabular-nums">{pct}%</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
-        <span className="text-[10px] text-gray-500 shrink-0 tabular-nums">
-          {completedLessons}/{totalLessons} lessons
-        </span>
+        <div className="text-center shrink-0">
+          <p className="text-lg font-bold text-gray-900 tabular-nums leading-none">{completedLessons}<span className="text-gray-300">/{totalLessons}</span></p>
+          <p className="text-[10px] text-gray-400 mt-0.5">lessons</p>
+        </div>
       </div>
-      {assignment.assigned_at && (
-        <p className="text-[10px] text-gray-400 mt-1.5">
-          Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
-        </p>
-      )}
+
+      <div className="flex items-center gap-4 text-[10px] text-gray-400">
+        {assignment.assigned_at && (
+          <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+        )}
+        {offering?.expected_completion_days && (
+          <span>{offering.expected_completion_days}d expected</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -402,15 +460,17 @@ function EngagementCard({ assignment }: { assignment: MenteeOfferingWithDetails 
   const totalCredits = offering?.meeting_count ?? 0
   const used = assignment.sessions_used
   const remaining = Math.max(0, totalCredits - used)
-  const pct = totalCredits > 0 ? Math.round((used / totalCredits) * 100) : 0
   const isCompleted = assignment.status === 'completed'
   const period = offering?.allocation_period ?? 'per_cycle'
-  const periodLabel = period === 'monthly' ? '/mo' : period === 'weekly' ? '/wk' : ''
+  const periodLabel = period === 'monthly' ? ' / month' : period === 'weekly' ? ' / week' : ''
+
+  const allocatedColor = '#6366f1' // indigo
+  const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e' // green / amber / rose
 
   return (
-    <div className={`rounded-lg border px-3.5 py-3 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-1.5">
-        <p className={`text-xs font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
           {offering?.name ?? 'Unknown engagement'}
         </p>
         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
@@ -419,32 +479,51 @@ function EngagementCard({ assignment }: { assignment: MenteeOfferingWithDetails 
           {isCompleted ? 'Completed' : 'Active'}
         </span>
       </div>
+
       {totalCredits > 0 ? (
-        <>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  isCompleted ? 'bg-green-400' : remaining <= 1 ? 'bg-amber-400' : 'bg-rose-400'
-                }`}
-                style={{ width: `${pct}%` }}
-              />
+        <div className="flex items-center gap-5">
+          {/* Allocated donut */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="relative">
+              <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
+              </div>
             </div>
-            <span className="text-[10px] text-gray-500 shrink-0 tabular-nums">
-              {used}/{totalCredits}{periodLabel}
-            </span>
+            <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
           </div>
-          <p className={`text-[10px] ${remaining <= 1 && !isCompleted ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-            {remaining} session{remaining !== 1 ? 's' : ''} remaining
-          </p>
-        </>
+
+          {/* Used donut */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="relative">
+              <DonutChart value={used} total={totalCredits} color={usedColor} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
+              </div>
+            </div>
+            <p className="text-[10px] font-medium text-gray-500">Used</p>
+          </div>
+
+          {/* Stats */}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+              {remaining} remaining
+            </p>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              {used} of {totalCredits} sessions used
+            </p>
+          </div>
+        </div>
       ) : (
-        <p className="text-[10px] text-gray-400">Unlimited sessions</p>
+        <p className="text-xs text-gray-400">Unlimited sessions</p>
       )}
+
       {assignment.assigned_at && (
-        <p className="text-[10px] text-gray-400 mt-1.5">
-          Opened {new Date(assignment.assigned_at).toLocaleDateString()}
-        </p>
+        <div className="mt-2.5 pt-2 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400">
+            Opened {new Date(assignment.assigned_at).toLocaleDateString()}
+          </p>
+        </div>
       )}
     </div>
   )
