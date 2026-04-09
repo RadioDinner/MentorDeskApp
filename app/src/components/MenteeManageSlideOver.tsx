@@ -99,7 +99,8 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     setAssigning(true)
     setMsg(null)
     try {
-      const { data, error } = await supabase
+      // Insert first, then fetch separately to avoid RLS read-back issues
+      const { data: insertedArr, error: insertErr } = await supabase
         .from('mentee_offerings')
         .insert({
           organization_id: profile.organization_id,
@@ -107,12 +108,19 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           offering_id: offeringId,
           assigned_by: profile.id,
         })
+        .select('id')
+
+      if (insertErr) { setMsg({ type: 'error', text: insertErr.message }); return }
+      const insertedId = insertedArr?.[0]?.id
+
+      // Fetch the full record with offering details
+      const { data } = await supabase
+        .from('mentee_offerings')
         .select('*, offering:offerings(*)')
+        .eq('id', insertedId)
         .single()
 
-      if (error) { setMsg({ type: 'error', text: error.message }); return }
-
-      const newMo = data as MenteeOffering & { offering: Offering }
+      const newMo = (data ?? { id: insertedId, mentee_id: mentee.id, offering_id: offeringId, organization_id: profile.organization_id, assigned_by: profile.id, status: 'active', sessions_used: 0, assigned_at: new Date().toISOString(), started_at: null, completed_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }) as MenteeOffering & { offering: Offering }
 
       let lessonCount = 0
       if (newMo.offering?.type === 'course') {
@@ -161,9 +169,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const activeEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'active')
   const completedEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'completed')
 
-  const totalSessionsUsed = activeEngagements.reduce((sum, a) => sum + a.sessions_used, 0)
-  const totalSessionCredits = activeEngagements.reduce((sum, a) => sum + (a.offering?.meeting_count ?? 0), 0)
-
   const selectClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
   return (
@@ -174,7 +179,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-3xl bg-gray-50 shadow-2xl border-l border-gray-200 flex flex-col animate-slide-in-right"
+        className="fixed top-0 right-0 bottom-0 z-50 w-[calc(100%-14rem)] bg-gray-50 shadow-2xl border-l border-gray-200 flex flex-col animate-slide-in-right"
       >
         {/* Header */}
         <div className="shrink-0 px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between">
@@ -224,7 +229,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           ) : (
             <>
               {/* Summary cards */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Active Courses</p>
                   <p className="text-2xl font-bold text-gray-900">{activeCourses.length}</p>
@@ -232,13 +237,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                 <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Open Engagements</p>
                   <p className="text-2xl font-bold text-gray-900">{activeEngagements.length}</p>
-                </div>
-                <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Sessions Used</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {totalSessionsUsed}
-                    {totalSessionCredits > 0 && <span className="text-sm font-normal text-gray-400"> / {totalSessionCredits}</span>}
-                  </p>
                 </div>
               </div>
 

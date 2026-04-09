@@ -24,3 +24,5 @@ I want to start building out the ability for staff, mentors and assistant mentor
 10. a different tab, rather
 
 11. Let's go slideover
+
+12. On the slide out, can you make it take up more of the screen? Currently it only takes up about half. Also, remove the "Sessions used" card from the screen. Also, when I opened an engagement, it didn't assign to my mentee account
