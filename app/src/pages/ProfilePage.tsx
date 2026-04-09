@@ -117,7 +117,7 @@ export default function ProfilePage() {
     }
 
     await refreshProfile()
-    if (profile) logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: profile.id, details: { fields: 'personal_info', self: true } })
+    if (profile) await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: profile.id, details: { fields: 'personal_info', self: true } })
     setProfileMsg({ type: 'success', text: 'Your profile has been updated successfully.' })
   }
 

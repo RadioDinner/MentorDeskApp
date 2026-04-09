@@ -14,6 +14,7 @@ interface PairingDetail {
   ended_at: string | null
   notes: string | null
   created_at: string
+  offering_id: string | null
   mentor: { id: string; first_name: string; last_name: string; email: string }
   mentee: { id: string; first_name: string; last_name: string; email: string }
 }
@@ -100,7 +101,7 @@ export default function PairingEditPage() {
       return
     }
 
-    if (currentUser && pairing) logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
+    if (currentUser && pairing) await logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
     setMsg({ type: 'success', text: 'Pairing updated.' })
   }
 
@@ -110,7 +111,7 @@ export default function PairingEditPage() {
     return (
       <div className="max-w-4xl">
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-          {fetchError || 'Assignment not found.'}
+          {fetchError || 'Pairing not found.'}
         </div>
       </div>
     )

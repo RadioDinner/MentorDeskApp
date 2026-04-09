@@ -65,13 +65,13 @@ export default function OfferingsPage() {
         <h1 className="text-xl font-semibold text-gray-900">Offerings</h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/offerings/courses/new')}
+            onClick={() => navigate('/courses/new')}
             className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
           >
             + Create Course
           </button>
           <button
-            onClick={() => navigate('/offerings/engagements/new')}
+            onClick={() => navigate('/engagements/new')}
             className="rounded border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
           >
             + Create Engagement
@@ -118,7 +118,7 @@ export default function OfferingsPage() {
                 )}
               </div>
               <button
-                onClick={() => navigate(`/offerings/${item.id}/edit`)}
+                onClick={() => navigate(`/${item.type === 'course' ? 'courses' : 'engagements'}/${item.id}/edit`)}
                 className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
               >
                 Edit

@@ -84,16 +84,16 @@ export default function PairingsPage() {
   async function quickPair(menteeId: string, mentorId: string) {
     if (!profile) return
     setPairing(true)
-    const { error } = await supabase.from('pairings').insert({
+    const { data: inserted, error } = await supabase.from('pairings').insert({
       organization_id: profile.organization_id,
       mentor_id: mentorId,
       mentee_id: menteeId,
-    })
+    }).select('id').single()
     setPairing(false)
     if (error) { setError(error.message); return }
     const mentor = mentors.find(m => m.id === mentorId)
     const mentee = mentees.find(m => m.id === menteeId)
-    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
     setPairingMenteeId(null)
     setSelectedMentorId('')
     fetchAll()

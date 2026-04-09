@@ -2,3 +2,7 @@ SESSION 007 - PROMPT HISTORY
 ==============================
 
 1. Let's set up a session. Review the previous session and let's get started
+
+2. start working on bugs
+
+3. error reporting function is deployed this is confirme

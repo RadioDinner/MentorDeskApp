@@ -117,7 +117,7 @@ export default function MenteeEditPage() {
     const oldVals = { first_name: mentee.first_name, last_name: mentee.last_name, email: mentee.email, phone: mentee.phone, street: mentee.street, city: mentee.city, state: mentee.state, zip: mentee.zip, country: mentee.country }
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
     setMentee({ ...mentee, ...newVals })
-    if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` }, old_values: oldVals, new_values: newVals })
+    if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` }, old_values: oldVals, new_values: newVals })
     setMsg({ type: 'success', text: 'Mentee information has been updated.' })
   }
 
@@ -321,7 +321,7 @@ export default function MenteeEditPage() {
                     setStatusMsg({ type: 'error', text: error.message })
                     return
                   }
-                  if (currentUser) logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
+                  if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
                   setStatusMsg({ type: 'success', text: 'Status updated.' })
                 }}
                 className="mt-3 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">

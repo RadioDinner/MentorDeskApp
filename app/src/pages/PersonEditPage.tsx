@@ -138,7 +138,7 @@ export default function PersonEditPage() {
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
 
     setPerson({ ...person, ...newVals })
-    if (currentUser) logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' }, old_values: oldVals, new_values: newVals })
+    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' }, old_values: oldVals, new_values: newVals })
     setProfileMsg({ type: 'success', text: 'Personal information has been updated.' })
   }
 
@@ -168,7 +168,7 @@ export default function PersonEditPage() {
     const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate }
     const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum }
     setPerson({ ...person, ...newComp })
-    if (currentUser) logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
+    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
     setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
   }
 
