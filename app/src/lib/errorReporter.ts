@@ -67,7 +67,7 @@ export async function reportError(report: ErrorReport) {
 export function extractErrorCode(message: string): string | undefined {
   if (message.includes('duplicate key') || message.includes('unique constraint')) return '23505'
   if (message.includes('foreign key')) return '23503'
-  if (message.includes('not-null')) return '23502'
+  if (message.includes('not-null') || message.includes('not null') || message.includes('null value')) return '23502'
   if (message.includes('check constraint')) return '23514'
   if (message.includes('permission denied') || message.includes('row-level security')) return '42501'
   return undefined

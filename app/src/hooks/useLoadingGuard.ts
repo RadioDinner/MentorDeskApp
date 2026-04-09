@@ -29,5 +29,5 @@ export function useLoadingGuard(
         timerRef.current = null
       }
     }
-  }, [loading, timeoutMs])
+  }, [loading, timeoutMs, onTimeout])
 }
