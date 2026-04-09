@@ -32,3 +32,7 @@ I want to start building out the ability for staff, mentors and assistant mentor
 I want the information displayed in the courses and engagement cards to be more dynamic. In the engagements, I want a 2 circle graphs that show a visual representation of how many sessions are "Allocated" and how many have been "Used"
 
 14. I don't like how the slideout takes over the whole screen. I want the mentee list to remain, but at the same width as the sidebar. I want it to dynamically rescale and look pretty
+
+15. I want to be able to edit the engagement on the page. This is a pretty big deal. When I assign an engagement to a mentee, I want the system to essentially "copy" the existing template for the engagement in the offering. But I want to be able to make changes to the engagement assigned as though it is a unique engagement. Let's say that the engagement by default is $500 a month. But one mentee I know agreed to a discount, I want to be able to go in and edit his rate without affecting the default engagement. Also, on the engagement screen, I STILL cant enter prices. You'll probably need to fix this first.
+
+Once you do this task, I want you to wrap the session. Build the session log, merge to main, delete stale/old/remaining branches and then we'll call it for today

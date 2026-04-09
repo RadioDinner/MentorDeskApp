@@ -141,6 +141,11 @@ export interface MenteeOffering {
   assigned_by: string | null
   status: MenteeOfferingStatus
   sessions_used: number
+  recurring_price_cents: number
+  setup_fee_cents: number
+  meeting_count: number | null
+  allocation_period: AllocationPeriod | null
+  notes: string | null
   assigned_at: string
   started_at: string | null
   completed_at: string | null

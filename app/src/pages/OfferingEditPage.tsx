@@ -118,6 +118,8 @@ export default function OfferingEditPage() {
     }
 
     if (offering.type === 'engagement') {
+      updates.recurring_price_cents = recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
+      updates.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
       updates.meeting_count = meetingCount ? parseInt(meetingCount) : null
       updates.allocation_period = allocationPeriod
       updates.use_org_default_cancellation = useOrgDefault
@@ -214,11 +216,11 @@ export default function OfferingEditPage() {
           </div>
         </div>
 
-        {/* Pricing — courses only */}
-        {isCourse && (
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Pricing</h2>
-            <div className="grid grid-cols-2 gap-4">
+        {/* Pricing */}
+        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">Pricing</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {isCourse ? (
               <div>
                 <label htmlFor="editPrice" className="block text-sm font-medium text-gray-700 mb-1.5">Course price</label>
                 <div className="relative">
@@ -228,18 +230,28 @@ export default function OfferingEditPage() {
                     className="w-full rounded border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition" />
                 </div>
               </div>
+            ) : (
               <div>
-                <label htmlFor="editSetupFee" className="block text-sm font-medium text-gray-700 mb-1.5">One-time setup fee</label>
+                <label htmlFor="editRecurringPrice" className="block text-sm font-medium text-gray-700 mb-1.5">Recurring price</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                  <input id="editSetupFee" type="number" step="0.01" min="0" value={setupFee}
-                    onChange={e => setSetupFee(e.target.value)} placeholder="0.00"
+                  <input id="editRecurringPrice" type="number" step="0.01" min="0" value={recurringPrice}
+                    onChange={e => setRecurringPrice(e.target.value)} placeholder="0.00"
                     className="w-full rounded border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition" />
                 </div>
               </div>
+            )}
+            <div>
+              <label htmlFor="editSetupFee" className="block text-sm font-medium text-gray-700 mb-1.5">One-time setup fee</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                <input id="editSetupFee" type="number" step="0.01" min="0" value={setupFee}
+                  onChange={e => setSetupFee(e.target.value)} placeholder="0.00"
+                  className="w-full rounded border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition" />
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Course Plan — courses only */}
         {isCourse && (

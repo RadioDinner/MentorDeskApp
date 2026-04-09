@@ -108,6 +108,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     setAssigning(true)
     setMsg(null)
     try {
+      // Find the offering template to copy pricing/settings
+      const allOfferings = [...availableCourses, ...availableEngagements]
+      const template = allOfferings.find(o => o.id === offeringId)
+
       const { data: insertedArr, error: insertErr } = await supabase
         .from('mentee_offerings')
         .insert({
@@ -115,6 +119,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           mentee_id: mentee.id,
           offering_id: offeringId,
           assigned_by: profile.id,
+          recurring_price_cents: template?.recurring_price_cents ?? 0,
+          setup_fee_cents: template?.setup_fee_cents ?? 0,
+          meeting_count: template?.meeting_count ?? null,
+          allocation_period: template?.allocation_period ?? 'monthly',
         })
         .select('id')
 
@@ -169,6 +177,16 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     } finally {
       setAssigning(false)
     }
+  }
+
+  async function updateAssignment(assignmentId: string, updates: Record<string, unknown>) {
+    const { error } = await supabase
+      .from('mentee_offerings')
+      .update(updates)
+      .eq('id', assignmentId)
+    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, ...updates } as MenteeOfferingWithDetails : a))
+    setMsg({ type: 'success', text: 'Updated.' })
   }
 
   const activeCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'active')
@@ -353,13 +371,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} />)}
+                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
                         {completedEngagements.length > 0 && activeEngagements.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} />)}
+                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
                       </div>
                     )}
                   </div>
@@ -448,17 +466,39 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   )
 }
 
-function EngagementCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
+function EngagementCard({ assignment, onUpdate }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void> }) {
   const offering = assignment.offering
-  const totalCredits = offering?.meeting_count ?? 0
+  const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
   const used = assignment.sessions_used
   const remaining = Math.max(0, totalCredits - used)
   const isCompleted = assignment.status === 'completed'
-  const period = offering?.allocation_period ?? 'per_cycle'
+  const period = assignment.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
   const periodLabel = period === 'monthly' ? ' / month' : period === 'weekly' ? ' / week' : ''
+  const priceCents = assignment.recurring_price_cents ?? offering?.recurring_price_cents ?? 0
+  const priceDisplay = (priceCents / 100).toFixed(2)
 
-  const allocatedColor = '#6366f1' // indigo
-  const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e' // green / amber / rose
+  const [editing, setEditing] = useState(false)
+  const [editPrice, setEditPrice] = useState(priceDisplay)
+  const [editMeetings, setEditMeetings] = useState(totalCredits ? String(totalCredits) : '')
+  const [editSetupFee, setEditSetupFee] = useState(((assignment.setup_fee_cents ?? 0) / 100).toFixed(2))
+  const [saving, setSaving] = useState(false)
+
+  const allocatedColor = '#6366f1'
+  const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e'
+
+  async function handleSave() {
+    setSaving(true)
+    await onUpdate(assignment.id, {
+      recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
+      setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
+      meeting_count: editMeetings ? parseInt(editMeetings) : null,
+    })
+    setSaving(false)
+    setEditing(false)
+  }
+
+  const inputClass = 'w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
+  const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
   return (
     <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
@@ -466,57 +506,95 @@ function EngagementCard({ assignment }: { assignment: MenteeOfferingWithDetails 
         <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
           {offering?.name ?? 'Unknown engagement'}
         </p>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
-          isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
-        }`}>
-          {isCompleted ? 'Completed' : 'Active'}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!isCompleted && !editing && (
+            <button onClick={() => setEditing(true)} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
+              Edit
+            </button>
+          )}
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+            isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
+          }`}>
+            {isCompleted ? 'Completed' : 'Active'}
+          </span>
+        </div>
       </div>
 
-      {totalCredits > 0 ? (
-        <div className="flex items-center gap-5">
-          {/* Allocated donut */}
-          <div className="flex flex-col items-center gap-1">
-            <div className="relative">
-              <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
+      {editing ? (
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Recurring price</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)} className={inputClass} />
               </div>
             </div>
-            <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
-          </div>
-
-          {/* Used donut */}
-          <div className="flex flex-col items-center gap-1">
-            <div className="relative">
-              <DonutChart value={used} total={totalCredits} color={usedColor} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Setup fee</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                <input type="number" step="0.01" min="0" value={editSetupFee} onChange={e => setEditSetupFee(e.target.value)} className={inputClass} />
               </div>
             </div>
-            <p className="text-[10px] font-medium text-gray-500">Used</p>
           </div>
-
-          {/* Stats */}
-          <div className="flex-1 min-w-0">
-            <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-              {remaining} remaining
-            </p>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              {used} of {totalCredits} sessions used
-            </p>
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Sessions per cycle</label>
+            <input type="number" min="1" value={editMeetings} onChange={e => setEditMeetings(e.target.value)} placeholder="Unlimited" className={numInputClass + ' max-w-24'} />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 transition-colors">
+              Cancel
+            </button>
           </div>
         </div>
       ) : (
-        <p className="text-xs text-gray-400">Unlimited sessions</p>
-      )}
+        <>
+          {totalCredits > 0 ? (
+            <div className="flex items-center gap-5">
+              <div className="flex flex-col items-center gap-1">
+                <div className="relative">
+                  <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
+                  </div>
+                </div>
+                <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="relative">
+                  <DonutChart value={used} total={totalCredits} color={usedColor} />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
+                  </div>
+                </div>
+                <p className="text-[10px] font-medium text-gray-500">Used</p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+                  {remaining} remaining
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {used} of {totalCredits} sessions used
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Unlimited sessions</p>
+          )}
 
-      {assignment.assigned_at && (
-        <div className="mt-2.5 pt-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400">
-            Opened {new Date(assignment.assigned_at).toLocaleDateString()}
-          </p>
-        </div>
+          {/* Pricing info */}
+          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+            {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
+            {(assignment.setup_fee_cents ?? 0) > 0 && <span>${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)} setup</span>}
+            {assignment.assigned_at && (
+              <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+            )}
+          </div>
+        </>
       )}
     </div>
   )
