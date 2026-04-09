@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
@@ -17,7 +17,6 @@ interface MenteeOfferingWithDetails extends MenteeOffering {
 
 export default function MenteeManageSlideOver({ mentee, profile, onClose }: Props) {
   const navigate = useNavigate()
-  const panelRef = useRef<HTMLDivElement>(null)
 
   const [assignments, setAssignments] = useState<MenteeOfferingWithDetails[]>([])
   const [availableCourses, setAvailableCourses] = useState<Offering[]>([])
@@ -185,17 +184,12 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const selectClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-
-      {/* Panel */}
-      <div
-        ref={panelRef}
-        className="fixed top-0 right-0 bottom-0 z-50 w-[calc(100%-14rem)] bg-gray-50 shadow-2xl border-l border-gray-200 flex flex-col animate-slide-in-right"
-      >
-        {/* Header */}
-        <div className="shrink-0 px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between">
+    <div
+      className="bg-gray-50 rounded-lg border border-gray-200 flex flex-col overflow-hidden"
+      style={{ minHeight: 'calc(100vh - 100px)' }}
+    >
+      {/* Header */}
+      <div className="shrink-0 px-5 py-3.5 bg-white border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
               {mentee.first_name[0]}{mentee.last_name[0]}
@@ -374,8 +368,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
             </>
           )}
         </div>
-      </div>
-    </>
+    </div>
   )
 }
 

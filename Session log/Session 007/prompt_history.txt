@@ -30,3 +30,5 @@ I want to start building out the ability for staff, mentors and assistant mentor
 13. In the "Manage" slideout, I want to be able to add another engagment IF, ONLY IF, the company option is set to allow multiple open engagements. If the option is turned off, I want the "+Open" button to be there still, but greyed out with a tool tip saying that it is disabled.
 
 I want the information displayed in the courses and engagement cards to be more dynamic. In the engagements, I want a 2 circle graphs that show a visual representation of how many sessions are "Allocated" and how many have been "Used"
+
+14. I don't like how the slideout takes over the whole screen. I want the mentee list to remain, but at the same width as the sidebar. I want it to dynamically rescale and look pretty
