@@ -28,19 +28,7 @@ const DEFAULT_PAY_SETTINGS: PayTypeSettings = {
   assistant_mentor: ['hourly', 'salary', 'pct_monthly_profit', 'pct_engagement_profit'],
 }
 
-type SettingsTab = 'branding' | 'payroll' | 'mentee_flow' | 'cancellation' | 'courses' | 'permissions' | 'archives' | 'notifications' | 'integrations'
-
-const TABS: { key: SettingsTab; label: string }[] = [
-  { key: 'branding', label: 'Branding' },
-  { key: 'payroll', label: 'Payroll' },
-  { key: 'mentee_flow', label: 'Mentee Flow' },
-  { key: 'cancellation', label: 'Cancellation' },
-  { key: 'courses', label: 'Courses' },
-  { key: 'permissions', label: 'Permissions' },
-  { key: 'archives', label: 'Archives' },
-  { key: 'notifications', label: 'Notifications' },
-  { key: 'integrations', label: 'Integrations' },
-]
+// Card sections (no more tabs)
 
 const DEFAULT_ARCHIVE_SETTINGS: ArchiveSettings = {
   auto_delete_enabled: false,
@@ -63,7 +51,7 @@ const GROUP_COLORS: Record<string, { bg: string; text: string; dot: string }> = 
 
 export default function CompanySettingsPage() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState<SettingsTab>('branding')
+  // No more tabs — card layout
 
   const [org, setOrg] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,7 +129,7 @@ export default function CompanySettingsPage() {
       setOrg(updatedOrg)
       refreshTheme(updatedOrg)
       const oldVals = { name: org.name, slug: org.slug, logo_url: org.logo_url, primary_color: org.primary_color, secondary_color: org.secondary_color, tertiary_color: org.tertiary_color }
-      await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: activeTab }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
+      await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: 'settings' }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
       setMsg({ type: 'success', text: 'Settings saved.' })
     } catch (err) {
       setMsg({ type: 'error', text: (err as Error).message || 'Failed to save settings' })
@@ -167,11 +155,14 @@ export default function CompanySettingsPage() {
 
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
+  const toggleClass = (on: boolean) => `relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${on ? 'bg-brand' : 'bg-gray-200'}`
+  const dotClass = (on: boolean) => `inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${on ? 'translate-x-[22px]' : 'translate-x-[3px]'}`
+
   return (
     <div className="max-w-4xl">
       <form onSubmit={handleSave}>
         {/* Header with save */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-semibold text-gray-900">Company Settings</h1>
           <button type="submit" disabled={saving}
             className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
@@ -180,30 +171,21 @@ export default function CompanySettingsPage() {
         </div>
 
         {msg && (
-          <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-5 ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
             <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
             {msg.text}
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-0 border-b border-gray-200 mb-5">
-          {TABS.map(tab => (
-            <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                activeTab === tab.key ? 'border-brand text-brand' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <div className="space-y-5">
 
-        {/* Content */}
-        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-
-          {/* ====== BRANDING ====== */}
-          {activeTab === 'branding' && (
-            <div className="space-y-5">
+          {/* ── Branding ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Branding</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Company identity, logo, and brand colors.</p>
+            </div>
+            <div className="px-6 py-5 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Company name</label>
@@ -214,7 +196,6 @@ export default function CompanySettingsPage() {
                   <input type="text" required value={slug} onChange={e => setSlug(e.target.value)} placeholder="my-company" className={inputClass} />
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Logo</label>
                 <div className="flex items-center gap-3">
@@ -232,7 +213,6 @@ export default function CompanySettingsPage() {
                   <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." className={inputClass} />
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-2">Brand colors</label>
                 <div className="grid grid-cols-3 gap-4">
@@ -254,12 +234,43 @@ export default function CompanySettingsPage() {
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* ====== PAYROLL ====== */}
-          {activeTab === 'payroll' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500">Configure which compensation methods are available for each role.</p>
+          {/* ── Offerings ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Offerings</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Settings for courses and engagements.</p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Per-lesson due dates</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Allow courses to have individual due dates for each lesson, calculated as days from enrollment.</p>
+                </div>
+                <button type="button" onClick={() => setEnableLessonDueDates(!enableLessonDueDates)} className={toggleClass(enableLessonDueDates)}>
+                  <span className={dotClass(enableLessonDueDates)} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Multiple open engagements</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Allow a mentee to have more than one active engagement at the same time.</p>
+                </div>
+                <button type="button" onClick={() => setAllowMultiEngagement(!allowMultiEngagement)} className={toggleClass(allowMultiEngagement)}>
+                  <span className={dotClass(allowMultiEngagement)} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Payroll ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Payroll</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Compensation methods available for each role.</p>
+            </div>
+            <div className="px-6 py-5">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr>
@@ -294,76 +305,37 @@ export default function CompanySettingsPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
 
-          {/* ====== MENTEE FLOW ====== */}
-          {activeTab === 'mentee_flow' && (
-            <MenteeFlowEditor
-              flowSteps={flowSteps}
-              setFlowSteps={setFlowSteps}
-              newStepName={newStepName}
-              setNewStepName={setNewStepName}
-              inputClass={inputClass}
-            />
-          )}
+          {/* ── Mentee Flow ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Mentee Flow</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Define the expected progression of mentees through your program.</p>
+            </div>
+            <div className="px-6 py-5">
+              <MenteeFlowEditor flowSteps={flowSteps} setFlowSteps={setFlowSteps} newStepName={newStepName} setNewStepName={setNewStepName} inputClass={inputClass} />
+            </div>
+          </div>
 
-          {/* ====== CANCELLATION ====== */}
-          {activeTab === 'cancellation' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500">Default cancellation policy for engagements. Individual engagements can override.</p>
+          {/* ── Cancellation Policy ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Cancellation Policy</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Default cancellation policy for engagements. Individual engagements can override.</p>
+            </div>
+            <div className="px-6 py-5">
               <CancellationPolicyEditor policy={cancellationPolicy} onChange={setCancellationPolicy} />
             </div>
-          )}
+          </div>
 
-          {/* ====== COURSES ====== */}
-          {activeTab === 'courses' && (
-            <div className="space-y-5">
-              <p className="text-sm text-gray-500">Configure advanced course features for your organization.</p>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Per-lesson due dates</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Allow courses to have individual due dates for each lesson, calculated as days from enrollment.
-                    When disabled, courses can only have a single overall due date.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEnableLessonDueDates(!enableLessonDueDates)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${enableLessonDueDates ? 'bg-brand' : 'bg-gray-200'}`}
-                >
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${enableLessonDueDates ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Multiple open engagements per mentee</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Allow a mentee to be paired with different mentors for different engagements at the same time.
-                    When disabled, a mentee can only have one active pairing at a time.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAllowMultiEngagement(!allowMultiEngagement)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${allowMultiEngagement ? 'bg-brand' : 'bg-gray-200'}`}
-                >
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${allowMultiEngagement ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
-                </button>
-              </div>
+          {/* ── Permissions ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Permissions</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Permission groups for staff module access.</p>
             </div>
-          )}
-
-          {/* ====== PERMISSIONS ====== */}
-          {activeTab === 'permissions' && (
-            <div className="space-y-5">
-              <p className="text-sm text-gray-500">
-                Create permission groups to quickly assign module access to staff. These appear as presets in the staff module access dropdown.
-              </p>
-
-              {/* Existing groups */}
+            <div className="px-6 py-5 space-y-5">
               {roleGroups.length > 0 && (
                 <div className="space-y-3">
                   {roleGroups.map(group => {
@@ -371,19 +343,12 @@ export default function CompanySettingsPage() {
                     const current = isEditing ? editingGroup! : group
                     const allGroups = modulesByGroup().filter(g => g.group !== 'Main')
                     const moduleCount = ALL_MODULES.filter(m => !ALWAYS_VISIBLE.includes(m.key) && current.module_groups.includes(m.group)).length
-
                     return (
                       <div key={group.id} className={`rounded-lg border transition-all ${isEditing ? 'border-brand shadow-sm' : 'border-gray-200'}`}>
-                        {/* Group header */}
                         <div className={`flex items-center justify-between px-4 py-3 ${isEditing ? 'bg-brand-light/30' : 'bg-gray-50/50'} rounded-t-lg`}>
                           {isEditing ? (
-                            <input
-                              type="text"
-                              value={current.name}
-                              onChange={e => setEditingGroup({ ...current, name: e.target.value })}
-                              className="text-sm font-semibold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
-                              autoFocus
-                            />
+                            <input type="text" value={current.name} onChange={e => setEditingGroup({ ...current, name: e.target.value })}
+                              className="text-sm font-semibold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" autoFocus />
                           ) : (
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-gray-900">{group.name}</span>
@@ -393,71 +358,35 @@ export default function CompanySettingsPage() {
                           <div className="flex items-center gap-1">
                             {isEditing ? (
                               <>
-                                <button type="button" onClick={() => {
-                                  setRoleGroups(gs => gs.map(g => g.id === current.id ? current : g))
-                                  setEditingGroup(null)
-                                }} className="px-2.5 py-1 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition">
-                                  Save
-                                </button>
-                                <button type="button" onClick={() => setEditingGroup(null)}
-                                  className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition">
-                                  Cancel
-                                </button>
+                                <button type="button" onClick={() => { setRoleGroups(gs => gs.map(g => g.id === current.id ? current : g)); setEditingGroup(null) }} className="px-2.5 py-1 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition">Save</button>
+                                <button type="button" onClick={() => setEditingGroup(null)} className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition">Cancel</button>
                               </>
                             ) : (
                               <>
-                                <button type="button" onClick={() => setEditingGroup({ ...group })}
-                                  className="px-2 py-1 text-xs font-medium text-gray-500 hover:text-brand transition">
-                                  Edit
-                                </button>
-                                <button type="button" onClick={() => setRoleGroups(gs => gs.filter(g => g.id !== group.id))}
-                                  className="px-2 py-1 text-xs font-medium text-gray-400 hover:text-red-500 transition">
-                                  Remove
-                                </button>
+                                <button type="button" onClick={() => setEditingGroup({ ...group })} className="px-2 py-1 text-xs font-medium text-gray-500 hover:text-brand transition">Edit</button>
+                                <button type="button" onClick={() => setRoleGroups(gs => gs.filter(g => g.id !== group.id))} className="px-2 py-1 text-xs font-medium text-gray-400 hover:text-red-500 transition">Remove</button>
                               </>
                             )}
                           </div>
                         </div>
-
-                        {/* Module group toggles */}
                         <div className="px-4 py-3">
                           <div className="grid grid-cols-2 gap-2">
                             {allGroups.map(mg => {
                               const active = current.module_groups.includes(mg.group)
                               const style = GROUP_COLORS[mg.group] ?? { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-400' }
                               return (
-                                <button
-                                  key={mg.group}
-                                  type="button"
-                                  disabled={!isEditing}
-                                  onClick={() => {
-                                    if (!isEditing) return
-                                    const next = active
-                                      ? current.module_groups.filter(g => g !== mg.group)
-                                      : [...current.module_groups, mg.group]
-                                    setEditingGroup({ ...current, module_groups: next })
-                                  }}
-                                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-md border text-left transition-all ${
-                                    active
-                                      ? `${style.bg} border-current/10 ${style.text}`
-                                      : 'bg-white border-gray-200 text-gray-400'
-                                  } ${isEditing ? 'cursor-pointer hover:shadow-sm' : 'cursor-default'}`}
-                                >
+                                <button key={mg.group} type="button" disabled={!isEditing} onClick={() => {
+                                  if (!isEditing) return
+                                  const next = active ? current.module_groups.filter(g => g !== mg.group) : [...current.module_groups, mg.group]
+                                  setEditingGroup({ ...current, module_groups: next })
+                                }} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-md border text-left transition-all ${active ? `${style.bg} border-current/10 ${style.text}` : 'bg-white border-gray-200 text-gray-400'} ${isEditing ? 'cursor-pointer hover:shadow-sm' : 'cursor-default'}`}>
                                   <span className={`w-2.5 h-2.5 rounded-full transition-colors ${active ? style.dot : 'bg-gray-200'}`} />
                                   <div className="flex-1 min-w-0">
                                     <span className={`text-xs font-semibold block ${active ? style.text : 'text-gray-400'}`}>{mg.group}</span>
-                                    <span className="text-[10px] text-gray-400">
-                                      {mg.modules.map(m => m.label).join(', ')}
-                                    </span>
+                                    <span className="text-[10px] text-gray-400">{mg.modules.map(m => m.label).join(', ')}</span>
                                   </div>
-                                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                                    active ? 'bg-brand border-brand' : 'border-gray-300 bg-white'
-                                  }`}>
-                                    {active && (
-                                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
+                                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${active ? 'bg-brand border-brand' : 'border-gray-300 bg-white'}`}>
+                                    {active && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                   </span>
                                 </button>
                               )
@@ -469,38 +398,12 @@ export default function CompanySettingsPage() {
                   })}
                 </div>
               )}
-
-              {/* Add new group */}
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                <input
-                  type="text"
-                  value={newGroupName}
-                  onChange={e => setNewGroupName(e.target.value)}
-                  placeholder="New group name (e.g. Operations, Course Builder)"
-                  className={inputClass + ' flex-1'}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (!newGroupName.trim()) return
-                      const newGroup: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }
-                      setRoleGroups(gs => [...gs, newGroup])
-                      setEditingGroup(newGroup)
-                      setNewGroupName('')
-                    }
-                  }}
-                />
-                <button type="button" onClick={() => {
-                  if (!newGroupName.trim()) return
-                  const newGroup: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }
-                  setRoleGroups(gs => [...gs, newGroup])
-                  setEditingGroup(newGroup)
-                  setNewGroupName('')
-                }}
-                  className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
-                  Add Group
-                </button>
+                <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="New group name (e.g. Operations, Course Builder)" className={inputClass + ' flex-1'}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!newGroupName.trim()) return; const ng: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }; setRoleGroups(gs => [...gs, ng]); setEditingGroup(ng); setNewGroupName('') } }} />
+                <button type="button" onClick={() => { if (!newGroupName.trim()) return; const ng: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }; setRoleGroups(gs => [...gs, ng]); setEditingGroup(ng); setNewGroupName('') }}
+                  className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add Group</button>
               </div>
-
               {roleGroups.length === 0 && (
                 <div className="bg-gray-50 rounded-lg border border-dashed border-gray-200 px-6 py-8 text-center">
                   <p className="text-sm text-gray-500 mb-1">No permission groups yet</p>
@@ -508,82 +411,76 @@ export default function CompanySettingsPage() {
                 </div>
               )}
             </div>
-          )}
+          </div>
 
-          {/* ====== ARCHIVES ====== */}
-          {activeTab === 'archives' && (
-            <div className="space-y-5">
-              <p className="text-sm text-gray-500">
-                Configure how your organization handles archived staff and mentees. Archived people are hidden from active lists but can be restored at any time.
-              </p>
-
-              {/* Auto-delete toggle */}
+          {/* ── Archives ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Archives</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Manage how archived staff and mentees are handled.</p>
+            </div>
+            <div className="px-6 py-5">
               <div className="rounded-lg border border-gray-200 px-5 py-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-900">Automatic deletion</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Permanently delete archived people after a set period. This cannot be undone.
-                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Permanently delete archived people after a set period. This cannot be undone.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setArchiveSettings(s => ({ ...s, auto_delete_enabled: !s.auto_delete_enabled }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                      archiveSettings.auto_delete_enabled ? 'bg-brand' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${
-                      archiveSettings.auto_delete_enabled ? 'translate-x-[22px]' : 'translate-x-[3px]'
-                    }`} />
+                  <button type="button" onClick={() => setArchiveSettings(s => ({ ...s, auto_delete_enabled: !s.auto_delete_enabled }))} className={toggleClass(archiveSettings.auto_delete_enabled)}>
+                    <span className={dotClass(archiveSettings.auto_delete_enabled)} />
                   </button>
                 </div>
-
                 {archiveSettings.auto_delete_enabled && (
                   <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
                     <span className="text-sm text-gray-700">Delete after</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={archiveSettings.auto_delete_value}
-                      onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_value: parseInt(e.target.value) || 1 }))}
-                      className="w-20 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
-                    />
-                    <select
-                      value={archiveSettings.auto_delete_unit}
-                      onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_unit: e.target.value as ArchiveDeleteUnit }))}
-                      className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
-                    >
-                      {ARCHIVE_UNITS.map(u => (
-                        <option key={u.value} value={u.value}>{u.label}</option>
-                      ))}
+                    <input type="number" min="1" value={archiveSettings.auto_delete_value} onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_value: parseInt(e.target.value) || 1 }))}
+                      className="w-20 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition" />
+                    <select value={archiveSettings.auto_delete_unit} onChange={e => setArchiveSettings(s => ({ ...s, auto_delete_unit: e.target.value as ArchiveDeleteUnit }))}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white">
+                      {ARCHIVE_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
                     <span className="text-sm text-gray-500">of being archived</span>
                   </div>
                 )}
-
                 {!archiveSettings.auto_delete_enabled && (
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <p className="text-xs text-gray-500">Archived people will be kept indefinitely until manually deleted.</p>
                   </div>
                 )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* ====== NOTIFICATIONS ====== */}
-          {activeTab === 'notifications' && (
-            <p className="text-sm text-gray-500">Notification preferences coming soon.</p>
-          )}
+          {/* ── Notifications ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Notifications</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Email and in-app notification preferences.</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-400">Coming soon.</p>
+            </div>
+          </div>
 
-          {/* ====== INTEGRATIONS ====== */}
-          {activeTab === 'integrations' && (
-            <p className="text-sm text-gray-500">Third-party integrations coming soon.</p>
-          )}
+          {/* ── Integrations ── */}
+          <div className="bg-white rounded-lg border border-gray-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Integrations</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Third-party connections and calendar sync.</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-400">Coming soon.</p>
+            </div>
+          </div>
 
+          {/* Save button at bottom too */}
+          <div className="pt-2">
+            <button type="submit" disabled={saving}
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
         </div>
       </form>
     </div>
