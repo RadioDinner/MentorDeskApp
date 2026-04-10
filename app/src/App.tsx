@@ -26,6 +26,8 @@ import MenteeEngagementsPage from './pages/MenteeEngagementsPage'
 import MenteeCoursesPage from './pages/MenteeCoursesPage'
 import MenteeCourseViewerPage from './pages/MenteeCourseViewerPage'
 import MenteeBillingPage from './pages/MenteeBillingPage'
+import AvailabilityPage from './pages/AvailabilityPage'
+import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
@@ -71,8 +73,10 @@ export default function App() {
             <Route path="/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
             <Route path="/engagements/:id/edit" element={<OfferingEditPage />} />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
+            <Route path="/availability" element={<AvailabilityPage />} />
             {/* Mentee-specific routes */}
             <Route path="/my-engagements" element={<MenteeEngagementsPage />} />
+            <Route path="/my-engagements/:id" element={<MenteeEngagementDetailPage />} />
             <Route path="/my-courses" element={<MenteeCoursesPage />} />
             <Route path="/my-courses/:id" element={<MenteeCourseViewerPage />} />
             <Route path="/my-billing" element={<MenteeBillingPage />} />

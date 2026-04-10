@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus } from '../types'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -1083,6 +1083,13 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
             )}
           </div>
 
+          {/* Schedule a meeting */}
+          <MeetingScheduler
+            assignment={assignment}
+            profile={profile}
+            mentee={mentee}
+          />
+
           {/* Invoices */}
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center justify-between mb-2">
@@ -1339,6 +1346,196 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
             )}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Meeting Scheduler (admin/mentor side) ──
+
+function MeetingScheduler({ assignment, profile, mentee }: { assignment: MenteeOfferingWithDetails; profile: StaffMember; mentee: Mentee }) {
+  const [showForm, setShowForm] = useState(false)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [availability, setAvailability] = useState<AvailabilitySchedule[]>([])
+  const [selectedDate, setSelectedDate] = useState('')
+  const [selectedStart, setSelectedStart] = useState('')
+  const [selectedEnd, setSelectedEnd] = useState('')
+  const [meetingTitle, setMeetingTitle] = useState('')
+  const [scheduling, setScheduling] = useState(false)
+
+  async function loadData() {
+    if (loaded) return
+    const [meetingsRes, availRes] = await Promise.all([
+      supabase.from('meetings').select('*').eq('mentee_offering_id', assignment.id).order('starts_at', { ascending: false }),
+      supabase.from('availability_schedules').select('*').eq('staff_id', profile.id).eq('is_active', true).order('day_of_week').order('start_time'),
+    ])
+    setMeetings((meetingsRes.data ?? []) as Meeting[])
+    setAvailability((availRes.data ?? []) as AvailabilitySchedule[])
+    setLoaded(true)
+  }
+
+  function handleToggle() {
+    if (!showForm) {
+      setShowForm(true)
+      loadData()
+    } else {
+      setShowForm(false)
+    }
+  }
+
+  function formatTime(time: string): string {
+    const [h, m] = time.split(':').map(Number)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`
+  }
+
+  function getBlocksForDate(date: string): AvailabilitySchedule[] {
+    if (!date) return []
+    const dow = new Date(date + 'T00:00:00').getDay()
+    return availability.filter(a => a.day_of_week === dow)
+  }
+
+  async function scheduleMeeting() {
+    if (!selectedDate || !selectedStart || !selectedEnd) return
+    setScheduling(true)
+    try {
+      const startsAt = `${selectedDate}T${selectedStart}:00`
+      const endsAt = `${selectedDate}T${selectedEnd}:00`
+      const durationMs = new Date(endsAt).getTime() - new Date(startsAt).getTime()
+      const durationMinutes = Math.round(durationMs / 60000)
+
+      // Auto-create session record (deduct credit)
+      const { data: sessionData } = await supabase
+        .from('engagement_sessions')
+        .insert({
+          organization_id: profile.organization_id,
+          mentee_offering_id: assignment.id,
+          mentee_id: mentee.id,
+          logged_by: profile.id,
+          session_date: selectedDate,
+          notes: meetingTitle.trim() || 'Scheduled meeting',
+        })
+        .select()
+        .single()
+
+      const { data: meetingData } = await supabase
+        .from('meetings')
+        .insert({
+          organization_id: profile.organization_id,
+          mentee_offering_id: assignment.id,
+          mentee_id: mentee.id,
+          mentor_id: profile.id,
+          engagement_session_id: sessionData?.id ?? null,
+          title: meetingTitle.trim() || `Meeting with ${mentee.first_name}`,
+          starts_at: startsAt,
+          ends_at: endsAt,
+          duration_minutes: durationMinutes,
+          status: 'scheduled',
+        })
+        .select()
+        .single()
+
+      if (meetingData) setMeetings(prev => [meetingData as Meeting, ...prev])
+      setShowForm(false)
+      setSelectedDate('')
+      setSelectedStart('')
+      setSelectedEnd('')
+      setMeetingTitle('')
+    } catch (err) {
+      console.error('[MeetingScheduler] error:', err)
+    } finally {
+      setScheduling(false)
+    }
+  }
+
+  const upcoming = meetings.filter(m => m.status === 'scheduled' && new Date(m.starts_at) >= new Date())
+  const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
+
+  // Next 14 days
+  const dateOptions: string[] = []
+  const now = new Date()
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(now.getTime() + i * 86400000)
+    dateOptions.push(d.toISOString().slice(0, 10))
+  }
+
+  return (
+    <div className="px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          Meetings ({loaded ? meetings.length : '...'})
+        </p>
+        <button onClick={handleToggle} className="text-[10px] text-brand hover:text-brand-hover transition-colors">
+          {showForm ? 'Cancel' : '+ Schedule'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="space-y-2 mb-2">
+          <select value={selectedDate} onChange={e => { setSelectedDate(e.target.value); setSelectedStart(''); setSelectedEnd('') }} className={numInputClass}>
+            <option value="">Select date...</option>
+            {dateOptions.map(d => {
+              const date = new Date(d + 'T00:00:00')
+              const blocks = getBlocksForDate(d)
+              return (
+                <option key={d} value={d} disabled={blocks.length === 0}>
+                  {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}{blocks.length === 0 ? ' (no avail.)' : ''}
+                </option>
+              )
+            })}
+          </select>
+
+          {selectedDate && getBlocksForDate(selectedDate).length > 0 && (
+            <>
+              <div className="flex items-center gap-2">
+                <input type="time" value={selectedStart} onChange={e => setSelectedStart(e.target.value)} className={numInputClass + ' flex-1'} />
+                <span className="text-[10px] text-gray-400">to</span>
+                <input type="time" value={selectedEnd} onChange={e => setSelectedEnd(e.target.value)} className={numInputClass + ' flex-1'} />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {getBlocksForDate(selectedDate).map(b => (
+                  <span key={b.id} className="text-[9px] text-gray-400 px-1.5 py-0.5 bg-gray-50 rounded">
+                    {formatTime(b.start_time)}–{formatTime(b.end_time)}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
+          {selectedStart && selectedEnd && (
+            <input type="text" value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)} placeholder="Meeting title (optional)" className={numInputClass} />
+          )}
+
+          <button
+            onClick={scheduleMeeting}
+            disabled={scheduling || !selectedDate || !selectedStart || !selectedEnd}
+            className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          >
+            {scheduling ? '...' : 'Book Meeting'}
+          </button>
+        </div>
+      )}
+
+      {loaded && upcoming.length > 0 && (
+        <div className="space-y-1">
+          {upcoming.map(m => (
+            <div key={m.id} className="flex items-center gap-2 py-1 text-[10px]">
+              <span className="text-gray-600 tabular-nums w-16 shrink-0">
+                {new Date(m.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="text-gray-500 flex-1 truncate">{m.title || 'Meeting'}</span>
+              <span className="text-gray-400 shrink-0">
+                {new Date(m.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loaded && meetings.length === 0 && !showForm && (
+        <p className="text-[10px] text-gray-400">No meetings scheduled.</p>
       )}
     </div>
   )

@@ -185,6 +185,57 @@ export interface Invoice {
   updated_at: string
 }
 
+export interface AvailabilitySchedule {
+  id: string
+  organization_id: string
+  staff_id: string
+  day_of_week: number // 0=Sunday, 6=Saturday
+  start_time: string  // HH:MM:SS
+  end_time: string    // HH:MM:SS
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AvailabilityOverride {
+  id: string
+  organization_id: string
+  staff_id: string
+  override_date: string
+  start_time: string
+  end_time: string
+  is_available: boolean
+  notes: string | null
+  created_at: string
+}
+
+export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+
+export interface Meeting {
+  id: string
+  organization_id: string
+  mentee_offering_id: string | null
+  mentee_id: string
+  mentor_id: string
+  engagement_session_id: string | null
+  title: string | null
+  description: string | null
+  starts_at: string
+  ends_at: string
+  duration_minutes: number
+  status: MeetingStatus
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancellation_reason: string | null
+  meeting_link: string | null
+  location: string | null
+  external_calendar_id: string | null
+  external_calendar_provider: string | null
+  external_calendar_event_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type QuestionType = 'quiz' | 'response'
 
 export interface QuizOption {

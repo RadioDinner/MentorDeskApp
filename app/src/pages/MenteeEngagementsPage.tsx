@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Offering, MenteeOffering } from '../types'
@@ -9,6 +10,7 @@ interface MenteeEngagement extends MenteeOffering {
 
 export default function MenteeEngagementsPage() {
   const { menteeProfile } = useAuth()
+  const navigate = useNavigate()
   const [engagements, setEngagements] = useState<MenteeEngagement[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -60,7 +62,7 @@ export default function MenteeEngagementsPage() {
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Active</h3>
               <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
-                {active.map(e => <EngagementRow key={e.id} engagement={e} />)}
+                {active.map(e => <EngagementRow key={e.id} engagement={e} onClick={() => navigate(`/my-engagements/${e.id}`)} />)}
               </div>
             </div>
           )}
@@ -69,7 +71,7 @@ export default function MenteeEngagementsPage() {
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Completed</h3>
               <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
-                {completed.map(e => <EngagementRow key={e.id} engagement={e} />)}
+                {completed.map(e => <EngagementRow key={e.id} engagement={e} onClick={() => navigate(`/my-engagements/${e.id}`)} />)}
               </div>
             </div>
           )}
@@ -79,7 +81,7 @@ export default function MenteeEngagementsPage() {
   )
 }
 
-function EngagementRow({ engagement }: { engagement: MenteeEngagement }) {
+function EngagementRow({ engagement, onClick }: { engagement: MenteeEngagement; onClick: () => void }) {
   const offering = engagement.offering
   const totalCredits = engagement.meeting_count ?? offering?.meeting_count ?? 0
   const used = engagement.sessions_used
@@ -96,7 +98,7 @@ function EngagementRow({ engagement }: { engagement: MenteeEngagement }) {
   }
 
   return (
-    <div className={`px-5 py-4 ${isCompleted ? 'opacity-75' : ''}`}>
+    <div className={`px-5 py-4 cursor-pointer hover:bg-gray-50/50 transition-colors ${isCompleted ? 'opacity-75' : ''}`} onClick={onClick}>
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-gray-900">
