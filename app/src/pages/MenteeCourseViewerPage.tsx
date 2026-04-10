@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { replaceDynamicFields } from '../lib/dynamicFields'
+import type { DynamicFieldContext } from '../lib/dynamicFields'
 import type {
   Offering, Lesson, LessonSection, LessonQuestion, MenteeOffering,
   LessonProgress, QuestionResponse, QuizOption,
@@ -29,6 +31,7 @@ export default function MenteeCourseViewerPage() {
   const [contentLoading, setContentLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [fieldCtx, setFieldCtx] = useState<DynamicFieldContext>({})
 
   const menteeId = menteeProfile?.id
   const orgId = menteeProfile?.organization_id ?? profile?.organization_id
@@ -47,6 +50,29 @@ export default function MenteeCourseViewerPage() {
         if (mo.offering?.type !== 'course') { setError('This is not a course.'); return }
         setMenteeOffering(mo)
         setCourse(mo.offering)
+
+        // Build dynamic field context: mentee data + mentor from active pairing
+        const ctx: DynamicFieldContext = {
+          mentee_first_name: menteeProfile?.first_name,
+          mentee_last_name: menteeProfile?.last_name,
+          mentee_email: menteeProfile?.email,
+          mentee_phone: menteeProfile?.phone ?? undefined,
+        }
+        const { data: pairingData } = await supabase
+          .from('pairings')
+          .select('mentor:staff!pairings_mentor_id_fkey(first_name, last_name, email, phone)')
+          .eq('mentee_id', menteeId!)
+          .eq('status', 'active')
+          .limit(1)
+          .single()
+        if (pairingData?.mentor) {
+          const m = pairingData.mentor as unknown as { first_name: string; last_name: string; email: string; phone: string | null }
+          ctx.mentor_first_name = m.first_name
+          ctx.mentor_last_name = m.last_name
+          ctx.mentor_email = m.email
+          ctx.mentor_phone = m.phone ?? undefined
+        }
+        setFieldCtx(ctx)
 
         const { data: lessonsData } = await supabase.from('lessons').select('*').eq('offering_id', mo.offering_id).order('order_index', { ascending: true })
         const allLessons = (lessonsData ?? []) as Lesson[]
@@ -253,7 +279,7 @@ export default function MenteeCourseViewerPage() {
               {/* Legacy content (for lessons without sections) */}
               {sections.length === 0 && selectedLesson.content && (
                 <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
-                  <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: selectedLesson.content }} />
+                  <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: replaceDynamicFields(selectedLesson.content, fieldCtx) }} />
                 </div>
               )}
               {sections.length === 0 && selectedLesson.video_url && (
@@ -275,7 +301,7 @@ export default function MenteeCourseViewerPage() {
                     {section.video_url && <VideoEmbed url={section.video_url} />}
                     {section.content && (
                       <div className="px-5 py-4">
-                        <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: section.content }} />
+                        <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: replaceDynamicFields(section.content, fieldCtx) }} />
                       </div>
                     )}
                     {sectionQuestions.length > 0 && (

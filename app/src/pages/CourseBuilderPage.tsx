@@ -5,6 +5,8 @@ import { supabase, supabaseRestCall } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
+import type { RichTextEditorHandle } from '../components/RichTextEditor'
+import { DYNAMIC_FIELDS } from '../lib/dynamicFields'
 import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption } from '../types'
 
 export default function CourseBuilderPage() {
@@ -439,6 +441,8 @@ function SectionEditor({
   const [videoUrl, setVideoUrl] = useState(section.video_url ?? '')
   const [notes, setNotes] = useState(section.notes ?? '')
   const [saving, setSaving] = useState(false)
+  const [showDynamicFields, setShowDynamicFields] = useState(false)
+  const editorRef = useRef<RichTextEditorHandle | null>(null)
 
   async function save() {
     setSaving(true)
@@ -450,6 +454,14 @@ function SectionEditor({
     })
     setSaving(false)
   }
+
+  function insertDynamicField(token: string) {
+    editorRef.current?.insertText(token)
+    setShowDynamicFields(false)
+  }
+
+  const menteeFields = DYNAMIC_FIELDS.filter(f => f.group === 'mentee')
+  const mentorFields = DYNAMIC_FIELDS.filter(f => f.group === 'mentor')
 
   return (
     <div className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
@@ -476,8 +488,42 @@ function SectionEditor({
         <div className="flex-1 min-w-0 px-5 py-4 space-y-4">
           {/* Content */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Content</label>
-            <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-700">Content</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowDynamicFields(!showDynamicFields)}
+                  className="px-2 py-0.5 text-[10px] font-semibold rounded border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+                >
+                  {'{ } Dynamic Fields'}
+                </button>
+                {showDynamicFields && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 w-52">
+                    <p className="px-3 py-1 text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Click to insert at cursor</p>
+                    <div className="border-b border-gray-100 my-1" />
+                    <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentee</p>
+                    {menteeFields.map(f => (
+                      <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
+                        <span className="text-gray-700">{f.label}</span>
+                        <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
+                      </button>
+                    ))}
+                    <div className="border-b border-gray-100 my-1" />
+                    <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentor</p>
+                    {mentorFields.map(f => (
+                      <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
+                        <span className="text-gray-700">{f.label}</span>
+                        <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." editorRef={editorRef} />
           </div>
 
           {/* Video */}

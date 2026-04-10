@@ -8,3 +8,9 @@ SESSION 009 - PROMPT HISTORY
 While we're looking at questions, fix the re-indexing bug, race conditions and validation.
 
 3. While we're looking at the course builder, I want you to add, for each section, a place for notes on the right side of the section card. These notes are for the course creator, and will only be visible to themselves, when editing a course, or to the other course creators.
+
+4. I want to do something cool with lessons. I want to add the ability to put in dynamic personalization. In the course builder, I want you to put a button somewhere on the section builder that is called "Dynamic fields". The way I want this to function is that the course builder can add one of these to the lesson to make it personal. For example, if the lesson starts off like "Hey so and so, so glad you are starting this course!". In the dynamic fields, I want to be able to add the option to make the lesson start like "Hey {mentee_first_name}, so glad you are starting this course!".
+
+To start, I want the available fields to be {mentee_first_name} {mentee_last_name} {mentee_email}{mentee_phone} {mentor_first_name} {mentor_last_name} {mentor_email} {mentor_phone}
+
+Then I want these fields to be filled when the course is assigned to the mentee.

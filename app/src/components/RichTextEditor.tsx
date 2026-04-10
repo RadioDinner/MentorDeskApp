@@ -19,10 +19,15 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { useState, useCallback, useEffect } from 'react'
 
+export interface RichTextEditorHandle {
+  insertText: (text: string) => void
+}
+
 interface RichTextEditorProps {
   content: string
   onChange: (html: string) => void
   placeholder?: string
+  editorRef?: React.MutableRefObject<RichTextEditorHandle | null>
 }
 
 const FONT_FAMILIES = [
@@ -44,7 +49,7 @@ const HIGHLIGHTS = [
   '', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff', '#fecdd3', '#fed7aa', '#d1d5db',
 ]
 
-export default function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, placeholder, editorRef }: RichTextEditorProps) {
   const [showHtmlMode, setShowHtmlMode] = useState(false)
   const [htmlSource, setHtmlSource] = useState('')
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -106,6 +111,15 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       },
     },
   })
+
+  // Expose insert method to parent via editorRef
+  useEffect(() => {
+    if (editorRef && editor) {
+      editorRef.current = {
+        insertText: (text: string) => { editor.chain().focus().insertContent(text).run() },
+      }
+    }
+  }, [editor, editorRef])
 
   // Sync external content changes
   useEffect(() => {
