@@ -1,0 +1,166 @@
+SESSION 009 - HANDOFF LOG
+==========================
+Date: 2026-04-10
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Major feature session covering course builder overhaul, loading system
+fixes, mentee management improvements, company settings redesign, and
+folder organization. 21 prompts processed with 15+ commits to main.
+
+
+CHANGES MADE
+-------------
+
+1. COURSE BUILDER: QUESTION FIXES
+   - Switched all question/section CRUD to supabaseRestCall (fixes
+     SDK write hang for +Response, +Quiz, delete question)
+   - Question re-indexing on delete (order_index gaps fixed)
+   - Section deletion race conditions fixed (Promise.all)
+   - Question validation: empty text, min 2 quiz options, correct
+     answer required
+
+2. COURSE BUILDER: CREATOR NOTES
+   - Each section has a notes panel on the right side
+   - Only visible in the builder (staff), not in mentee viewer
+   - Migration 968: notes column on lesson_sections
+
+3. DYNAMIC PERSONALIZATION FIELDS
+   - "{ } Dynamic Fields" button on text sections
+   - Tokens: {mentee_first_name}, {mentee_last_name}, {mentee_email},
+     {mentee_phone}, {mentor_first_name}, {mentor_last_name},
+     {mentor_email}, {mentor_phone}
+   - RichTextEditor gains editorRef prop for cursor-position insertion
+   - MenteeCourseViewerPage fetches mentor from pairings, replaces
+     tokens before rendering
+   - New file: app/src/lib/dynamicFields.ts
+
+4. COURSE BUILDER: TYPED SECTIONS
+   - Sections now typed: text, video, quiz, response
+   - 4 add buttons (+Text, +Video, +Quiz, +Response) appear between
+     every section — no scrolling needed
+   - Section drag-to-reorder with drag handles
+   - Save/Delete are proper styled buttons (not text links)
+   - Section headers color-coded by type
+   - Migration 967: section_type column on lesson_sections
+   - Mentee viewer backwards-compatible: text/legacy sections render
+     all content (text + video + questions)
+
+5. LOADING SYSTEM OVERHAUL
+   - useLoadingGuard: 8s hard timeout → two-phase (10s soft + 30s hard)
+   - MenteeManageSlideOver: 5 sequential queries → 2 parallel rounds
+   - CoursesPage, EngagementsPage, MenteesListPage: queries parallelized
+   - Supabase warm-up ping on auth (wakes cold-started free tier)
+   - AuthContext safety timeout: 6s → 15s
+
+6. MENTEE MANAGE PANEL FIXES
+   - Fixed "Loading..." forever (added useLoadingGuard + withTimeout)
+   - Engagement Assign button always visible (was hidden when all
+     engagements assigned)
+   - Multi-engagement handling: greyed out + tooltip when disabled,
+     confirmation dialog when enabled
+   - allEngagements state for unfiltered dropdown
+
+7. COURSE MANAGEMENT ACTIONS (mentee manage panel)
+   - Course-level: Mark Complete, Reset Progress, Remove
+   - Per-lesson: Mark Complete (Done), Reset
+   - All destructive actions require confirmation
+   - Success messages auto-dismiss after 3s
+
+8. ENGAGEMENT SETTINGS FIX
+   - Migration 966: adds recurring_price_cents, setup_fee_cents,
+     meeting_count, allocation_period, notes to mentee_offerings
+   - Fixes "Could not find allocation_period column" error
+   - handleSave now has proper try/catch
+
+9. MENTOR AVAILABILITY EDITING
+   - AvailabilityPage accepts optional :id param for admin editing
+   - PersonEditPage: "Edit Availability" button for mentor/asst. mentor
+   - New route: /people/:id/availability
+
+10. COURSE EDIT IMPROVEMENTS
+    - Icon upload: file picker (max 512KB), base64 data URL storage
+    - Course due date → duration (expected_completion_days)
+    - Duration available for all dispense modes
+
+11. COURSES & ENGAGEMENTS PAGES
+    - Larger grid cards (2-column layout)
+    - Enrollment stats: In Progress, Completed, Total with visual boxes
+    - Completion rate bar on courses
+    - Grid/list toggle on engagements (matching courses)
+
+12. COMPANY SETTINGS OVERHAUL
+    - Tabs replaced with scrollable card layout
+    - "Multiple open engagements" moved from Courses tab to
+      new "Offerings" card, renamed
+    - All 9 settings sections as distinct cards
+
+13. FOLDER ORGANIZATION
+    - Desktop-style folders for courses and engagements
+    - Create, rename, delete folders
+    - Drag offerings onto folders to organize
+    - Breadcrumb navigation into/out of folders
+    - Migration 965: offering_folders table + folder_id on offerings
+    - Shared OfferingFolderManager component
+
+14. MENTEE FLOW AUTO-UPDATE
+    - When assigning an offering that's in the active mentee flow,
+      the mentee's flow_step_id auto-updates
+
+
+DATABASE MIGRATIONS TO RUN (newest first)
+-------------------------------------------
+- 965_offering_folders.sql
+- 966_mentee_offering_overrides.sql
+- 967_section_types.sql
+- 968_section_notes.sql
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. SUPABASE SDK WRITE HANG:
+   - Root cause still unknown. Workaround (supabaseRestCall) is in
+     place for all write operations in the course builder. Reads use
+     the SDK with parallelization + longer timeouts.
+
+2. ENGAGEMENT MANAGEMENT MODAL:
+   - User wanted full-page modal overlay (from Session 008 prompt 12)
+   - Close-out date save should now work with migration 966 applied
+   - Invoice projection logic per close-out date still needs work
+
+3. GOOGLE CALENDAR INTEGRATION:
+   - meetings table has external fields ready
+   - scheduling.ts designed for external block injection
+   - Need: OAuth flow, event sync, real-time availability merge
+
+4. REMAINING BIG FEATURES:
+   - Reports module (placeholder exists)
+   - Admin invoicing/payroll/billing pages
+   - Signup/invite flows
+   - Stripe integration
+   - Messaging between mentee and mentor
+
+5. STALE REMOTE BRANCH:
+   - remotes/origin/claude/fix-course-builder-questions-YxXbH (403 on
+     remote delete)
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- Real codebase: app/ (TypeScript/React 19/Vite/Tailwind CSS 4)
+- Backend: Supabase (Postgres + Auth + RLS)
+- Deployment: Vercel (auto-deploys from main)
+- 18+ tables including offering_folders, lesson_sections w/ types
+- 30+ page components in app/src/pages/
+- 3 role-specific portals: Admin, Mentor, Mentee
+- Course builder: typed sections (text/video/quiz/response), dynamic
+  fields, creator notes, drag-to-reorder
+- Scheduling system with availability + conflict detection
+- Credit system: meetings consume credits when end time passes
+- Per-engagement invoicing with per-mentee overrides
+- Folder organization on courses and engagements
+- Loading system: parallelized queries, 30s guard, warm-up ping
+- Build passes clean (tsc + vite)
