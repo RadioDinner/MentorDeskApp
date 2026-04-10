@@ -7,7 +7,7 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
 import type { RichTextEditorHandle } from '../components/RichTextEditor'
 import { DYNAMIC_FIELDS } from '../lib/dynamicFields'
-import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption } from '../types'
+import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption, SectionType } from '../types'
 
 export default function CourseBuilderPage() {
   const { id } = useParams<{ id: string }>()
@@ -41,6 +41,10 @@ export default function CourseBuilderPage() {
   // Drag for lesson reorder
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  // Drag for section reorder
+  const secDragRef = useRef<number | null>(null)
+  const [secDragOver, setSecDragOver] = useState<number | null>(null)
 
   const selectedLesson = lessons.find(l => l.id === selectedLessonId) ?? null
 
@@ -178,15 +182,41 @@ export default function CourseBuilderPage() {
   }
 
   // --- Section actions (all use supabaseRestCall to avoid SDK write hang) ---
-  async function addSection() {
+  async function addSection(sectionType: SectionType) {
     if (!selectedLessonId || !profile) return
     const newIndex = sections.length
     const { data, error: e } = await supabaseRestCall('lesson_sections', 'POST', {
-      lesson_id: selectedLessonId, organization_id: profile.organization_id, order_index: newIndex,
+      lesson_id: selectedLessonId, organization_id: profile.organization_id, order_index: newIndex, section_type: sectionType,
     })
     if (e) { setLessonMsg({ type: 'error', text: 'Failed to add section: ' + e.message }); return }
     if (!data?.length) { setLessonMsg({ type: 'error', text: 'Section was not created. Please try again.' }); return }
-    setSections(prev => [...prev, data[0] as unknown as LessonSection])
+    const newSection = data[0] as unknown as LessonSection
+    setSections(prev => [...prev, newSection])
+    // Auto-create a question for quiz/response sections
+    if (sectionType === 'quiz' || sectionType === 'response') {
+      await addQuestion(sectionType === 'quiz' ? 'quiz' : 'response', newSection.id)
+    }
+  }
+
+  // Section drag-to-reorder
+  function secDragStart(index: number) { secDragRef.current = index }
+  function secDragOverHandler(e: React.DragEvent, index: number) { e.preventDefault(); e.stopPropagation(); setSecDragOver(index) }
+  async function secDrop(targetIndex: number) {
+    const fromIndex = secDragRef.current
+    if (fromIndex === null || fromIndex === targetIndex) { secDragRef.current = null; setSecDragOver(null); return }
+    const prev = [...sections]
+    const reordered = [...sections]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(targetIndex, 0, moved)
+    const updated = reordered.map((s, i) => ({ ...s, order_index: i }))
+    setSections(updated)
+    secDragRef.current = null; setSecDragOver(null)
+    try {
+      const results = await Promise.all(
+        updated.map(s => supabaseRestCall('lesson_sections', 'PATCH', { order_index: s.order_index }, `id=eq.${s.id}`))
+      )
+      if (results.some(r => r.error)) { setSections(prev) }
+    } catch { setSections(prev) }
   }
 
   async function updateSection(sectionId: string, updates: Partial<LessonSection>) {
@@ -268,8 +298,6 @@ export default function CourseBuilderPage() {
       </div>
     )
   }
-
-  const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-6xl">
@@ -371,24 +399,40 @@ export default function CourseBuilderPage() {
                 </div>
               </div>
 
+              {/* Add section buttons */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold shrink-0">Add:</span>
+                <button type="button" onClick={() => addSection('text')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">+ Text</button>
+                <button type="button" onClick={() => addSection('video')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors">+ Video</button>
+                <button type="button" onClick={() => addSection('quiz')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">+ Quiz</button>
+                <button type="button" onClick={() => addSection('response')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">+ Response</button>
+              </div>
+
               {/* Sections */}
               {sectionsLoading ? (
                 <p className="text-xs text-gray-400 text-center py-4">Loading sections...</p>
               ) : (
                 <>
                   {sections.map((section, si) => (
-                    <SectionEditor
+                    <div
                       key={section.id}
-                      section={section}
-                      index={si}
-                      questions={questions.filter(q => q.section_id === section.id)}
-                      onUpdateSection={updateSection}
-                      onDeleteSection={deleteSection}
-                      onAddQuestion={addQuestion}
-                      onUpdateQuestion={updateQuestion}
-                      onDeleteQuestion={deleteQuestion}
-                      inputClass={inputClass}
-                    />
+                      draggable
+                      onDragStart={() => secDragStart(si)}
+                      onDragOver={e => secDragOverHandler(e, si)}
+                      onDrop={() => secDrop(si)}
+                      onDragEnd={() => { secDragRef.current = null; setSecDragOver(null) }}
+                      className={secDragOver === si ? 'ring-2 ring-brand/30 rounded-md' : ''}
+                    >
+                      <SectionEditor
+                        section={section}
+                        questions={questions.filter(q => q.section_id === section.id)}
+                        onUpdateSection={updateSection}
+                        onDeleteSection={deleteSection}
+                        onAddQuestion={addQuestion}
+                        onUpdateQuestion={updateQuestion}
+                        onDeleteQuestion={deleteQuestion}
+                      />
+                    </div>
                   ))}
 
                   {/* Legacy lesson-level questions (for backwards compat) */}
@@ -402,14 +446,6 @@ export default function CourseBuilderPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Add section */}
-                  <button
-                    onClick={addSection}
-                    className="w-full rounded-md border-2 border-dashed border-gray-200 px-5 py-4 text-sm font-medium text-gray-400 hover:border-brand/40 hover:text-brand transition-colors"
-                  >
-                    + Add Section
-                  </button>
                 </>
               )}
             </div>
@@ -422,20 +458,27 @@ export default function CourseBuilderPage() {
 
 // ── Section Editor ──
 
+const SECTION_STYLES: Record<SectionType, { border: string; bg: string; label: string; badge: string }> = {
+  text:     { border: 'border-gray-200/80', bg: 'bg-gray-50/50', label: 'Text',     badge: 'bg-gray-100 text-gray-600' },
+  video:    { border: 'border-sky-200/80',  bg: 'bg-sky-50/40',  label: 'Video',    badge: 'bg-sky-100 text-sky-600' },
+  quiz:     { border: 'border-violet-200/80', bg: 'bg-violet-50/40', label: 'Quiz', badge: 'bg-violet-100 text-violet-600' },
+  response: { border: 'border-indigo-200/80', bg: 'bg-indigo-50/40', label: 'Response', badge: 'bg-indigo-100 text-indigo-600' },
+}
+
 function SectionEditor({
-  section, index, questions, onUpdateSection, onDeleteSection,
-  onAddQuestion, onUpdateQuestion, onDeleteQuestion, inputClass,
+  section, questions, onUpdateSection, onDeleteSection,
+  onAddQuestion, onUpdateQuestion, onDeleteQuestion,
 }: {
   section: LessonSection
-  index: number
   questions: LessonQuestion[]
   onUpdateSection: (id: string, updates: Partial<LessonSection>) => Promise<void>
   onDeleteSection: (id: string) => Promise<void>
   onAddQuestion: (type: 'quiz' | 'response', sectionId: string | null) => Promise<void>
   onUpdateQuestion: (id: string, updates: Partial<LessonQuestion>) => Promise<void>
   onDeleteQuestion: (id: string) => Promise<void>
-  inputClass: string
 }) {
+  const sType = (section.section_type ?? 'text') as SectionType
+  const style = SECTION_STYLES[sType]
   const [title, setTitle] = useState(section.title ?? '')
   const [content, setContent] = useState(section.content ?? '')
   const [videoUrl, setVideoUrl] = useState(section.video_url ?? '')
@@ -443,6 +486,8 @@ function SectionEditor({
   const [saving, setSaving] = useState(false)
   const [showDynamicFields, setShowDynamicFields] = useState(false)
   const editorRef = useRef<RichTextEditorHandle | null>(null)
+
+  const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   async function save() {
     setSaving(true)
@@ -464,11 +509,12 @@ function SectionEditor({
   const mentorFields = DYNAMIC_FIELDS.filter(f => f.group === 'mentor')
 
   return (
-    <div className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
+    <div className={`bg-white rounded-md border ${style.border} overflow-hidden`}>
       {/* Section header */}
-      <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+      <div className={`px-5 py-2.5 ${style.bg} border-b border-gray-100 flex items-center justify-between`}>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-[10px] font-semibold text-gray-400 uppercase">Section {index + 1}</span>
+          <span className="text-gray-400 cursor-grab text-xs" title="Drag to reorder">&#x2630;</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${style.badge}`}>{style.label}</span>
           <input
             type="text" value={title} onChange={e => setTitle(e.target.value)} onBlur={save}
             className="text-sm font-medium text-gray-900 flex-1 outline-none bg-transparent placeholder-gray-400"
@@ -476,95 +522,131 @@ function SectionEditor({
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={save} disabled={saving} className="text-[10px] font-medium text-brand hover:text-brand-hover disabled:opacity-50 transition-colors">
+          <button onClick={save} disabled={saving}
+            className="px-2.5 py-1 text-[11px] font-medium rounded border border-brand/30 bg-brand text-white hover:bg-brand-hover disabled:opacity-50 transition-colors">
             {saving ? '...' : 'Save'}
           </button>
-          <button onClick={() => onDeleteSection(section.id)} className="text-[10px] text-gray-400 hover:text-red-500 transition-colors">Delete</button>
+          <button onClick={() => onDeleteSection(section.id)}
+            className="px-2.5 py-1 text-[11px] font-medium rounded border border-red-200 bg-white text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors">
+            Delete
+          </button>
         </div>
       </div>
 
       <div className="flex">
-        {/* Left: section content */}
+        {/* Left: type-specific content */}
         <div className="flex-1 min-w-0 px-5 py-4 space-y-4">
-          {/* Content */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-700">Content</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowDynamicFields(!showDynamicFields)}
-                  className="px-2 py-0.5 text-[10px] font-semibold rounded border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
-                >
-                  {'{ } Dynamic Fields'}
-                </button>
-                {showDynamicFields && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 w-52">
-                    <p className="px-3 py-1 text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Click to insert at cursor</p>
-                    <div className="border-b border-gray-100 my-1" />
-                    <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentee</p>
-                    {menteeFields.map(f => (
-                      <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
-                        <span className="text-gray-700">{f.label}</span>
-                        <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
-                      </button>
-                    ))}
-                    <div className="border-b border-gray-100 my-1" />
-                    <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentor</p>
-                    {mentorFields.map(f => (
-                      <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
-                        <span className="text-gray-700">{f.label}</span>
-                        <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
-                      </button>
-                    ))}
+          {/* TEXT section */}
+          {sType === 'text' && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-gray-700">Content</label>
+                <div className="relative">
+                  <button type="button" onClick={() => setShowDynamicFields(!showDynamicFields)}
+                    className="px-2 py-0.5 text-[10px] font-semibold rounded border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors">
+                    {'{ } Dynamic Fields'}
+                  </button>
+                  {showDynamicFields && (
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 w-52">
+                      <p className="px-3 py-1 text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Click to insert at cursor</p>
+                      <div className="border-b border-gray-100 my-1" />
+                      <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentee</p>
+                      {menteeFields.map(f => (
+                        <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
+                          <span className="text-gray-700">{f.label}</span>
+                          <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
+                        </button>
+                      ))}
+                      <div className="border-b border-gray-100 my-1" />
+                      <p className="px-3 py-1 text-[10px] text-gray-500 font-semibold">Mentor</p>
+                      {mentorFields.map(f => (
+                        <button key={f.token} type="button" onClick={() => insertDynamicField(f.token)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors flex items-center justify-between">
+                          <span className="text-gray-700">{f.label}</span>
+                          <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{f.token}</code>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." editorRef={editorRef} />
+            </div>
+          )}
+
+          {/* VIDEO section */}
+          {sType === 'video' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Video URL</label>
+              <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} onBlur={save} className={inputClass} placeholder="https://youtube.com/watch?v=..." />
+              {videoUrl && (
+                <div className="mt-3 rounded overflow-hidden border border-gray-200">
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <iframe src={(() => { const yt = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/); if (yt) return `https://www.youtube.com/embed/${yt[1]}`; const vm = videoUrl.match(/vimeo\.com\/(\d+)/); if (vm) return `https://player.vimeo.com/video/${vm[1]}`; return videoUrl })()}
+                      className="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title="Video preview" />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-            <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." editorRef={editorRef} />
-          </div>
+          )}
 
-          {/* Video */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Video URL</label>
-            <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} onBlur={save} className={inputClass} placeholder="https://youtube.com/watch?v=..." />
-          </div>
-
-          {/* Questions for this section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-gray-700">Questions</label>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => onAddQuestion('response', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">+ Response</button>
-                <button type="button" onClick={() => onAddQuestion('quiz', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors">+ Quiz</button>
+          {/* QUIZ section */}
+          {sType === 'quiz' && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-gray-700">Quiz Questions</label>
+                <button type="button" onClick={() => onAddQuestion('quiz', section.id)}
+                  className="px-2.5 py-1 text-[11px] font-medium rounded border border-violet-300 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors">
+                  + Add Question
+                </button>
               </div>
+              {questions.length === 0 ? (
+                <p className="text-xs text-gray-400">No quiz questions yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {questions.map((q, qi) => (
+                    <QuestionCard key={q.id} question={q} index={qi} onUpdate={onUpdateQuestion} onDelete={onDeleteQuestion} />
+                  ))}
+                </div>
+              )}
             </div>
-            {questions.length === 0 ? (
-              <p className="text-[10px] text-gray-400">No questions in this section.</p>
-            ) : (
-              <div className="space-y-3">
-                {questions.map((q, qi) => (
-                  <QuestionCard key={q.id} question={q} index={qi} onUpdate={onUpdateQuestion} onDelete={onDeleteQuestion} />
-                ))}
+          )}
+
+          {/* RESPONSE section */}
+          {sType === 'response' && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-gray-700">Response Questions</label>
+                <button type="button" onClick={() => onAddQuestion('response', section.id)}
+                  className="px-2.5 py-1 text-[11px] font-medium rounded border border-indigo-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
+                  + Add Question
+                </button>
               </div>
-            )}
-          </div>
+              {questions.length === 0 ? (
+                <p className="text-xs text-gray-400">No response questions yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {questions.map((q, qi) => (
+                    <QuestionCard key={q.id} question={q} index={qi} onUpdate={onUpdateQuestion} onDelete={onDeleteQuestion} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: creator notes */}
-        <div className="w-56 shrink-0 border-l border-gray-100 bg-amber-50/30 px-3 py-4">
-          <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Creator Notes</label>
+        <div className="w-48 shrink-0 border-l border-gray-100 bg-amber-50/30 px-3 py-3">
+          <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Notes</label>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             onBlur={save}
-            rows={6}
-            className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs text-gray-700 placeholder-gray-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/50 transition resize-none"
-            placeholder="Private notes for course creators..."
+            rows={4}
+            className="w-full rounded border border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-700 placeholder-gray-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/50 transition resize-none"
+            placeholder="Private notes..."
           />
-          <p className="mt-1.5 text-[9px] text-amber-600/70">Only visible to course creators</p>
         </div>
       </div>
     </div>

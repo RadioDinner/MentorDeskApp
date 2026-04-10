@@ -288,9 +288,13 @@ export default function MenteeCourseViewerPage() {
                 </div>
               )}
 
-              {/* Sections */}
+              {/* Sections — type-aware rendering */}
               {sections.map(section => {
+                const sType = (section as LessonSection & { section_type?: string }).section_type ?? 'text'
                 const sectionQuestions = questions.filter(q => q.section_id === section.id)
+                const showContent = sType === 'text'
+                const showVideo = sType === 'video'
+                const showQuestions = sType === 'quiz' || sType === 'response'
                 return (
                   <div key={section.id} className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
                     {section.title && (
@@ -298,14 +302,14 @@ export default function MenteeCourseViewerPage() {
                         <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
                       </div>
                     )}
-                    {section.video_url && <VideoEmbed url={section.video_url} />}
-                    {section.content && (
+                    {showVideo && section.video_url && <VideoEmbed url={section.video_url} />}
+                    {showContent && section.content && (
                       <div className="px-5 py-4">
                         <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: replaceDynamicFields(section.content, fieldCtx) }} />
                       </div>
                     )}
-                    {sectionQuestions.length > 0 && (
-                      <div className="px-5 pb-5">
+                    {showQuestions && sectionQuestions.length > 0 && (
+                      <div className="px-5 py-5">
                         <div className="space-y-4">
                           {sectionQuestions.map((q, qi) => (
                             <MenteeQuestionCard key={q.id} question={q} index={qi} response={responses[q.id] ?? null}

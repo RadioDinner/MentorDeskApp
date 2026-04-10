@@ -244,10 +244,13 @@ export interface QuizOption {
   is_correct: boolean
 }
 
+export type SectionType = 'text' | 'video' | 'quiz' | 'response'
+
 export interface LessonSection {
   id: string
   lesson_id: string
   organization_id: string
+  section_type: SectionType
   title: string | null
   content: string | null
   video_url: string | null
