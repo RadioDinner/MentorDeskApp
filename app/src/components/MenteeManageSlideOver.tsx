@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion } from '../types'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -392,13 +392,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
+                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} />)}
                         {completedEngagements.length > 0 && activeEngagements.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
+                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} />)}
                       </div>
                     )}
                   </div>
@@ -682,25 +682,129 @@ function LessonDetailRow({
   )
 }
 
-function EngagementCard({ assignment, onUpdate }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void> }) {
+function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void>; profile: StaffMember; mentee: Mentee }) {
   const offering = assignment.offering
-  const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
-  const used = assignment.sessions_used
-  const remaining = Math.max(0, totalCredits - used)
   const isCompleted = assignment.status === 'completed'
   const period = assignment.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
   const periodLabel = period === 'monthly' ? ' / month' : period === 'weekly' ? ' / week' : ''
   const priceCents = assignment.recurring_price_cents ?? offering?.recurring_price_cents ?? 0
   const priceDisplay = (priceCents / 100).toFixed(2)
 
+  const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
+
+  // Session log state
+  const [sessions, setSessions] = useState<EngagementSession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [sessionsLoaded, setSessionsLoaded] = useState(false)
+  const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10))
+  const [logNotes, setLogNotes] = useState('')
+  const [logging, setLogging] = useState(false)
+
+  // Edit state
   const [editPrice, setEditPrice] = useState(priceDisplay)
-  const [editMeetings, setEditMeetings] = useState(totalCredits ? String(totalCredits) : '')
+  const [editMeetings, setEditMeetings] = useState(assignment.meeting_count ? String(assignment.meeting_count) : '')
   const [editSetupFee, setEditSetupFee] = useState(((assignment.setup_fee_cents ?? 0) / 100).toFixed(2))
+  const [editPeriod, setEditPeriod] = useState<AllocationPeriod>(period)
+  const [editNotes, setEditNotes] = useState(assignment.notes ?? '')
+  const [editEndsAt, setEditEndsAt] = useState(assignment.ends_at ? assignment.ends_at.slice(0, 10) : '')
+  const [editIndefinite, setEditIndefinite] = useState(!assignment.ends_at)
   const [saving, setSaving] = useState(false)
+
+  // Compute used from actual session logs (falls back to sessions_used if not loaded)
+  const used = sessionsLoaded ? sessions.length : assignment.sessions_used
+  const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
+  const remaining = Math.max(0, totalCredits - used)
 
   const allocatedColor = '#6366f1'
   const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e'
+
+  async function loadSessions() {
+    if (sessionsLoaded) return
+    setSessionsLoading(true)
+    try {
+      const { data } = await supabase
+        .from('engagement_sessions')
+        .select('*')
+        .eq('mentee_offering_id', assignment.id)
+        .order('session_date', { ascending: false })
+      setSessions((data ?? []) as EngagementSession[])
+      setSessionsLoaded(true)
+    } catch (err) {
+      console.error('[EngagementCard] loadSessions error:', err)
+    } finally {
+      setSessionsLoading(false)
+    }
+  }
+
+  async function handleExpand() {
+    if (!expanded) {
+      setExpanded(true)
+      loadSessions()
+    } else {
+      setExpanded(false)
+    }
+  }
+
+  async function logSession() {
+    if (!logDate) return
+    setLogging(true)
+    try {
+      const { data, error } = await supabase
+        .from('engagement_sessions')
+        .insert({
+          organization_id: profile.organization_id,
+          mentee_offering_id: assignment.id,
+          mentee_id: mentee.id,
+          logged_by: profile.id,
+          session_date: logDate,
+          notes: logNotes.trim() || null,
+        })
+        .select()
+        .single()
+
+      if (error) { console.error('[EngagementCard] logSession error:', error); return }
+
+      const newSession = data as EngagementSession
+      setSessions(prev => [newSession, ...prev])
+      setLogNotes('')
+      setLogDate(new Date().toISOString().slice(0, 10))
+
+      // Sync sessions_used on the mentee_offering
+      await supabase
+        .from('mentee_offerings')
+        .update({ sessions_used: sessions.length + 1 })
+        .eq('id', assignment.id)
+
+      await logAudit({
+        organization_id: profile.organization_id,
+        actor_id: profile.id,
+        action: 'created',
+        entity_type: 'mentee_offering',
+        entity_id: assignment.id,
+        details: { sub: 'session_logged', date: logDate, mentee: `${mentee.first_name} ${mentee.last_name}` },
+      })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLogging(false)
+    }
+  }
+
+  async function deleteSession(sessionId: string) {
+    const { error } = await supabase
+      .from('engagement_sessions')
+      .delete()
+      .eq('id', sessionId)
+    if (error) { console.error('[EngagementCard] deleteSession error:', error); return }
+    const updated = sessions.filter(s => s.id !== sessionId)
+    setSessions(updated)
+    // Sync sessions_used
+    await supabase
+      .from('mentee_offerings')
+      .update({ sessions_used: updated.length })
+      .eq('id', assignment.id)
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -708,6 +812,9 @@ function EngagementCard({ assignment, onUpdate }: { assignment: MenteeOfferingWi
       recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
       setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
       meeting_count: editMeetings ? parseInt(editMeetings) : null,
+      allocation_period: editPeriod,
+      notes: editNotes.trim() || null,
+      ends_at: editIndefinite ? null : (editEndsAt || null),
     })
     setSaving(false)
     setEditing(false)
@@ -717,100 +824,252 @@ function EngagementCard({ assignment, onUpdate }: { assignment: MenteeOfferingWi
   const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
   return (
-    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-3">
-        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
-          {offering?.name ?? 'Unknown engagement'}
-        </p>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!isCompleted && !editing && (
-            <button onClick={() => setEditing(true)} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
-              Edit
-            </button>
-          )}
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-            isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
-          }`}>
-            {isCompleted ? 'Completed' : 'Active'}
-          </span>
+    <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      {/* Summary header */}
+      <div className="px-4 py-3.5">
+        <div className="flex items-center justify-between mb-3">
+          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+            {offering?.name ?? 'Unknown engagement'}
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!isCompleted && (
+              <button onClick={handleExpand} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
+                {expanded ? 'Collapse' : 'Manage'}
+              </button>
+            )}
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+              isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
+            }`}>
+              {isCompleted ? 'Completed' : 'Active'}
+            </span>
+          </div>
+        </div>
+
+        {/* Credit donut charts */}
+        {totalCredits > 0 ? (
+          <div className="flex items-center gap-5">
+            <div className="flex flex-col items-center gap-1">
+              <div className="relative">
+                <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
+                </div>
+              </div>
+              <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <div className="relative">
+                <DonutChart value={used} total={totalCredits} color={usedColor} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
+                </div>
+              </div>
+              <p className="text-[10px] font-medium text-gray-500">Used</p>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+                {remaining} remaining
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {used} of {totalCredits} sessions used
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Unlimited sessions</p>
+        )}
+
+        {/* Summary footer */}
+        <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+          {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
+          {(assignment.setup_fee_cents ?? 0) > 0 && <span>${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)} setup</span>}
+          {assignment.assigned_at && <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>}
+          {assignment.ends_at && <span>Ends {new Date(assignment.ends_at).toLocaleDateString()}</span>}
+          {!assignment.ends_at && !isCompleted && <span>Indefinite</span>}
         </div>
       </div>
 
-      {editing ? (
-        <div className="space-y-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Recurring price</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)} className={inputClass} />
+      {/* Expanded management view */}
+      {expanded && (
+        <div className="border-t border-gray-200">
+          {/* Log a session */}
+          <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Log a Session</p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="block text-[10px] text-gray-500 mb-0.5">Date</label>
+                <input
+                  type="date"
+                  value={logDate}
+                  onChange={e => setLogDate(e.target.value)}
+                  className={numInputClass}
+                />
               </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Setup fee</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                <input type="number" step="0.01" min="0" value={editSetupFee} onChange={e => setEditSetupFee(e.target.value)} className={inputClass} />
+              <div className="flex-[2]">
+                <label className="block text-[10px] text-gray-500 mb-0.5">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={logNotes}
+                  onChange={e => setLogNotes(e.target.value)}
+                  placeholder="e.g., Covered resume review"
+                  className={numInputClass}
+                />
               </div>
+              <button
+                onClick={logSession}
+                disabled={logging || !logDate}
+                className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors shrink-0"
+              >
+                {logging ? '...' : '+ Log'}
+              </button>
             </div>
           </div>
-          <div>
-            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Sessions per cycle</label>
-            <input type="number" min="1" value={editMeetings} onChange={e => setEditMeetings(e.target.value)} placeholder="Unlimited" className={numInputClass + ' max-w-24'} />
-          </div>
-          <div className="flex items-center gap-2 pt-1">
-            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 transition-colors">
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {totalCredits > 0 ? (
-            <div className="flex items-center gap-5">
-              <div className="flex flex-col items-center gap-1">
-                <div className="relative">
-                  <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="relative">
-                  <DonutChart value={used} total={totalCredits} color={usedColor} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] font-medium text-gray-500">Used</p>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                  {remaining} remaining
-                </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {used} of {totalCredits} sessions used
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-gray-400">Unlimited sessions</p>
-          )}
 
-          {/* Pricing info */}
-          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
-            {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
-            {(assignment.setup_fee_cents ?? 0) > 0 && <span>${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)} setup</span>}
-            {assignment.assigned_at && (
-              <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+          {/* Session history */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
+              Session History ({sessionsLoaded ? sessions.length : assignment.sessions_used})
+            </p>
+            {sessionsLoading ? (
+              <p className="text-[10px] text-gray-400 py-2">Loading...</p>
+            ) : sessions.length === 0 ? (
+              <p className="text-[10px] text-gray-400 py-2">No sessions logged yet.</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {sessions.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 py-1 group">
+                    <span className="text-[10px] font-medium text-gray-600 tabular-nums w-20 shrink-0">
+                      {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    <span className="text-[10px] text-gray-500 flex-1 truncate">
+                      {s.notes || '—'}
+                    </span>
+                    <button
+                      onClick={() => deleteSession(s.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-400 hover:text-red-500 transition-all shrink-0"
+                      title="Remove session"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </>
+
+          {/* Settings */}
+          <div className="px-4 py-3">
+            {editing ? (
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Engagement Settings</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Recurring price</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                      <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Setup fee</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                      <input type="number" step="0.01" min="0" value={editSetupFee} onChange={e => setEditSetupFee(e.target.value)} className={inputClass} />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Sessions per cycle</label>
+                    <input type="number" min="1" value={editMeetings} onChange={e => setEditMeetings(e.target.value)} placeholder="Unlimited" className={numInputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Allocation period</label>
+                    <select
+                      value={editPeriod}
+                      onChange={e => setEditPeriod(e.target.value as AllocationPeriod)}
+                      className={numInputClass}
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="per_cycle">Per Cycle</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">End date</label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-[10px] text-gray-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editIndefinite}
+                        onChange={e => { setEditIndefinite(e.target.checked); if (e.target.checked) setEditEndsAt('') }}
+                        className="rounded border-gray-300 text-brand focus:ring-brand/20"
+                      />
+                      Runs indefinitely
+                    </label>
+                    {!editIndefinite && (
+                      <input
+                        type="date"
+                        value={editEndsAt}
+                        onChange={e => setEditEndsAt(e.target.value)}
+                        className={numInputClass + ' max-w-36'}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    placeholder="Internal notes about this mentee's engagement..."
+                    className={numInputClass + ' resize-none'}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
+                    {saving ? 'Saving...' : 'Save Settings'}
+                  </button>
+                  <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Settings</p>
+                  <button onClick={() => setEditing(true)} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Price</span>
+                    <span className="text-gray-700 font-medium">{priceCents > 0 ? `$${priceDisplay}${periodLabel}` : 'Free'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Setup fee</span>
+                    <span className="text-gray-700 font-medium">{(assignment.setup_fee_cents ?? 0) > 0 ? `$${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)}` : 'None'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Sessions</span>
+                    <span className="text-gray-700 font-medium">{totalCredits > 0 ? `${totalCredits} / ${editPeriod === 'monthly' ? 'month' : editPeriod === 'weekly' ? 'week' : 'cycle'}` : 'Unlimited'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Ends</span>
+                    <span className="text-gray-700 font-medium">{assignment.ends_at ? new Date(assignment.ends_at).toLocaleDateString() : 'Indefinite'}</span>
+                  </div>
+                </div>
+                {assignment.notes && (
+                  <p className="mt-2 text-[10px] text-gray-500 italic">{assignment.notes}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

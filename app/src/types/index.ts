@@ -146,11 +146,23 @@ export interface MenteeOffering {
   meeting_count: number | null
   allocation_period: AllocationPeriod | null
   notes: string | null
+  ends_at: string | null
   assigned_at: string
   started_at: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface EngagementSession {
+  id: string
+  organization_id: string
+  mentee_offering_id: string
+  mentee_id: string
+  logged_by: string | null
+  session_date: string
+  notes: string | null
+  created_at: string
 }
 
 export type QuestionType = 'quiz' | 'response'
