@@ -232,7 +232,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       .from('mentee_offerings')
       .update(updates)
       .eq('id', assignmentId)
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { setMsg({ type: 'error', text: error.message }); throw new Error(error.message) }
     setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, ...updates } as MenteeOfferingWithDetails : a))
     setMsg({ type: 'success', text: 'Updated.' })
   }

@@ -94,18 +94,23 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
   async function handleSave() {
     setSaving(true)
     setMsg(null)
-    const endsAtValue = editIndefinite ? null : (editEndsAt ? new Date(editEndsAt + 'T23:59:59Z').toISOString() : null)
-    await onUpdate(assignment.id, {
-      recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
-      setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
-      meeting_count: editMeetings ? parseInt(editMeetings) : null,
-      allocation_period: editPeriod,
-      notes: editNotes.trim() || null,
-      ends_at: endsAtValue,
-    })
-    setSaving(false)
-    setEditing(false)
-    setMsg({ type: 'success', text: 'Settings saved.' })
+    try {
+      const endsAtValue = editIndefinite ? null : (editEndsAt ? new Date(editEndsAt + 'T23:59:59Z').toISOString() : null)
+      await onUpdate(assignment.id, {
+        recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
+        setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
+        meeting_count: editMeetings ? parseInt(editMeetings) : null,
+        allocation_period: editPeriod,
+        notes: editNotes.trim() || null,
+        ends_at: endsAtValue,
+      })
+      setEditing(false)
+      setMsg({ type: 'success', text: 'Settings saved.' })
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Failed to save settings.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function logSession() {
