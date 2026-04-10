@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { computeCredits } from '../lib/credits'
 import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 
 interface Props {
@@ -712,6 +713,8 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   const [sessions, setSessions] = useState<EngagementSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionsLoaded, setSessionsLoaded] = useState(false)
+  const [engMeetings, setEngMeetings] = useState<Meeting[]>([])
+  const [engMeetingsLoaded, setEngMeetingsLoaded] = useState(false)
   const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10))
   const [logNotes, setLogNotes] = useState('')
   const [logging, setLogging] = useState(false)
@@ -737,19 +740,20 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   const [editIndefinite, setEditIndefinite] = useState(!assignment.ends_at)
   const [saving, setSaving] = useState(false)
 
-  // Compute used from actual session logs (falls back to sessions_used if not loaded)
-  const used = sessionsLoaded ? sessions.length : assignment.sessions_used
+  // Compute credits from meetings (sessions that ended count as used)
   const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
-  const remaining = Math.max(0, totalCredits - used)
+  const credits = computeCredits(engMeetings, totalCredits)
+  const used = engMeetingsLoaded ? credits.used : assignment.sessions_used
+  const remaining = totalCredits > 0 ? Math.max(0, totalCredits - used) : null
 
   const allocatedColor = '#6366f1'
-  const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e'
+  const usedColor = isCompleted ? '#4ade80' : (remaining !== null && remaining <= 1) ? '#f59e0b' : '#f43f5e'
 
   async function loadExpandedData() {
-    if (sessionsLoaded && invoicesLoaded) return
+    if (sessionsLoaded && invoicesLoaded && engMeetingsLoaded) return
     setSessionsLoading(true)
     try {
-      const [sessionsRes, invoicesRes] = await Promise.all([
+      const [sessionsRes, invoicesRes, meetingsRes] = await Promise.all([
         sessionsLoaded ? Promise.resolve({ data: sessions }) :
           supabase
             .from('engagement_sessions')
@@ -762,6 +766,12 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
             .select('*')
             .eq('mentee_offering_id', assignment.id)
             .order('created_at', { ascending: false }),
+        engMeetingsLoaded ? Promise.resolve({ data: engMeetings }) :
+          supabase
+            .from('meetings')
+            .select('*')
+            .eq('mentee_offering_id', assignment.id)
+            .order('starts_at', { ascending: false }),
       ])
       if (!sessionsLoaded) {
         setSessions((sessionsRes.data ?? []) as EngagementSession[])
@@ -770,6 +780,10 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
       if (!invoicesLoaded) {
         setInvoices((invoicesRes.data ?? []) as Invoice[])
         setInvoicesLoaded(true)
+      }
+      if (!engMeetingsLoaded) {
+        setEngMeetings((meetingsRes.data ?? []) as Meeting[])
+        setEngMeetingsLoaded(true)
       }
     } catch (err) {
       console.error('[EngagementCard] loadExpandedData error:', err)
@@ -993,16 +1007,21 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
               <p className="text-[10px] font-medium text-gray-500">Used</p>
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                {remaining} remaining
+              <p className={`text-sm font-semibold ${(remaining !== null && remaining <= 1) && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+                {remaining ?? '∞'} remaining
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">
-                {used} of {totalCredits} sessions used
+                {used} of {totalCredits} sessions completed
               </p>
+              {engMeetingsLoaded && credits.reserved > 0 && (
+                <p className="text-[10px] text-blue-500 mt-0.5">
+                  {credits.reserved} upcoming
+                </p>
+              )}
             </div>
           </div>
         ) : (
-          <p className="text-xs text-gray-400">Unlimited sessions</p>
+          <p className="text-xs text-gray-400">Unlimited sessions — {used} completed</p>
         )}
 
         {/* Summary footer */}
@@ -1406,20 +1425,7 @@ function MeetingScheduler({ assignment, profile, mentee }: { assignment: MenteeO
       const durationMs = new Date(endsAt).getTime() - new Date(startsAt).getTime()
       const durationMinutes = Math.round(durationMs / 60000)
 
-      // Auto-create session record (deduct credit)
-      const { data: sessionData } = await supabase
-        .from('engagement_sessions')
-        .insert({
-          organization_id: profile.organization_id,
-          mentee_offering_id: assignment.id,
-          mentee_id: mentee.id,
-          logged_by: profile.id,
-          session_date: selectedDate,
-          notes: meetingTitle.trim() || 'Scheduled meeting',
-        })
-        .select()
-        .single()
-
+      // Create the meeting — credits are consumed when the meeting ends, not at booking
       const { data: meetingData } = await supabase
         .from('meetings')
         .insert({
@@ -1427,7 +1433,6 @@ function MeetingScheduler({ assignment, profile, mentee }: { assignment: MenteeO
           mentee_offering_id: assignment.id,
           mentee_id: mentee.id,
           mentor_id: profile.id,
-          engagement_session_id: sessionData?.id ?? null,
           title: meetingTitle.trim() || `Meeting with ${mentee.first_name}`,
           starts_at: startsAt,
           ends_at: endsAt,

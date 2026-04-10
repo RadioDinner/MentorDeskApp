@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { computeCredits } from '../lib/credits'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule } from '../types'
 
 interface MentorInfo { id: string; first_name: string; last_name: string }
@@ -107,22 +108,7 @@ export default function MenteeEngagementDetailPage() {
       const durationMinutes = Math.round(durationMs / 60000)
 
       // Create engagement_session record (auto-deduct credit)
-      const { data: sessionData, error: sessionErr } = await supabase
-        .from('engagement_sessions')
-        .insert({
-          organization_id: orgId,
-          mentee_offering_id: mo.id,
-          mentee_id: menteeId,
-          logged_by: null, // self-scheduled by mentee
-          session_date: selectedDate,
-          notes: meetingTitle.trim() || 'Scheduled session',
-        })
-        .select()
-        .single()
-
-      if (sessionErr) { setMsg({ type: 'error', text: sessionErr.message }); return }
-
-      // Create the meeting
+      // Create the meeting — credits are consumed when the meeting ends, not at booking
       const { data: meetingData, error: meetingErr } = await supabase
         .from('meetings')
         .insert({
@@ -130,7 +116,6 @@ export default function MenteeEngagementDetailPage() {
           mentee_offering_id: mo.id,
           mentee_id: menteeId,
           mentor_id: mentor.id,
-          engagement_session_id: sessionData?.id ?? null,
           title: meetingTitle.trim() || `Session with ${mentor.first_name}`,
           starts_at: startsAt,
           ends_at: endsAt,
@@ -142,15 +127,7 @@ export default function MenteeEngagementDetailPage() {
 
       if (meetingErr) { setMsg({ type: 'error', text: meetingErr.message }); return }
 
-      // Sync sessions_used
-      const newCount = sessions.length + 1
-      await supabase
-        .from('mentee_offerings')
-        .update({ sessions_used: newCount })
-        .eq('id', mo.id)
-
       setMeetings(prev => [meetingData as Meeting, ...prev])
-      setSessions(prev => [sessionData as EngagementSession, ...prev])
       setShowScheduler(false)
       setSelectedDate('')
       setSelectedStart('')
@@ -192,14 +169,13 @@ export default function MenteeEngagementDetailPage() {
 
   const offering = mo.offering
   const totalCredits = mo.meeting_count ?? offering?.meeting_count ?? 0
-  const used = sessions.length
-  const remaining = Math.max(0, totalCredits - used)
+  const credits = computeCredits(meetings, totalCredits)
   const isCompleted = mo.status === 'completed'
   const period = mo.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
   const periodLabel = period === 'monthly' ? '/month' : period === 'weekly' ? '/week' : '/cycle'
 
-  const upcomingMeetings = meetings.filter(m => m.status === 'scheduled' && new Date(m.starts_at) >= new Date())
-  const pastMeetings = meetings.filter(m => m.status !== 'scheduled' || new Date(m.starts_at) < new Date())
+  const upcomingMeetings = credits.upcomingMeetings
+  const pastMeetings = meetings.filter(m => new Date(m.ends_at) <= new Date() || m.status === 'cancelled')
 
   // Generate next 14 days for date picker
   const dateOptions: string[] = []
@@ -247,26 +223,34 @@ export default function MenteeEngagementDetailPage() {
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">{used} used</span>
-                <span className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                  {remaining} remaining
+                <span className="text-sm text-gray-600">{credits.used} used</span>
+                <span className={`text-sm font-semibold ${(credits.remaining ?? 0) <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+                  {credits.remaining} remaining
                 </span>
               </div>
               <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : remaining <= 1 ? 'bg-amber-400' : 'bg-brand'}`}
-                  style={{ width: `${totalCredits > 0 ? Math.round((used / totalCredits) * 100) : 0}%` }}
+                  className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : (credits.remaining ?? 0) <= 1 ? 'bg-amber-400' : 'bg-brand'}`}
+                  style={{ width: `${totalCredits > 0 ? Math.round((credits.used / totalCredits) * 100) : 0}%` }}
                 />
               </div>
+              {credits.reserved > 0 && (
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  {credits.reserved} upcoming meeting{credits.reserved !== 1 ? 's' : ''} scheduled
+                  {credits.availableToBook !== null && credits.availableToBook > 0 && (
+                    <> · {credits.availableToBook} credit{credits.availableToBook !== 1 ? 's' : ''} available to book</>
+                  )}
+                </p>
+              )}
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">Unlimited sessions — {used} used so far</p>
+          <p className="text-sm text-gray-500">Unlimited sessions — {credits.used} completed so far</p>
         )}
       </div>
 
       {/* Schedule a meeting */}
-      {!isCompleted && (remaining > 0 || totalCredits === 0) && mentor && (
+      {!isCompleted && ((credits.availableToBook !== null ? credits.availableToBook > 0 : true) || totalCredits === 0) && mentor && (
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Schedule a Meeting</h2>
