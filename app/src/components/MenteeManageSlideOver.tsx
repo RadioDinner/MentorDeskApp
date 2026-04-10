@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import { computeCredits } from '../lib/credits'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
+import EngagementManageModal from './EngagementManageModal'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -30,6 +30,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
+  const [managingEngagementId, setManagingEngagementId] = useState<string | null>(null)
 
   // Close on Escape
   useEffect(() => {
@@ -206,6 +207,23 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           currency: template?.currency ?? 'USD',
           line_description: `Setup fee — ${offering?.name ?? 'Engagement'}`,
           due_date: new Date().toISOString().slice(0, 10),
+        })
+      }
+
+      // Auto-send first recurring invoice if engagement template has auto_send_invoice
+      const recurringPrice = template?.recurring_price_cents ?? 0
+      if (template?.auto_send_invoice && recurringPrice > 0 && insertedId && offering?.type === 'engagement') {
+        const startDate = new Date().toISOString().slice(0, 10)
+        const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+        await supabase.from('invoices').insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          mentee_offering_id: insertedId,
+          status: 'sent',
+          amount_cents: recurringPrice,
+          currency: template?.currency ?? 'USD',
+          line_description: `${offering?.name ?? 'Engagement'} — ${new Date(startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
+          due_date: dueDate,
         })
       }
     } catch (err) {
@@ -408,13 +426,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} />)}
+                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} onManage={() => setManagingEngagementId(a.id)} />)}
                         {completedEngagements.length > 0 && activeEngagements.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} />)}
+                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} onManage={() => setManagingEngagementId(a.id)} />)}
                       </div>
                     )}
                   </div>
@@ -423,34 +441,26 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
             </>
           )}
         </div>
+
+        {/* Engagement management modal */}
+        {managingEngagementId && (() => {
+          const eng = assignments.find(a => a.id === managingEngagementId)
+          if (!eng) return null
+          return (
+            <EngagementManageModal
+              assignment={eng}
+              profile={profile}
+              mentee={mentee}
+              onClose={() => setManagingEngagementId(null)}
+              onUpdate={updateAssignment}
+            />
+          )
+        })()}
     </div>
   )
 }
 
 // ── Sub-components ──
-
-function DonutChart({ value, total, color, size = 56 }: { value: number; total: number; color: string; size?: number }) {
-  const strokeWidth = 6
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const pct = total > 0 ? Math.min(value / total, 1) : 0
-  const offset = circumference * (1 - pct)
-
-  return (
-    <svg width={size} height={size} className="shrink-0 -rotate-90">
-      {/* Background track */}
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f3f4f6" strokeWidth={strokeWidth} />
-      {/* Filled arc */}
-      <circle
-        cx={size / 2} cy={size / 2} r={radius} fill="none"
-        stroke={color} strokeWidth={strokeWidth}
-        strokeDasharray={circumference} strokeDashoffset={offset}
-        strokeLinecap="round"
-        className="transition-all duration-500"
-      />
-    </svg>
-  )
-}
 
 function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   const offering = assignment.offering
@@ -698,7 +708,7 @@ function LessonDetailRow({
   )
 }
 
-function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void>; profile: StaffMember; mentee: Mentee }) {
+function EngagementCard({ assignment, onManage }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void>; profile: StaffMember; mentee: Mentee; onManage: () => void }) {
   const offering = assignment.offering
   const isCompleted = assignment.status === 'completed'
   const period = assignment.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
@@ -706,842 +716,56 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   const priceCents = assignment.recurring_price_cents ?? offering?.recurring_price_cents ?? 0
   const priceDisplay = (priceCents / 100).toFixed(2)
 
-  const [expanded, setExpanded] = useState(false)
-  const [editing, setEditing] = useState(false)
-
-  // Session log state
-  const [sessions, setSessions] = useState<EngagementSession[]>([])
-  const [sessionsLoading, setSessionsLoading] = useState(false)
-  const [sessionsLoaded, setSessionsLoaded] = useState(false)
-  const [engMeetings, setEngMeetings] = useState<Meeting[]>([])
-  const [engMeetingsLoaded, setEngMeetingsLoaded] = useState(false)
-  const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10))
-  const [logNotes, setLogNotes] = useState('')
-  const [logging, setLogging] = useState(false)
-
-  // Invoice state
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [invoicesLoaded, setInvoicesLoaded] = useState(false)
-  const [creatingInvoice, setCreatingInvoice] = useState(false)
-  const [newInvoiceAmount, setNewInvoiceAmount] = useState(priceCents > 0 ? priceDisplay : '')
-  const [newInvoiceDesc, setNewInvoiceDesc] = useState('')
-  const [newInvoiceDue, setNewInvoiceDue] = useState('')
-  const [showCreateInvoice, setShowCreateInvoice] = useState(false)
-  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
-  const [editInvoiceAmount, setEditInvoiceAmount] = useState('')
-
-  // Edit state
-  const [editPrice, setEditPrice] = useState(priceDisplay)
-  const [editMeetings, setEditMeetings] = useState(assignment.meeting_count ? String(assignment.meeting_count) : '')
-  const [editSetupFee, setEditSetupFee] = useState(((assignment.setup_fee_cents ?? 0) / 100).toFixed(2))
-  const [editPeriod, setEditPeriod] = useState<AllocationPeriod>(period)
-  const [editNotes, setEditNotes] = useState(assignment.notes ?? '')
-  const [editEndsAt, setEditEndsAt] = useState(assignment.ends_at ? assignment.ends_at.slice(0, 10) : '')
-  const [editIndefinite, setEditIndefinite] = useState(!assignment.ends_at)
-  const [saving, setSaving] = useState(false)
-
-  // Compute credits from meetings (sessions that ended count as used)
   const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
-  const credits = computeCredits(engMeetings, totalCredits)
-  const used = engMeetingsLoaded ? credits.used : assignment.sessions_used
+  const used = assignment.sessions_used
   const remaining = totalCredits > 0 ? Math.max(0, totalCredits - used) : null
 
-  const allocatedColor = '#6366f1'
-  const usedColor = isCompleted ? '#4ade80' : (remaining !== null && remaining <= 1) ? '#f59e0b' : '#f43f5e'
-
-  async function loadExpandedData() {
-    if (sessionsLoaded && invoicesLoaded && engMeetingsLoaded) return
-    setSessionsLoading(true)
-    try {
-      const [sessionsRes, invoicesRes, meetingsRes] = await Promise.all([
-        sessionsLoaded ? Promise.resolve({ data: sessions }) :
-          supabase
-            .from('engagement_sessions')
-            .select('*')
-            .eq('mentee_offering_id', assignment.id)
-            .order('session_date', { ascending: false }),
-        invoicesLoaded ? Promise.resolve({ data: invoices }) :
-          supabase
-            .from('invoices')
-            .select('*')
-            .eq('mentee_offering_id', assignment.id)
-            .order('created_at', { ascending: false }),
-        engMeetingsLoaded ? Promise.resolve({ data: engMeetings }) :
-          supabase
-            .from('meetings')
-            .select('*')
-            .eq('mentee_offering_id', assignment.id)
-            .order('starts_at', { ascending: false }),
-      ])
-      if (!sessionsLoaded) {
-        setSessions((sessionsRes.data ?? []) as EngagementSession[])
-        setSessionsLoaded(true)
-      }
-      if (!invoicesLoaded) {
-        setInvoices((invoicesRes.data ?? []) as Invoice[])
-        setInvoicesLoaded(true)
-      }
-      if (!engMeetingsLoaded) {
-        setEngMeetings((meetingsRes.data ?? []) as Meeting[])
-        setEngMeetingsLoaded(true)
-      }
-    } catch (err) {
-      console.error('[EngagementCard] loadExpandedData error:', err)
-    } finally {
-      setSessionsLoading(false)
-    }
-  }
-
-  async function handleExpand() {
-    if (!expanded) {
-      setExpanded(true)
-      loadExpandedData()
-    } else {
-      setExpanded(false)
-    }
-  }
-
-  async function logSession() {
-    if (!logDate) return
-    setLogging(true)
-    try {
-      const { data, error } = await supabase
-        .from('engagement_sessions')
-        .insert({
-          organization_id: profile.organization_id,
-          mentee_offering_id: assignment.id,
-          mentee_id: mentee.id,
-          logged_by: profile.id,
-          session_date: logDate,
-          notes: logNotes.trim() || null,
-        })
-        .select()
-        .single()
-
-      if (error) { console.error('[EngagementCard] logSession error:', error); return }
-
-      const newSession = data as EngagementSession
-      setSessions(prev => [newSession, ...prev])
-      setLogNotes('')
-      setLogDate(new Date().toISOString().slice(0, 10))
-
-      // Sync sessions_used on the mentee_offering
-      await supabase
-        .from('mentee_offerings')
-        .update({ sessions_used: sessions.length + 1 })
-        .eq('id', assignment.id)
-
-      await logAudit({
-        organization_id: profile.organization_id,
-        actor_id: profile.id,
-        action: 'created',
-        entity_type: 'mentee_offering',
-        entity_id: assignment.id,
-        details: { sub: 'session_logged', date: logDate, mentee: `${mentee.first_name} ${mentee.last_name}` },
-      })
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLogging(false)
-    }
-  }
-
-  async function deleteSession(sessionId: string) {
-    const { error } = await supabase
-      .from('engagement_sessions')
-      .delete()
-      .eq('id', sessionId)
-    if (error) { console.error('[EngagementCard] deleteSession error:', error); return }
-    const updated = sessions.filter(s => s.id !== sessionId)
-    setSessions(updated)
-    // Sync sessions_used
-    await supabase
-      .from('mentee_offerings')
-      .update({ sessions_used: updated.length })
-      .eq('id', assignment.id)
-  }
-
-  async function handleSave() {
-    setSaving(true)
-    await onUpdate(assignment.id, {
-      recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
-      setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
-      meeting_count: editMeetings ? parseInt(editMeetings) : null,
-      allocation_period: editPeriod,
-      notes: editNotes.trim() || null,
-      ends_at: editIndefinite ? null : (editEndsAt || null),
-    })
-    setSaving(false)
-    setEditing(false)
-  }
-
-  // Invoice functions
-  async function createInvoice() {
-    if (!newInvoiceAmount) return
-    setCreatingInvoice(true)
-    try {
-      const amountCents = Math.round(parseFloat(newInvoiceAmount) * 100)
-      const { data, error } = await supabase
-        .from('invoices')
-        .insert({
-          organization_id: profile.organization_id,
-          mentee_id: mentee.id,
-          mentee_offering_id: assignment.id,
-          status: 'draft' as InvoiceStatus,
-          amount_cents: amountCents,
-          currency: offering?.currency ?? 'USD',
-          line_description: newInvoiceDesc.trim() || `${offering?.name ?? 'Engagement'}${periodLabel ? ` ${periodLabel.trim()}` : ''}`,
-          due_date: newInvoiceDue || null,
-        })
-        .select()
-        .single()
-
-      if (error) { console.error('[EngagementCard] createInvoice error:', error); return }
-      setInvoices(prev => [data as Invoice, ...prev])
-      setShowCreateInvoice(false)
-      setNewInvoiceAmount(priceCents > 0 ? priceDisplay : '')
-      setNewInvoiceDesc('')
-      setNewInvoiceDue('')
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setCreatingInvoice(false)
-    }
-  }
-
-  async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
-    const updates: Record<string, unknown> = { status }
-    if (status === 'paid') updates.paid_at = new Date().toISOString()
-    if (status !== 'paid') updates.paid_at = null
-
-    const { error } = await supabase.from('invoices').update(updates).eq('id', invoiceId)
-    if (error) { console.error('[EngagementCard] updateInvoiceStatus error:', error); return }
-    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, ...updates } as Invoice : inv))
-  }
-
-  async function saveInvoiceAmount(invoiceId: string) {
-    const amountCents = Math.round(parseFloat(editInvoiceAmount) * 100)
-    const { error } = await supabase.from('invoices').update({ amount_cents: amountCents }).eq('id', invoiceId)
-    if (error) { console.error('[EngagementCard] saveInvoiceAmount error:', error); return }
-    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, amount_cents: amountCents } : inv))
-    setEditingInvoiceId(null)
-  }
-
-  // Compute projected upcoming invoices
-  function getProjectedInvoices(): { date: string; amount: number }[] {
-    if (priceCents <= 0 || isCompleted) return []
-    const projections: { date: string; amount: number }[] = []
-    const startDate = new Date(assignment.assigned_at)
-    const endDate = assignment.ends_at ? new Date(assignment.ends_at) : null
-    const now = new Date()
-
-    // Determine billing interval in days
-    const intervalDays = period === 'weekly' ? 7 : period === 'monthly' ? 30 : 30
-
-    // Find next billing dates (up to 6 upcoming)
-    let cursor = new Date(startDate)
-    // Move cursor forward by interval until we're past the current date
-    while (cursor <= now) {
-      cursor = new Date(cursor.getTime() + intervalDays * 86400000)
-    }
-
-    // Exclude dates that already have invoices
-    const existingDates = new Set(invoices.map(inv => inv.due_date?.slice(0, 7)))
-
-    for (let i = 0; i < 6; i++) {
-      if (endDate && cursor > endDate) break
-      const dateStr = cursor.toISOString().slice(0, 10)
-      const monthKey = dateStr.slice(0, 7)
-      if (!existingDates.has(monthKey)) {
-        projections.push({ date: dateStr, amount: priceCents })
-      }
-      cursor = new Date(cursor.getTime() + intervalDays * 86400000)
-    }
-    return projections
-  }
-
-  const inputClass = 'w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
-  const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
-
+  // Summary card — click "Manage" to open full modal
   return (
     <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      {/* Summary header */}
       <div className="px-4 py-3.5">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
             {offering?.name ?? 'Unknown engagement'}
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             {!isCompleted && (
-              <button onClick={handleExpand} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
-                {expanded ? 'Collapse' : 'Manage'}
+              <button onClick={onManage} className="text-[10px] font-medium text-brand hover:text-brand-hover transition-colors">
+                Manage
               </button>
             )}
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-              isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
-            }`}>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
               {isCompleted ? 'Completed' : 'Active'}
             </span>
           </div>
         </div>
 
-        {/* Credit donut charts */}
         {totalCredits > 0 ? (
-          <div className="flex items-center gap-5">
-            <div className="flex flex-col items-center gap-1">
-              <div className="relative">
-                <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
-                </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-gray-500">{used} of {totalCredits} sessions</span>
+                <span className={`text-[11px] font-medium ${(remaining !== null && remaining <= 1) && !isCompleted ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {remaining} remaining
+                </span>
               </div>
-              <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="relative">
-                <DonutChart value={used} total={totalCredits} color={usedColor} />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
-                </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : (remaining !== null && remaining <= 1) ? 'bg-amber-400' : 'bg-brand'}`}
+                  style={{ width: `${totalCredits > 0 ? Math.round((used / totalCredits) * 100) : 0}%` }} />
               </div>
-              <p className="text-[10px] font-medium text-gray-500">Used</p>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${(remaining !== null && remaining <= 1) && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                {remaining ?? '∞'} remaining
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                {used} of {totalCredits} sessions completed
-              </p>
-              {engMeetingsLoaded && credits.reserved > 0 && (
-                <p className="text-[10px] text-blue-500 mt-0.5">
-                  {credits.reserved} upcoming
-                </p>
-              )}
             </div>
           </div>
         ) : (
-          <p className="text-xs text-gray-400">Unlimited sessions — {used} completed</p>
+          <p className="text-xs text-gray-400">Unlimited sessions · {used} completed</p>
         )}
 
-        {/* Summary footer */}
-        <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
           {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
-          {(assignment.setup_fee_cents ?? 0) > 0 && <span>${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)} setup</span>}
           {assignment.assigned_at && <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>}
-          {assignment.ends_at && <span>Ends {new Date(assignment.ends_at).toLocaleDateString()}</span>}
-          {!assignment.ends_at && !isCompleted && <span>Indefinite</span>}
+          {assignment.ends_at ? <span>Ends {new Date(assignment.ends_at).toLocaleDateString()}</span> : !isCompleted && <span>Indefinite</span>}
         </div>
       </div>
-
-      {/* Expanded management view */}
-      {expanded && (
-        <div className="border-t border-gray-200">
-          {/* Log a session */}
-          <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Log a Session</p>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <label className="block text-[10px] text-gray-500 mb-0.5">Date</label>
-                <input
-                  type="date"
-                  value={logDate}
-                  onChange={e => setLogDate(e.target.value)}
-                  className={numInputClass}
-                />
-              </div>
-              <div className="flex-[2]">
-                <label className="block text-[10px] text-gray-500 mb-0.5">Notes (optional)</label>
-                <input
-                  type="text"
-                  value={logNotes}
-                  onChange={e => setLogNotes(e.target.value)}
-                  placeholder="e.g., Covered resume review"
-                  className={numInputClass}
-                />
-              </div>
-              <button
-                onClick={logSession}
-                disabled={logging || !logDate}
-                className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors shrink-0"
-              >
-                {logging ? '...' : '+ Log'}
-              </button>
-            </div>
-          </div>
-
-          {/* Session history */}
-          <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
-              Session History ({sessionsLoaded ? sessions.length : assignment.sessions_used})
-            </p>
-            {sessionsLoading ? (
-              <p className="text-[10px] text-gray-400 py-2">Loading...</p>
-            ) : sessions.length === 0 ? (
-              <p className="text-[10px] text-gray-400 py-2">No sessions logged yet.</p>
-            ) : (
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {sessions.map(s => (
-                  <div key={s.id} className="flex items-center gap-2 py-1 group">
-                    <span className="text-[10px] font-medium text-gray-600 tabular-nums w-20 shrink-0">
-                      {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                    <span className="text-[10px] text-gray-500 flex-1 truncate">
-                      {s.notes || '—'}
-                    </span>
-                    <button
-                      onClick={() => deleteSession(s.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-400 hover:text-red-500 transition-all shrink-0"
-                      title="Remove session"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Schedule a meeting */}
-          <MeetingScheduler
-            assignment={assignment}
-            profile={profile}
-            mentee={mentee}
-          />
-
-          {/* Invoices */}
-          <div className="px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Invoices ({invoices.length})
-              </p>
-              <button
-                onClick={() => { setShowCreateInvoice(!showCreateInvoice); setNewInvoiceAmount(priceCents > 0 ? priceDisplay : ''); setNewInvoiceDesc(''); setNewInvoiceDue('') }}
-                className="text-[10px] text-brand hover:text-brand-hover transition-colors"
-              >
-                {showCreateInvoice ? 'Cancel' : '+ Create'}
-              </button>
-            </div>
-
-            {/* Create invoice form */}
-            {showCreateInvoice && (
-              <div className="mb-3 p-2.5 rounded border border-brand/20 bg-brand-light/30">
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="block text-[10px] text-gray-500 mb-0.5">Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                      <input type="number" step="0.01" min="0" value={newInvoiceAmount} onChange={e => setNewInvoiceAmount(e.target.value)} className={inputClass} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-gray-500 mb-0.5">Due date</label>
-                    <input type="date" value={newInvoiceDue} onChange={e => setNewInvoiceDue(e.target.value)} className={numInputClass} />
-                  </div>
-                </div>
-                <div className="mb-2">
-                  <label className="block text-[10px] text-gray-500 mb-0.5">Description</label>
-                  <input type="text" value={newInvoiceDesc} onChange={e => setNewInvoiceDesc(e.target.value)} placeholder={`${offering?.name ?? 'Engagement'}${periodLabel ? ` ${periodLabel.trim()}` : ''}`} className={numInputClass} />
-                </div>
-                <button
-                  onClick={createInvoice}
-                  disabled={creatingInvoice || !newInvoiceAmount}
-                  className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                >
-                  {creatingInvoice ? 'Creating...' : 'Create Draft Invoice'}
-                </button>
-              </div>
-            )}
-
-            {/* Existing invoices */}
-            {invoices.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {invoices.map(inv => {
-                  const statusColors: Record<string, string> = {
-                    draft: 'bg-gray-100 text-gray-500',
-                    sent: 'bg-blue-50 text-blue-600',
-                    paid: 'bg-green-50 text-green-600',
-                    overdue: 'bg-red-50 text-red-600',
-                    cancelled: 'bg-gray-100 text-gray-400',
-                  }
-                  const isEditing = editingInvoiceId === inv.id
-                  return (
-                    <div key={inv.id} className="flex items-center gap-2 py-1.5 px-2 rounded border border-gray-100 bg-white">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          {isEditing ? (
-                            <div className="relative w-20">
-                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-400">$</span>
-                              <input
-                                type="number" step="0.01" min="0"
-                                value={editInvoiceAmount}
-                                onChange={e => setEditInvoiceAmount(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') saveInvoiceAmount(inv.id); if (e.key === 'Escape') setEditingInvoiceId(null) }}
-                                className="w-full rounded border border-gray-300 pl-4 pr-1 py-0.5 text-[10px] text-gray-900 outline-none focus:border-brand"
-                                autoFocus
-                              />
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setEditingInvoiceId(inv.id); setEditInvoiceAmount((inv.amount_cents / 100).toFixed(2)) }}
-                              className="text-xs font-semibold text-gray-900 tabular-nums hover:text-brand transition-colors"
-                              title="Click to edit amount"
-                            >
-                              ${(inv.amount_cents / 100).toFixed(2)}
-                            </button>
-                          )}
-                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded capitalize ${statusColors[inv.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                            {inv.status}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                          {inv.line_description ?? 'Invoice'}
-                          {inv.due_date && ` · Due ${new Date(inv.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                          {inv.paid_at && ` · Paid ${new Date(inv.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isEditing ? (
-                          <>
-                            <button onClick={() => saveInvoiceAmount(inv.id)} className="text-[9px] text-brand hover:text-brand-hover">Save</button>
-                            <button onClick={() => setEditingInvoiceId(null)} className="text-[9px] text-gray-400">Cancel</button>
-                          </>
-                        ) : (
-                          <select
-                            value={inv.status}
-                            onChange={e => updateInvoiceStatus(inv.id, e.target.value as InvoiceStatus)}
-                            className="text-[9px] border border-gray-200 rounded px-1 py-0.5 text-gray-600 outline-none focus:border-brand bg-white"
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="sent">Sent</option>
-                            <option value="paid">Paid</option>
-                            <option value="overdue">Overdue</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Projected upcoming invoices */}
-            {(() => {
-              const projections = getProjectedInvoices()
-              if (projections.length === 0) return null
-              return (
-                <div>
-                  <p className="text-[9px] font-medium text-gray-400 uppercase tracking-wider mb-1 mt-2">Upcoming (projected)</p>
-                  <div className="space-y-0.5">
-                    {projections.map((p, i) => (
-                      <div key={i} className="flex items-center justify-between py-1 px-2 text-[10px]">
-                        <span className="text-gray-400">
-                          {new Date(p.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                        <span className="text-gray-500 tabular-nums">${(p.amount / 100).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {invoices.length === 0 && priceCents <= 0 && (
-              <p className="text-[10px] text-gray-400 py-1">No invoices.</p>
-            )}
-          </div>
-
-          {/* Settings */}
-          <div className="px-4 py-3">
-            {editing ? (
-              <div className="space-y-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Engagement Settings</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Recurring price</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                      <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)} className={inputClass} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Setup fee</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                      <input type="number" step="0.01" min="0" value={editSetupFee} onChange={e => setEditSetupFee(e.target.value)} className={inputClass} />
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Sessions per cycle</label>
-                    <input type="number" min="1" value={editMeetings} onChange={e => setEditMeetings(e.target.value)} placeholder="Unlimited" className={numInputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Allocation period</label>
-                    <select
-                      value={editPeriod}
-                      onChange={e => setEditPeriod(e.target.value as AllocationPeriod)}
-                      className={numInputClass}
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="per_cycle">Per Cycle</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">End date</label>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-[10px] text-gray-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editIndefinite}
-                        onChange={e => { setEditIndefinite(e.target.checked); if (e.target.checked) setEditEndsAt('') }}
-                        className="rounded border-gray-300 text-brand focus:ring-brand/20"
-                      />
-                      Runs indefinitely
-                    </label>
-                    {!editIndefinite && (
-                      <input
-                        type="date"
-                        value={editEndsAt}
-                        onChange={e => setEditEndsAt(e.target.value)}
-                        className={numInputClass + ' max-w-36'}
-                      />
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Notes</label>
-                  <textarea
-                    rows={2}
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    placeholder="Internal notes about this mentee's engagement..."
-                    className={numInputClass + ' resize-none'}
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
-                    {saving ? 'Saving...' : 'Save Settings'}
-                  </button>
-                  <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 transition-colors">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Settings</p>
-                  <button onClick={() => setEditing(true)} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
-                    Edit
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Price</span>
-                    <span className="text-gray-700 font-medium">{priceCents > 0 ? `$${priceDisplay}${periodLabel}` : 'Free'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Setup fee</span>
-                    <span className="text-gray-700 font-medium">{(assignment.setup_fee_cents ?? 0) > 0 ? `$${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)}` : 'None'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Sessions</span>
-                    <span className="text-gray-700 font-medium">{totalCredits > 0 ? `${totalCredits} / ${editPeriod === 'monthly' ? 'month' : editPeriod === 'weekly' ? 'week' : 'cycle'}` : 'Unlimited'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Ends</span>
-                    <span className="text-gray-700 font-medium">{assignment.ends_at ? new Date(assignment.ends_at).toLocaleDateString() : 'Indefinite'}</span>
-                  </div>
-                </div>
-                {assignment.notes && (
-                  <p className="mt-2 text-[10px] text-gray-500 italic">{assignment.notes}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
-}
 
-// ── Meeting Scheduler (admin/mentor side) ──
-
-function MeetingScheduler({ assignment, profile, mentee }: { assignment: MenteeOfferingWithDetails; profile: StaffMember; mentee: Mentee }) {
-  const [showForm, setShowForm] = useState(false)
-  const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [availability, setAvailability] = useState<AvailabilitySchedule[]>([])
-  const [selectedDate, setSelectedDate] = useState('')
-  const [selectedStart, setSelectedStart] = useState('')
-  const [selectedEnd, setSelectedEnd] = useState('')
-  const [meetingTitle, setMeetingTitle] = useState('')
-  const [scheduling, setScheduling] = useState(false)
-
-  async function loadData() {
-    if (loaded) return
-    const [meetingsRes, availRes] = await Promise.all([
-      supabase.from('meetings').select('*').eq('mentee_offering_id', assignment.id).order('starts_at', { ascending: false }),
-      supabase.from('availability_schedules').select('*').eq('staff_id', profile.id).eq('is_active', true).order('day_of_week').order('start_time'),
-    ])
-    setMeetings((meetingsRes.data ?? []) as Meeting[])
-    setAvailability((availRes.data ?? []) as AvailabilitySchedule[])
-    setLoaded(true)
-  }
-
-  function handleToggle() {
-    if (!showForm) {
-      setShowForm(true)
-      loadData()
-    } else {
-      setShowForm(false)
-    }
-  }
-
-  function formatTime(time: string): string {
-    const [h, m] = time.split(':').map(Number)
-    const ampm = h >= 12 ? 'PM' : 'AM'
-    const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`
-  }
-
-  function getBlocksForDate(date: string): AvailabilitySchedule[] {
-    if (!date) return []
-    const dow = new Date(date + 'T00:00:00').getDay()
-    return availability.filter(a => a.day_of_week === dow)
-  }
-
-  async function scheduleMeeting() {
-    if (!selectedDate || !selectedStart || !selectedEnd) return
-    setScheduling(true)
-    try {
-      const startsAt = `${selectedDate}T${selectedStart}:00`
-      const endsAt = `${selectedDate}T${selectedEnd}:00`
-      const durationMs = new Date(endsAt).getTime() - new Date(startsAt).getTime()
-      const durationMinutes = Math.round(durationMs / 60000)
-
-      // Create the meeting — credits are consumed when the meeting ends, not at booking
-      const { data: meetingData } = await supabase
-        .from('meetings')
-        .insert({
-          organization_id: profile.organization_id,
-          mentee_offering_id: assignment.id,
-          mentee_id: mentee.id,
-          mentor_id: profile.id,
-          title: meetingTitle.trim() || `Meeting with ${mentee.first_name}`,
-          starts_at: startsAt,
-          ends_at: endsAt,
-          duration_minutes: durationMinutes,
-          status: 'scheduled',
-        })
-        .select()
-        .single()
-
-      if (meetingData) setMeetings(prev => [meetingData as Meeting, ...prev])
-      setShowForm(false)
-      setSelectedDate('')
-      setSelectedStart('')
-      setSelectedEnd('')
-      setMeetingTitle('')
-    } catch (err) {
-      console.error('[MeetingScheduler] error:', err)
-    } finally {
-      setScheduling(false)
-    }
-  }
-
-  const upcoming = meetings.filter(m => m.status === 'scheduled' && new Date(m.starts_at) >= new Date())
-  const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
-
-  // Next 14 days
-  const dateOptions: string[] = []
-  const now = new Date()
-  for (let i = 1; i <= 14; i++) {
-    const d = new Date(now.getTime() + i * 86400000)
-    dateOptions.push(d.toISOString().slice(0, 10))
-  }
-
-  return (
-    <div className="px-4 py-3 border-b border-gray-100">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-          Meetings ({loaded ? meetings.length : '...'})
-        </p>
-        <button onClick={handleToggle} className="text-[10px] text-brand hover:text-brand-hover transition-colors">
-          {showForm ? 'Cancel' : '+ Schedule'}
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="space-y-2 mb-2">
-          <select value={selectedDate} onChange={e => { setSelectedDate(e.target.value); setSelectedStart(''); setSelectedEnd('') }} className={numInputClass}>
-            <option value="">Select date...</option>
-            {dateOptions.map(d => {
-              const date = new Date(d + 'T00:00:00')
-              const blocks = getBlocksForDate(d)
-              return (
-                <option key={d} value={d} disabled={blocks.length === 0}>
-                  {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}{blocks.length === 0 ? ' (no avail.)' : ''}
-                </option>
-              )
-            })}
-          </select>
-
-          {selectedDate && getBlocksForDate(selectedDate).length > 0 && (
-            <>
-              <div className="flex items-center gap-2">
-                <input type="time" value={selectedStart} onChange={e => setSelectedStart(e.target.value)} className={numInputClass + ' flex-1'} />
-                <span className="text-[10px] text-gray-400">to</span>
-                <input type="time" value={selectedEnd} onChange={e => setSelectedEnd(e.target.value)} className={numInputClass + ' flex-1'} />
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {getBlocksForDate(selectedDate).map(b => (
-                  <span key={b.id} className="text-[9px] text-gray-400 px-1.5 py-0.5 bg-gray-50 rounded">
-                    {formatTime(b.start_time)}–{formatTime(b.end_time)}
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-
-          {selectedStart && selectedEnd && (
-            <input type="text" value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)} placeholder="Meeting title (optional)" className={numInputClass} />
-          )}
-
-          <button
-            onClick={scheduleMeeting}
-            disabled={scheduling || !selectedDate || !selectedStart || !selectedEnd}
-            className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors"
-          >
-            {scheduling ? '...' : 'Book Meeting'}
-          </button>
-        </div>
-      )}
-
-      {loaded && upcoming.length > 0 && (
-        <div className="space-y-1">
-          {upcoming.map(m => (
-            <div key={m.id} className="flex items-center gap-2 py-1 text-[10px]">
-              <span className="text-gray-600 tabular-nums w-16 shrink-0">
-                {new Date(m.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-              <span className="text-gray-500 flex-1 truncate">{m.title || 'Meeting'}</span>
-              <span className="text-gray-400 shrink-0">
-                {new Date(m.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {loaded && meetings.length === 0 && !showForm && (
-        <p className="text-[10px] text-gray-400">No meetings scheduled.</p>
-      )}
-    </div>
-  )
 }

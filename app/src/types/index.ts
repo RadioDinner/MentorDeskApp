@@ -93,6 +93,7 @@ export interface Offering {
   cancellation_policy: CancellationPolicy | null
   due_date_mode: DueDateMode
   expected_completion_days: number | null
+  auto_send_invoice: boolean
   created_at: string
   updated_at: string
 }

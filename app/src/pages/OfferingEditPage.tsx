@@ -51,6 +51,7 @@ export default function OfferingEditPage() {
   const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
   const [useOrgDefault, setUseOrgDefault] = useState(true)
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [autoSendInvoice, setAutoSendInvoice] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -85,6 +86,7 @@ export default function OfferingEditPage() {
         setAllocationPeriod(o.allocation_period ?? 'monthly')
         setUseOrgDefault(o.use_org_default_cancellation ?? true)
         setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
+        setAutoSendInvoice(o.auto_send_invoice ?? false)
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -127,6 +129,7 @@ export default function OfferingEditPage() {
       updates.allocation_period = allocationPeriod
       updates.use_org_default_cancellation = useOrgDefault
       updates.cancellation_policy = useOrgDefault ? null : cancelPolicy
+      updates.auto_send_invoice = autoSendInvoice
     }
 
     try {
@@ -375,6 +378,27 @@ export default function OfferingEditPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Invoice Settings — engagements only */}
+        {!isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Invoice Settings</h2>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoSendInvoice}
+                onChange={e => setAutoSendInvoice(e.target.checked)}
+                className="mt-0.5 accent-brand"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Auto-send invoice when opened</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  When this engagement is opened for a mentee, automatically create and send the first recurring invoice. If disabled, invoices must be created manually.
+                </p>
+              </div>
+            </label>
           </div>
         )}
 
