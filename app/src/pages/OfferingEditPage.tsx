@@ -37,6 +37,7 @@ export default function OfferingEditPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [iconUrl, setIconUrl] = useState('')
   const [billingMode, setBillingMode] = useState<'one_time' | 'recurring'>('one_time')
   const [price, setPrice] = useState('')
   const [recurringPrice, setRecurringPrice] = useState('')
@@ -70,6 +71,7 @@ export default function OfferingEditPage() {
         setOffering(o)
         setName(o.name)
         setDescription(o.description ?? '')
+        setIconUrl(o.icon_url ?? '')
         setBillingMode(o.billing_mode ?? 'one_time')
         setPrice(o.price_cents ? (o.price_cents / 100).toFixed(2) : '')
         setRecurringPrice(o.recurring_price_cents ? (o.recurring_price_cents / 100).toFixed(2) : '')
@@ -103,6 +105,7 @@ export default function OfferingEditPage() {
     const updates: Record<string, unknown> = {
       name: name.trim(),
       description: description.trim() || null,
+      icon_url: iconUrl.trim() || null,
     }
 
     if (offering.type === 'course') {
@@ -212,6 +215,24 @@ export default function OfferingEditPage() {
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Optional"
                 className={inputClass + ' resize-none'} />
+            </div>
+            <div>
+              <label htmlFor="editIcon" className="block text-sm font-medium text-gray-700 mb-1.5">Icon</label>
+              <div className="flex items-center gap-3">
+                {iconUrl && (
+                  <div className="w-10 h-10 rounded-lg bg-brand-light flex items-center justify-center text-lg shrink-0 border border-gray-200">
+                    {iconUrl.length <= 4 && !/^https?:\/\//.test(iconUrl)
+                      ? <span>{iconUrl}</span>
+                      : <img src={iconUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    }
+                  </div>
+                )}
+                <input id="editIcon" type="text" value={iconUrl}
+                  onChange={e => setIconUrl(e.target.value)}
+                  placeholder="Emoji (e.g. 📚) or image URL"
+                  className={inputClass} />
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">Enter an emoji or a URL to an image. Leave blank for a default letter icon.</p>
             </div>
           </div>
         </div>

@@ -76,6 +76,7 @@ export interface Offering {
   type: OfferingType
   name: string
   description: string | null
+  icon_url: string | null
   price_cents: number
   setup_fee_cents: number
   currency: string
