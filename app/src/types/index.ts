@@ -243,9 +243,22 @@ export interface QuizOption {
   is_correct: boolean
 }
 
+export interface LessonSection {
+  id: string
+  lesson_id: string
+  organization_id: string
+  title: string | null
+  content: string | null
+  video_url: string | null
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
 export interface LessonQuestion {
   id: string
   lesson_id: string
+  section_id: string | null
   organization_id: string
   question_text: string
   question_type: QuestionType
