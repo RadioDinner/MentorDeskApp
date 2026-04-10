@@ -6,3 +6,5 @@ SESSION 008 - PROMPT HISTORY
 2. Lets start with courses. Courses that are assigned to my mentee account aren't showing. When mentees are logged in and go to their "My courses" module, they need to be able to view lesson content and finish lessons and complete lessons and reply to questions. We also need to build a system for admins, assistant mentors and mentors to view a mentee's lesson progress
 
 3. push to main, and continue pushing to main for the remainder of the session. Delete all the branches after the push
+
+4. In the mentor dashboard, I want their side bar to include reports, (we'll give mentors select reports based off admin preferences and will build this sytem later). I want Mentors and Assistant mentors to be able to see their currently assigned mentees, and be able to see the mentees progress with their assigned/relative courses.

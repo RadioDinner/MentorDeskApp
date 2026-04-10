@@ -7,6 +7,13 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import MenteeManagePanel from '../components/MenteeManageSlideOver'
 import type { Mentee } from '../types'
 
+interface MenteeProgressSummary {
+  activeCourses: number
+  totalLessons: number
+  completedLessons: number
+  activeEngagements: number
+}
+
 export default function MenteesListPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -16,6 +23,7 @@ export default function MenteesListPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
+  const [progressMap, setProgressMap] = useState<Record<string, MenteeProgressSummary>>({})
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -66,6 +74,93 @@ export default function MenteesListPage() {
 
     fetchMentees()
   }, [profile?.organization_id, profile?.id, profile?.role])
+
+  // Fetch course progress summaries for all mentees
+  useEffect(() => {
+    if (mentees.length === 0 || !profile?.organization_id) return
+
+    async function fetchProgress() {
+      try {
+        const menteeIds = mentees.filter(m => !m.archived_at).map(m => m.id)
+        if (menteeIds.length === 0) return
+
+        // Get active mentee_offerings (courses + engagements)
+        const { data: moData } = await supabase
+          .from('mentee_offerings')
+          .select('id, mentee_id, offering_id, status, offering:offerings(type)')
+          .in('mentee_id', menteeIds)
+          .eq('status', 'active')
+
+        if (!moData || moData.length === 0) return
+
+        // Supabase returns the joined offering as an object for .single()-style joins
+        const menteeOfferings = (moData as unknown as { id: string; mentee_id: string; offering_id: string; status: string; offering: { type: string } | null }[])
+
+        // Count courses/engagements per mentee
+        const summaries: Record<string, MenteeProgressSummary> = {}
+        const courseMoIds: string[] = []
+        const courseOfferingIds = new Set<string>()
+
+        for (const mo of menteeOfferings) {
+          if (!summaries[mo.mentee_id]) {
+            summaries[mo.mentee_id] = { activeCourses: 0, totalLessons: 0, completedLessons: 0, activeEngagements: 0 }
+          }
+          if (mo.offering?.type === 'course') {
+            summaries[mo.mentee_id].activeCourses++
+            courseMoIds.push(mo.id)
+            courseOfferingIds.add(mo.offering_id)
+          } else if (mo.offering?.type === 'engagement') {
+            summaries[mo.mentee_id].activeEngagements++
+          }
+        }
+
+        // Get lesson counts per offering
+        if (courseOfferingIds.size > 0) {
+          const { data: lessonsData } = await supabase
+            .from('lessons')
+            .select('offering_id')
+            .in('offering_id', Array.from(courseOfferingIds))
+
+          const lessonCountsByOffering: Record<string, number> = {}
+          if (lessonsData) {
+            for (const l of lessonsData) {
+              lessonCountsByOffering[l.offering_id] = (lessonCountsByOffering[l.offering_id] || 0) + 1
+            }
+          }
+
+          // Sum total lessons per mentee
+          for (const mo of menteeOfferings) {
+            if (mo.offering?.type === 'course' && summaries[mo.mentee_id]) {
+              summaries[mo.mentee_id].totalLessons += lessonCountsByOffering[mo.offering_id] ?? 0
+            }
+          }
+        }
+
+        // Get completed lessons per mentee_offering
+        if (courseMoIds.length > 0) {
+          const { data: progressData } = await supabase
+            .from('lesson_progress')
+            .select('mentee_offering_id, mentee_id')
+            .in('mentee_offering_id', courseMoIds)
+            .eq('status', 'completed')
+
+          if (progressData) {
+            for (const p of progressData as { mentee_offering_id: string; mentee_id: string }[]) {
+              if (summaries[p.mentee_id]) {
+                summaries[p.mentee_id].completedLessons++
+              }
+            }
+          }
+        }
+
+        setProgressMap(summaries)
+      } catch (err) {
+        console.error('[MenteesListPage] fetchProgress error:', err)
+      }
+    }
+
+    fetchProgress()
+  }, [mentees, profile?.organization_id])
 
   async function archiveMentee(id: string) {
     if (!profile) return
@@ -196,6 +291,11 @@ export default function MenteesListPage() {
               }
 
               /* ── Full row (no panel open) ── */
+              const progress = progressMap[mentee.id]
+              const progressPct = progress && progress.totalLessons > 0
+                ? Math.round((progress.completedLessons / progress.totalLessons) * 100)
+                : null
+
               return (
                 <div key={mentee.id} className={`flex items-center justify-between px-5 py-4 ${isArchived ? 'bg-gray-50/50' : ''}`}>
                   <div className="flex items-center gap-4">
@@ -214,6 +314,32 @@ export default function MenteesListPage() {
                         )}
                       </div>
                       <p className="text-xs text-gray-500 truncate">{mentee.email}</p>
+                      {/* Progress summary (visible when not archived) */}
+                      {!isArchived && progress && (progress.activeCourses > 0 || progress.activeEngagements > 0) && (
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {progress.activeCourses > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-400">
+                                {progress.activeCourses} course{progress.activeCourses !== 1 ? 's' : ''}
+                              </span>
+                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-brand rounded-full transition-all"
+                                  style={{ width: `${progressPct ?? 0}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-medium text-gray-500 tabular-nums">
+                                {progress.completedLessons}/{progress.totalLessons}
+                              </span>
+                            </div>
+                          )}
+                          {progress.activeEngagements > 0 && (
+                            <span className="text-[10px] text-gray-400">
+                              {progress.activeEngagements} engagement{progress.activeEngagements !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
