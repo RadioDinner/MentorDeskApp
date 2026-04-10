@@ -45,7 +45,7 @@ export default function OfferingEditPage() {
   const [dispenseMode, setDispenseMode] = useState<DispenseMode>('completion')
   const [intervalDays, setIntervalDays] = useState('')
   const [lessonCount, setLessonCount] = useState('')
-  const [dueDate, setDueDate] = useState('')
+  const [completionDays, setCompletionDays] = useState('')
   const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
   const [meetingCount, setMeetingCount] = useState('')
   const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
@@ -80,7 +80,7 @@ export default function OfferingEditPage() {
         setDispenseMode(o.dispense_mode)
         setIntervalDays(o.dispense_interval_days ? String(o.dispense_interval_days) : '')
         setLessonCount(o.lesson_count ? String(o.lesson_count) : '')
-        setDueDate(o.course_due_date ?? '')
+        setCompletionDays(o.expected_completion_days ? String(o.expected_completion_days) : '')
         setPreviewMode(o.preview_mode)
         setMeetingCount(o.meeting_count ? String(o.meeting_count) : '')
         setAllocationPeriod(o.allocation_period ?? 'monthly')
@@ -118,7 +118,7 @@ export default function OfferingEditPage() {
       updates.dispense_mode = dispenseMode
       updates.dispense_interval_days = dispenseMode === 'interval' && intervalDays ? parseInt(intervalDays) : null
       updates.lesson_count = lessonCount ? parseInt(lessonCount) : null
-      updates.course_due_date = billingMode === 'one_time' && dueDate ? dueDate : null
+      updates.expected_completion_days = completionDays ? parseInt(completionDays) : null
       updates.preview_mode = previewMode
     }
 
@@ -220,22 +220,50 @@ export default function OfferingEditPage() {
                 className={inputClass + ' resize-none'} />
             </div>
             <div>
-              <label htmlFor="editIcon" className="block text-sm font-medium text-gray-700 mb-1.5">Icon</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Icon</label>
               <div className="flex items-center gap-3">
-                {iconUrl && (
-                  <div className="w-10 h-10 rounded-lg bg-brand-light flex items-center justify-center text-lg shrink-0 border border-gray-200">
-                    {iconUrl.length <= 4 && !/^https?:\/\//.test(iconUrl)
+                <div className="w-12 h-12 rounded-lg bg-brand-light flex items-center justify-center text-lg shrink-0 border border-gray-200 overflow-hidden">
+                  {iconUrl ? (
+                    iconUrl.length <= 4 && !/^https?:\/\//.test(iconUrl) && !iconUrl.startsWith('data:')
                       ? <span>{iconUrl}</span>
-                      : <img src={iconUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                    }
+                      : <img src={iconUrl} alt="" className="w-12 h-12 object-cover" />
+                  ) : (
+                    <span className="text-sm font-bold text-brand">{name?.[0]?.toUpperCase() ?? '?'}</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <input type="text" value={iconUrl}
+                    onChange={e => setIconUrl(e.target.value)}
+                    placeholder="Emoji (e.g. 📚) or image URL"
+                    className={inputClass} />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => {
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = 'image/*'
+                      input.onchange = () => {
+                        const file = input.files?.[0]
+                        if (!file) return
+                        if (file.size > 512 * 1024) { setMsg({ type: 'error', text: 'Icon must be under 512KB.' }); return }
+                        const reader = new FileReader()
+                        reader.onload = () => setIconUrl(reader.result as string)
+                        reader.readAsDataURL(file)
+                      }
+                      input.click()
+                    }}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+                      Upload image
+                    </button>
+                    {iconUrl && (
+                      <button type="button" onClick={() => setIconUrl('')}
+                        className="px-2.5 py-1 text-[11px] font-medium rounded border border-red-200 bg-white text-red-500 hover:bg-red-50 transition-colors">
+                        Remove
+                      </button>
+                    )}
                   </div>
-                )}
-                <input id="editIcon" type="text" value={iconUrl}
-                  onChange={e => setIconUrl(e.target.value)}
-                  placeholder="Emoji (e.g. 📚) or image URL"
-                  className={inputClass} />
+                </div>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Enter an emoji or a URL to an image. Leave blank for a default letter icon.</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">Enter an emoji, paste an image URL, or upload an image (max 512KB).</p>
             </div>
           </div>
         </div>
@@ -323,15 +351,16 @@ export default function OfferingEditPage() {
                 </div>
               )}
 
-              {dispenseMode === 'all_at_once' && (
-                <div>
-                  <label htmlFor="editDueDate" className="block text-sm font-medium text-gray-700 mb-1.5">Course due date</label>
-                  <input id="editDueDate" type="date" value={dueDate}
-                    onChange={e => setDueDate(e.target.value)}
-                    className={inputClass + ' max-w-48'} />
-                  <p className="text-xs text-gray-400 mt-1">Optional. When all work should be completed by.</p>
+              <div>
+                <label htmlFor="editCompletionDays" className="block text-sm font-medium text-gray-700 mb-1.5">Expected completion time</label>
+                <div className="flex items-center gap-2">
+                  <input id="editCompletionDays" type="number" min="1" value={completionDays}
+                    onChange={e => setCompletionDays(e.target.value)} placeholder="e.g. 90"
+                    className={inputClass + ' max-w-28'} />
+                  <span className="text-sm text-gray-500">days</span>
                 </div>
-              )}
+                <p className="text-xs text-gray-400 mt-1">Optional. Each mentee's due date will be calculated from their start date + this duration.</p>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Upcoming lesson visibility</label>
