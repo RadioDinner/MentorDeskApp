@@ -18,3 +18,5 @@ Then I want these fields to be filled when the course is assigned to the mentee.
 5. push all these changes to main and delete the branches, push to main for the remainder of the session
 
 Also, I want the save and delete links on the lesson sections to be buttons, not just words. I am going to make a change to sections in lessons. Rather than make each session have a place for text, a video url, or questions, I want you to add 4 buttons below the Lesson title card. A button labeled +Text, +Video, +Quiz, +Response. Also, make so I can re-order sessions easily. This way I could make a lesson look like, Text section > video section > Text section > quiz > Text section > Response > Text session.
+
+6. In the Mentees module, when I click the manage button on the mentee, it just goes to a screen like this that says "Loading..."

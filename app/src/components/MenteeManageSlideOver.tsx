@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, withTimeout } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
 import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion } from '../types'
 
@@ -32,6 +33,11 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
   const [managingEngagementId, setManagingEngagementId] = useState<string | null>(null)
 
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setMsg({ type: 'error', text: 'Request timed out. Please try again.' })
+  }, []))
+
   // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -45,20 +51,17 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       setLoading(true)
       try {
         // Fetch org settings for multi-engagement flag
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('allow_multi_engagement')
-          .eq('id', profile.organization_id)
-          .single()
+        const { data: orgData } = await withTimeout(
+          supabase.from('organizations').select('allow_multi_engagement').eq('id', profile.organization_id).single(),
+          10000, 'fetchOrgSettings',
+        )
 
         setAllowMultiEngagement(orgData?.allow_multi_engagement ?? false)
 
-        const { data: moData } = await supabase
-          .from('mentee_offerings')
-          .select('*, offering:offerings(*)')
-          .eq('mentee_id', mentee.id)
-          .in('status', ['active', 'completed'])
-          .order('assigned_at', { ascending: false })
+        const { data: moData } = await withTimeout(
+          supabase.from('mentee_offerings').select('*, offering:offerings(*)').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('assigned_at', { ascending: false }),
+          10000, 'fetchMenteeOfferings',
+        )
 
         const menteeOfferings = (moData ?? []) as (MenteeOffering & { offering: Offering })[]
 
@@ -68,11 +71,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
         const lessonCounts: Record<string, number> = {}
         if (courseOfferingIds.length > 0) {
-          const { data: lessonsData } = await supabase
-            .from('lessons')
-            .select('offering_id')
-            .in('offering_id', courseOfferingIds)
-
+          const { data: lessonsData } = await withTimeout(
+            supabase.from('lessons').select('offering_id').in('offering_id', courseOfferingIds),
+            10000, 'fetchLessonCounts',
+          )
           if (lessonsData) {
             for (const l of lessonsData) {
               lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
@@ -86,12 +88,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           .map(mo => mo.id)
         const completedCounts: Record<string, number> = {}
         if (courseMoIds.length > 0) {
-          const { data: progressData } = await supabase
-            .from('lesson_progress')
-            .select('mentee_offering_id')
-            .in('mentee_offering_id', courseMoIds)
-            .eq('status', 'completed')
-
+          const { data: progressData } = await withTimeout(
+            supabase.from('lesson_progress').select('mentee_offering_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed'),
+            10000, 'fetchCompletedLessons',
+          )
           if (progressData) {
             for (const p of progressData) {
               completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
@@ -106,11 +106,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         }))
         setAssignments(enriched)
 
-        const { data: allOfferings } = await supabase
-          .from('offerings')
-          .select('*')
-          .eq('organization_id', profile.organization_id)
-          .order('name')
+        const { data: allOfferings } = await withTimeout(
+          supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
+          10000, 'fetchOfferings',
+        )
 
         const offerings = (allOfferings ?? []) as Offering[]
         const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
