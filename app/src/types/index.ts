@@ -165,6 +165,25 @@ export interface EngagementSession {
   created_at: string
 }
 
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+
+export interface Invoice {
+  id: string
+  organization_id: string
+  mentee_id: string | null
+  mentee_offering_id: string | null
+  invoice_number: string | null
+  status: InvoiceStatus
+  amount_cents: number
+  currency: string
+  due_date: string | null
+  paid_at: string | null
+  line_description: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type QuestionType = 'quiz' | 'response'
 
 export interface QuizOption {

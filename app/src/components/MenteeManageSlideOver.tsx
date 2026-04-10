@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod } from '../types'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -192,6 +192,21 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           type: offering?.type,
         },
       })
+
+      // Auto-create setup fee invoice if applicable
+      const setupFee = template?.setup_fee_cents ?? 0
+      if (setupFee > 0 && insertedId) {
+        await supabase.from('invoices').insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          mentee_offering_id: insertedId,
+          status: 'draft',
+          amount_cents: setupFee,
+          currency: template?.currency ?? 'USD',
+          line_description: `Setup fee — ${offering?.name ?? 'Engagement'}`,
+          due_date: new Date().toISOString().slice(0, 10),
+        })
+      }
     } catch (err) {
       setMsg({ type: 'error', text: (err as Error).message || 'Failed to assign' })
       console.error(err)
@@ -701,6 +716,17 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   const [logNotes, setLogNotes] = useState('')
   const [logging, setLogging] = useState(false)
 
+  // Invoice state
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoicesLoaded, setInvoicesLoaded] = useState(false)
+  const [creatingInvoice, setCreatingInvoice] = useState(false)
+  const [newInvoiceAmount, setNewInvoiceAmount] = useState(priceCents > 0 ? priceDisplay : '')
+  const [newInvoiceDesc, setNewInvoiceDesc] = useState('')
+  const [newInvoiceDue, setNewInvoiceDue] = useState('')
+  const [showCreateInvoice, setShowCreateInvoice] = useState(false)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
+  const [editInvoiceAmount, setEditInvoiceAmount] = useState('')
+
   // Edit state
   const [editPrice, setEditPrice] = useState(priceDisplay)
   const [editMeetings, setEditMeetings] = useState(assignment.meeting_count ? String(assignment.meeting_count) : '')
@@ -719,19 +745,34 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   const allocatedColor = '#6366f1'
   const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e'
 
-  async function loadSessions() {
-    if (sessionsLoaded) return
+  async function loadExpandedData() {
+    if (sessionsLoaded && invoicesLoaded) return
     setSessionsLoading(true)
     try {
-      const { data } = await supabase
-        .from('engagement_sessions')
-        .select('*')
-        .eq('mentee_offering_id', assignment.id)
-        .order('session_date', { ascending: false })
-      setSessions((data ?? []) as EngagementSession[])
-      setSessionsLoaded(true)
+      const [sessionsRes, invoicesRes] = await Promise.all([
+        sessionsLoaded ? Promise.resolve({ data: sessions }) :
+          supabase
+            .from('engagement_sessions')
+            .select('*')
+            .eq('mentee_offering_id', assignment.id)
+            .order('session_date', { ascending: false }),
+        invoicesLoaded ? Promise.resolve({ data: invoices }) :
+          supabase
+            .from('invoices')
+            .select('*')
+            .eq('mentee_offering_id', assignment.id)
+            .order('created_at', { ascending: false }),
+      ])
+      if (!sessionsLoaded) {
+        setSessions((sessionsRes.data ?? []) as EngagementSession[])
+        setSessionsLoaded(true)
+      }
+      if (!invoicesLoaded) {
+        setInvoices((invoicesRes.data ?? []) as Invoice[])
+        setInvoicesLoaded(true)
+      }
     } catch (err) {
-      console.error('[EngagementCard] loadSessions error:', err)
+      console.error('[EngagementCard] loadExpandedData error:', err)
     } finally {
       setSessionsLoading(false)
     }
@@ -740,7 +781,7 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
   async function handleExpand() {
     if (!expanded) {
       setExpanded(true)
-      loadSessions()
+      loadExpandedData()
     } else {
       setExpanded(false)
     }
@@ -818,6 +859,91 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
     })
     setSaving(false)
     setEditing(false)
+  }
+
+  // Invoice functions
+  async function createInvoice() {
+    if (!newInvoiceAmount) return
+    setCreatingInvoice(true)
+    try {
+      const amountCents = Math.round(parseFloat(newInvoiceAmount) * 100)
+      const { data, error } = await supabase
+        .from('invoices')
+        .insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          mentee_offering_id: assignment.id,
+          status: 'draft' as InvoiceStatus,
+          amount_cents: amountCents,
+          currency: offering?.currency ?? 'USD',
+          line_description: newInvoiceDesc.trim() || `${offering?.name ?? 'Engagement'}${periodLabel ? ` ${periodLabel.trim()}` : ''}`,
+          due_date: newInvoiceDue || null,
+        })
+        .select()
+        .single()
+
+      if (error) { console.error('[EngagementCard] createInvoice error:', error); return }
+      setInvoices(prev => [data as Invoice, ...prev])
+      setShowCreateInvoice(false)
+      setNewInvoiceAmount(priceCents > 0 ? priceDisplay : '')
+      setNewInvoiceDesc('')
+      setNewInvoiceDue('')
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setCreatingInvoice(false)
+    }
+  }
+
+  async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
+    const updates: Record<string, unknown> = { status }
+    if (status === 'paid') updates.paid_at = new Date().toISOString()
+    if (status !== 'paid') updates.paid_at = null
+
+    const { error } = await supabase.from('invoices').update(updates).eq('id', invoiceId)
+    if (error) { console.error('[EngagementCard] updateInvoiceStatus error:', error); return }
+    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, ...updates } as Invoice : inv))
+  }
+
+  async function saveInvoiceAmount(invoiceId: string) {
+    const amountCents = Math.round(parseFloat(editInvoiceAmount) * 100)
+    const { error } = await supabase.from('invoices').update({ amount_cents: amountCents }).eq('id', invoiceId)
+    if (error) { console.error('[EngagementCard] saveInvoiceAmount error:', error); return }
+    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, amount_cents: amountCents } : inv))
+    setEditingInvoiceId(null)
+  }
+
+  // Compute projected upcoming invoices
+  function getProjectedInvoices(): { date: string; amount: number }[] {
+    if (priceCents <= 0 || isCompleted) return []
+    const projections: { date: string; amount: number }[] = []
+    const startDate = new Date(assignment.assigned_at)
+    const endDate = assignment.ends_at ? new Date(assignment.ends_at) : null
+    const now = new Date()
+
+    // Determine billing interval in days
+    const intervalDays = period === 'weekly' ? 7 : period === 'monthly' ? 30 : 30
+
+    // Find next billing dates (up to 6 upcoming)
+    let cursor = new Date(startDate)
+    // Move cursor forward by interval until we're past the current date
+    while (cursor <= now) {
+      cursor = new Date(cursor.getTime() + intervalDays * 86400000)
+    }
+
+    // Exclude dates that already have invoices
+    const existingDates = new Set(invoices.map(inv => inv.due_date?.slice(0, 7)))
+
+    for (let i = 0; i < 6; i++) {
+      if (endDate && cursor > endDate) break
+      const dateStr = cursor.toISOString().slice(0, 10)
+      const monthKey = dateStr.slice(0, 7)
+      if (!existingDates.has(monthKey)) {
+        projections.push({ date: dateStr, amount: priceCents })
+      }
+      cursor = new Date(cursor.getTime() + intervalDays * 86400000)
+    }
+    return projections
   }
 
   const inputClass = 'w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
@@ -954,6 +1080,149 @@ function EngagementCard({ assignment, onUpdate, profile, mentee }: { assignment:
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Invoices */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                Invoices ({invoices.length})
+              </p>
+              <button
+                onClick={() => { setShowCreateInvoice(!showCreateInvoice); setNewInvoiceAmount(priceCents > 0 ? priceDisplay : ''); setNewInvoiceDesc(''); setNewInvoiceDue('') }}
+                className="text-[10px] text-brand hover:text-brand-hover transition-colors"
+              >
+                {showCreateInvoice ? 'Cancel' : '+ Create'}
+              </button>
+            </div>
+
+            {/* Create invoice form */}
+            {showCreateInvoice && (
+              <div className="mb-3 p-2.5 rounded border border-brand/20 bg-brand-light/30">
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-0.5">Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                      <input type="number" step="0.01" min="0" value={newInvoiceAmount} onChange={e => setNewInvoiceAmount(e.target.value)} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-0.5">Due date</label>
+                    <input type="date" value={newInvoiceDue} onChange={e => setNewInvoiceDue(e.target.value)} className={numInputClass} />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-[10px] text-gray-500 mb-0.5">Description</label>
+                  <input type="text" value={newInvoiceDesc} onChange={e => setNewInvoiceDesc(e.target.value)} placeholder={`${offering?.name ?? 'Engagement'}${periodLabel ? ` ${periodLabel.trim()}` : ''}`} className={numInputClass} />
+                </div>
+                <button
+                  onClick={createInvoice}
+                  disabled={creatingInvoice || !newInvoiceAmount}
+                  className="px-3 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                >
+                  {creatingInvoice ? 'Creating...' : 'Create Draft Invoice'}
+                </button>
+              </div>
+            )}
+
+            {/* Existing invoices */}
+            {invoices.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {invoices.map(inv => {
+                  const statusColors: Record<string, string> = {
+                    draft: 'bg-gray-100 text-gray-500',
+                    sent: 'bg-blue-50 text-blue-600',
+                    paid: 'bg-green-50 text-green-600',
+                    overdue: 'bg-red-50 text-red-600',
+                    cancelled: 'bg-gray-100 text-gray-400',
+                  }
+                  const isEditing = editingInvoiceId === inv.id
+                  return (
+                    <div key={inv.id} className="flex items-center gap-2 py-1.5 px-2 rounded border border-gray-100 bg-white">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {isEditing ? (
+                            <div className="relative w-20">
+                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-400">$</span>
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={editInvoiceAmount}
+                                onChange={e => setEditInvoiceAmount(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveInvoiceAmount(inv.id); if (e.key === 'Escape') setEditingInvoiceId(null) }}
+                                className="w-full rounded border border-gray-300 pl-4 pr-1 py-0.5 text-[10px] text-gray-900 outline-none focus:border-brand"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingInvoiceId(inv.id); setEditInvoiceAmount((inv.amount_cents / 100).toFixed(2)) }}
+                              className="text-xs font-semibold text-gray-900 tabular-nums hover:text-brand transition-colors"
+                              title="Click to edit amount"
+                            >
+                              ${(inv.amount_cents / 100).toFixed(2)}
+                            </button>
+                          )}
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded capitalize ${statusColors[inv.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {inv.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                          {inv.line_description ?? 'Invoice'}
+                          {inv.due_date && ` · Due ${new Date(inv.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                          {inv.paid_at && ` · Paid ${new Date(inv.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isEditing ? (
+                          <>
+                            <button onClick={() => saveInvoiceAmount(inv.id)} className="text-[9px] text-brand hover:text-brand-hover">Save</button>
+                            <button onClick={() => setEditingInvoiceId(null)} className="text-[9px] text-gray-400">Cancel</button>
+                          </>
+                        ) : (
+                          <select
+                            value={inv.status}
+                            onChange={e => updateInvoiceStatus(inv.id, e.target.value as InvoiceStatus)}
+                            className="text-[9px] border border-gray-200 rounded px-1 py-0.5 text-gray-600 outline-none focus:border-brand bg-white"
+                          >
+                            <option value="draft">Draft</option>
+                            <option value="sent">Sent</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Projected upcoming invoices */}
+            {(() => {
+              const projections = getProjectedInvoices()
+              if (projections.length === 0) return null
+              return (
+                <div>
+                  <p className="text-[9px] font-medium text-gray-400 uppercase tracking-wider mb-1 mt-2">Upcoming (projected)</p>
+                  <div className="space-y-0.5">
+                    {projections.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between py-1 px-2 text-[10px]">
+                        <span className="text-gray-400">
+                          {new Date(p.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <span className="text-gray-500 tabular-nums">${(p.amount / 100).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {invoices.length === 0 && priceCents <= 0 && (
+              <p className="text-[10px] text-gray-400 py-1">No invoices.</p>
             )}
           </div>
 
