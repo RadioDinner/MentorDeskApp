@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { AvailabilitySchedule } from '../types'
+import type { AvailabilitySchedule, StaffMember } from '../types'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function AvailabilityPage() {
+  const { id: paramId } = useParams<{ id?: string }>()
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const [schedules, setSchedules] = useState<AvailabilitySchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [targetName, setTargetName] = useState<string | null>(null)
+
+  // The staff member whose availability we're editing
+  const targetStaffId = paramId ?? profile?.id
+  const isEditingOther = !!paramId && paramId !== profile?.id
 
   // Add block state
   const [addingDay, setAddingDay] = useState<number | null>(null)
@@ -18,13 +26,19 @@ export default function AvailabilityPage() {
   const [newEnd, setNewEnd] = useState('17:00')
 
   useEffect(() => {
-    if (!profile) return
+    if (!targetStaffId || !profile) return
     async function fetchSchedules() {
       setLoading(true)
+      // If editing another person, fetch their name
+      if (isEditingOther) {
+        const { data: staffData } = await supabase
+          .from('staff').select('first_name, last_name').eq('id', targetStaffId!).single()
+        if (staffData) setTargetName(`${(staffData as StaffMember).first_name} ${(staffData as StaffMember).last_name}`)
+      }
       const { data } = await supabase
         .from('availability_schedules')
         .select('*')
-        .eq('staff_id', profile!.id)
+        .eq('staff_id', targetStaffId!)
         .eq('is_active', true)
         .order('day_of_week', { ascending: true })
         .order('start_time', { ascending: true })
@@ -32,7 +46,7 @@ export default function AvailabilityPage() {
       setLoading(false)
     }
     fetchSchedules()
-  }, [profile?.id])
+  }, [targetStaffId, profile?.id])
 
   async function addBlock(dayOfWeek: number) {
     if (!profile) return
@@ -58,7 +72,7 @@ export default function AvailabilityPage() {
       .from('availability_schedules')
       .insert({
         organization_id: profile.organization_id,
-        staff_id: profile.id,
+        staff_id: targetStaffId!,
         day_of_week: dayOfWeek,
         start_time: newStart + ':00',
         end_time: newEnd + ':00',
@@ -91,8 +105,15 @@ export default function AvailabilityPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">My Availability</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Set your recurring weekly schedule. Mentees can book sessions during these times.</p>
+        {isEditingOther && (
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-2 block">&larr; Back</button>
+        )}
+        <h1 className="text-xl font-semibold text-gray-900">
+          {isEditingOther && targetName ? `${targetName}'s Availability` : 'My Availability'}
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {isEditingOther ? 'Manage their recurring weekly schedule for mentee sessions.' : 'Set your recurring weekly schedule. Mentees can book sessions during these times.'}
+        </p>
       </div>
 
       {msg && (

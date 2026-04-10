@@ -74,6 +74,7 @@ export default function App() {
             <Route path="/engagements/:id/edit" element={<OfferingEditPage />} />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
+            <Route path="/people/:id/availability" element={<AvailabilityPage />} />
             {/* Mentee-specific routes */}
             <Route path="/my-engagements" element={<MenteeEngagementsPage />} />
             <Route path="/my-engagements/:id" element={<MenteeEngagementDetailPage />} />

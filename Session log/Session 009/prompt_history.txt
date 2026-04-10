@@ -20,3 +20,9 @@ Then I want these fields to be filled when the course is assigned to the mentee.
 Also, I want the save and delete links on the lesson sections to be buttons, not just words. I am going to make a change to sections in lessons. Rather than make each session have a place for text, a video url, or questions, I want you to add 4 buttons below the Lesson title card. A button labeled +Text, +Video, +Quiz, +Response. Also, make so I can re-order sessions easily. This way I could make a lesson look like, Text section > video section > Text section > quiz > Text section > Response > Text session.
 
 6. In the Mentees module, when I click the manage button on the mentee, it just goes to a screen like this that says "Loading..."
+
+7. This is a bug on the mentee side, since we've made changes to courses, when I log into my mentee account, I can see the lesson title, but not the subsequent sections. Fix this
+
+8. Ok, so on the section buttons, I want them to float below each new section, that way you don't need to scroll all the way up to the top to click the button to add a section by type. Or put the buttons to the side or something
+
+9. I want admins/staff to be able to edit mentors and assistant mentors availability schedules for them. Add a button on the mentor and assistant mentor edit screens to make provisions for that.

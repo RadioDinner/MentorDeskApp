@@ -519,6 +519,22 @@ export default function PersonEditPage() {
             </div>
           )}
 
+          {/* Availability — mentors and assistant mentors only */}
+          {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">Availability Schedule</h2>
+              <p className="text-xs text-gray-500 mb-4">Manage when {person.first_name} is available for mentee sessions.</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/people/${person.id}/availability`)}
+                className="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors flex items-center justify-between"
+              >
+                <span>Edit Availability</span>
+                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+              </button>
+            </div>
+          )}
+
           {/* Account status */}
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
