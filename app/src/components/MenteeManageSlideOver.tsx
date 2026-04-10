@@ -4,7 +4,7 @@ import { supabase, withTimeout } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion } from '../types'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, FlowStep } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -193,6 +193,24 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           type: offering?.type,
         },
       })
+
+      // Update mentee flow step if the offering is part of the active mentee flow
+      try {
+        const { data: orgFlow } = await supabase
+          .from('organizations')
+          .select('mentee_flow')
+          .eq('id', profile.organization_id)
+          .single()
+        if (orgFlow?.mentee_flow) {
+          const steps = ((orgFlow.mentee_flow as { steps: FlowStep[] }).steps ?? [])
+          const matchingStep = steps.find(s => s.in_flow && s.offering_id === offeringId)
+          if (matchingStep) {
+            await supabase.from('mentees').update({ flow_step_id: matchingStep.id }).eq('id', mentee.id)
+          }
+        }
+      } catch (err) {
+        console.error('[MenteeManageSlideOver] flow step update error:', err)
+      }
 
       // Auto-create setup fee invoice if applicable
       const setupFee = template?.setup_fee_cents ?? 0

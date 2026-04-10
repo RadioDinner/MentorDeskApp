@@ -26,3 +26,7 @@ Also, I want the save and delete links on the lesson sections to be buttons, not
 8. Ok, so on the section buttons, I want them to float below each new section, that way you don't need to scroll all the way up to the top to click the button to add a section by type. Or put the buttons to the side or something
 
 9. I want admins/staff to be able to edit mentors and assistant mentors availability schedules for them. Add a button on the mentor and assistant mentor edit screens to make provisions for that.
+
+10. Instead of needing to click the +Add Section button to get to the 4 other buttons, just put the other 4 buttons down there right away
+
+11. When I assign a course or open an engagement for a mentee, I want you to update their status with the name of the engagement IF, ONLY IF, the engagement is selected to be a part of the engagement mentee flow in the organizations company options.
