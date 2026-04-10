@@ -24,6 +24,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [assignments, setAssignments] = useState<MenteeOfferingWithDetails[]>([])
   const [availableCourses, setAvailableCourses] = useState<Offering[]>([])
   const [availableEngagements, setAvailableEngagements] = useState<Offering[]>([])
+  const [allEngagements, setAllEngagements] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -63,8 +64,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         const menteeOfferings = (moRes.data ?? []) as (MenteeOffering & { offering: Offering })[]
         const offerings = (offeringsRes.data ?? []) as Offering[]
         const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
+        const allEngs = offerings.filter(o => o.type === 'engagement')
+        setAllEngagements(allEngs)
         setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
-        setAvailableEngagements(offerings.filter(o => o.type === 'engagement' && !assignedIds.has(o.id)))
+        setAvailableEngagements(allEngs)
 
         // Round 2: Fetch lesson counts + progress in parallel (depends on round 1 IDs)
         const courseOfferingIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.offering_id)
@@ -147,8 +150,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
       if (newMo.offering?.type === 'course') {
         setAvailableCourses(prev => prev.filter(o => o.id !== offeringId))
-      } else {
-        setAvailableEngagements(prev => prev.filter(o => o.id !== offeringId))
       }
 
       const offering = newMo.offering
@@ -373,7 +374,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       <h3 className="text-sm font-semibold text-gray-900">Engagements</h3>
                       <p className="text-[11px] text-gray-400">{activeEngagements.length} active, {completedEngagements.length} completed</p>
                     </div>
-                    {availableEngagements.length > 0 && (
+                    {allEngagements.length > 0 && (
                       engagementBlocked ? (
                         <span
                           title="Simultaneous engagements disabled per company settings. Contact your admin to have this changed."
