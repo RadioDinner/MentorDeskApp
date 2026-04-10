@@ -7,10 +7,15 @@ import type { Offering } from '../types'
 
 type ViewMode = 'list' | 'grid'
 
+interface EngagementWithStats extends Offering {
+  active_mentees: number
+  completed_mentees: number
+}
+
 export default function EngagementsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [items, setItems] = useState<Offering[]>([])
+  const [items, setItems] = useState<EngagementWithStats[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -34,7 +39,31 @@ export default function EngagementsPage() {
           .eq('type', 'engagement')
           .order('name', { ascending: true })
         if (e) { setError(e.message); return }
-        setItems(data as Offering[])
+        const engagements = (data ?? []) as Offering[]
+
+        // Fetch mentee enrollment counts
+        const engIds = engagements.map(eng => eng.id)
+        const activeCounts: Record<string, number> = {}
+        const completedCounts: Record<string, number> = {}
+        if (engIds.length > 0) {
+          const { data: moData } = await supabase
+            .from('mentee_offerings')
+            .select('offering_id, status')
+            .in('offering_id', engIds)
+            .in('status', ['active', 'completed'])
+          if (moData) {
+            for (const mo of moData) {
+              if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+              else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
+            }
+          }
+        }
+
+        setItems(engagements.map(eng => ({
+          ...eng,
+          active_mentees: activeCounts[eng.id] ?? 0,
+          completed_mentees: completedCounts[eng.id] ?? 0,
+        })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -107,7 +136,7 @@ export default function EngagementsPage() {
         </div>
       ) : viewMode === 'grid' ? (
         /* ── Grid View ── */
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {items.map(item => (
             <EngagementGridCard key={item.id} item={item} price={getPrice(item)} navigate={navigate} />
           ))}
@@ -150,17 +179,20 @@ function EngagementIcon({ item, size = 'md' }: { item: Offering; size?: 'sm' | '
 
 // ── Grid Card ──
 
-function EngagementGridCard({ item, price, navigate }: { item: Offering; price: string; navigate: (path: string) => void }) {
+function EngagementGridCard({ item, price, navigate }: { item: EngagementWithStats; price: string; navigate: (path: string) => void }) {
+  const totalEnrolled = item.active_mentees + item.completed_mentees
+
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200/80 overflow-hidden hover:border-brand/40 hover:shadow-sm transition-all cursor-pointer group"
+      className="bg-white rounded-lg border border-gray-200/80 overflow-hidden hover:border-brand/40 hover:shadow-md transition-all cursor-pointer group"
       onClick={() => navigate(`/engagements/${item.id}/edit`)}
     >
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-start gap-3 mb-3">
+      <div className="px-5 pt-5 pb-4">
+        {/* Header */}
+        <div className="flex items-start gap-3.5 mb-3">
           <EngagementIcon item={item} size="md" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 group-hover:text-brand transition-colors truncate">
+            <p className="text-base font-semibold text-gray-900 group-hover:text-brand transition-colors truncate">
               {item.name}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -168,28 +200,42 @@ function EngagementGridCard({ item, price, navigate }: { item: Offering; price: 
               {' · '}{price}
             </p>
           </div>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded shrink-0 bg-emerald-50 text-emerald-600">
+            {item.allocation_period === 'weekly' ? 'Weekly' : item.allocation_period === 'per_cycle' ? 'Per cycle' : 'Monthly'}
+          </span>
         </div>
 
         {item.description && (
-          <p className="text-[11px] text-gray-400 line-clamp-2 mb-3">{item.description}</p>
+          <p className="text-xs text-gray-400 line-clamp-2 mb-4">{item.description}</p>
         )}
 
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
-            {item.allocation_period === 'weekly' ? 'Weekly' : item.allocation_period === 'per_cycle' ? 'Per cycle' : 'Monthly'}
-          </span>
-          {item.setup_fee_cents > 0 && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-              ${(item.setup_fee_cents / 100).toFixed(2)} setup
-            </span>
-          )}
+        {/* Enrollment stats */}
+        <div className="flex items-stretch gap-3 mb-3">
+          <div className="flex-1 rounded-lg bg-emerald-50 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-emerald-600 tabular-nums">{item.active_mentees}</p>
+            <p className="text-[10px] text-emerald-600/70 font-medium mt-0.5">Active</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-gray-600 tabular-nums">{item.completed_mentees}</p>
+            <p className="text-[10px] text-gray-500 font-medium mt-0.5">Completed</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-blue-50 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-blue-600 tabular-nums">{totalEnrolled}</p>
+            <p className="text-[10px] text-blue-600/70 font-medium mt-0.5">Total</p>
+          </div>
         </div>
+
+        {item.setup_fee_cents > 0 && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+            ${(item.setup_fee_cents / 100).toFixed(2)} setup fee
+          </span>
+        )}
       </div>
 
-      <div className="px-4 py-2.5 bg-gray-50/50 border-t border-gray-100 flex items-center justify-end">
+      <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-end">
         <button
           onClick={e => { e.stopPropagation(); navigate(`/engagements/${item.id}/edit`) }}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
+          className="px-3.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
         >
           Settings
         </button>
@@ -200,7 +246,7 @@ function EngagementGridCard({ item, price, navigate }: { item: Offering; price: 
 
 // ── List Row ──
 
-function EngagementListRow({ item, price, navigate }: { item: Offering; price: string; navigate: (path: string) => void }) {
+function EngagementListRow({ item, price, navigate }: { item: EngagementWithStats; price: string; navigate: (path: string) => void }) {
   return (
     <div className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
       <EngagementIcon item={item} size="sm" />
@@ -216,11 +262,11 @@ function EngagementListRow({ item, price, navigate }: { item: Offering; price: s
         </p>
       </div>
 
-      {item.setup_fee_cents > 0 && (
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">
-          ${(item.setup_fee_cents / 100).toFixed(2)} setup
-        </span>
-      )}
+      {/* Enrollment counts */}
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-xs tabular-nums"><span className="font-semibold text-emerald-600">{item.active_mentees}</span> <span className="text-gray-400">active</span></span>
+        <span className="text-xs tabular-nums"><span className="font-semibold text-gray-600">{item.completed_mentees}</span> <span className="text-gray-400">done</span></span>
+      </div>
 
       <button
         onClick={() => navigate(`/engagements/${item.id}/edit`)}

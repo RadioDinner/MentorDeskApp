@@ -7,14 +7,16 @@ import type { Offering } from '../types'
 
 type ViewMode = 'list' | 'grid'
 
-interface CourseWithLessons extends Offering {
+interface CourseWithStats extends Offering {
   actual_lesson_count: number
+  active_mentees: number
+  completed_mentees: number
 }
 
 export default function CoursesPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [items, setItems] = useState<CourseWithLessons[]>([])
+  const [items, setItems] = useState<CourseWithStats[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -57,9 +59,29 @@ export default function CoursesPage() {
           }
         }
 
+        // Fetch mentee enrollment counts per course
+        const activeCounts: Record<string, number> = {}
+        const completedCounts: Record<string, number> = {}
+        if (courseIds.length > 0) {
+          const { data: moData } = await supabase
+            .from('mentee_offerings')
+            .select('offering_id, status')
+            .in('offering_id', courseIds)
+            .in('status', ['active', 'completed'])
+
+          if (moData) {
+            for (const mo of moData) {
+              if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+              else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
+            }
+          }
+        }
+
         setItems(courses.map(c => ({
           ...c,
           actual_lesson_count: lessonCounts[c.id] ?? 0,
+          active_mentees: activeCounts[c.id] ?? 0,
+          completed_mentees: completedCounts[c.id] ?? 0,
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
@@ -137,7 +159,7 @@ export default function CoursesPage() {
         </div>
       ) : viewMode === 'grid' ? (
         /* ── Grid View ── */
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {items.map(course => (
             <CourseGridCard key={course.id} course={course} price={getPrice(course)} navigate={navigate} />
           ))}
@@ -156,7 +178,7 @@ export default function CoursesPage() {
 
 // ── Icon Component ──
 
-function CourseIcon({ course, size = 'md' }: { course: CourseWithLessons; size?: 'sm' | 'md' }) {
+function CourseIcon({ course, size = 'md' }: { course: CourseWithStats; size?: 'sm' | 'md' }) {
   const dims = size === 'md' ? 'w-12 h-12 text-lg' : 'w-9 h-9 text-sm'
 
   if (course.icon_url) {
@@ -219,18 +241,21 @@ function LessonProgress({ created, target, compact = false }: { created: number;
 
 // ── Grid Card ──
 
-function CourseGridCard({ course, price, navigate }: { course: CourseWithLessons; price: string; navigate: (path: string) => void }) {
+function CourseGridCard({ course, price, navigate }: { course: CourseWithStats; price: string; navigate: (path: string) => void }) {
+  const totalEnrolled = course.active_mentees + course.completed_mentees
+  const completionRate = totalEnrolled > 0 ? Math.round((course.completed_mentees / totalEnrolled) * 100) : 0
+
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200/80 overflow-hidden hover:border-brand/40 hover:shadow-sm transition-all cursor-pointer group"
+      className="bg-white rounded-lg border border-gray-200/80 overflow-hidden hover:border-brand/40 hover:shadow-md transition-all cursor-pointer group"
       onClick={() => navigate(`/courses/${course.id}/builder`)}
     >
-      {/* Top section */}
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-start gap-3 mb-3">
+      <div className="px-5 pt-5 pb-4">
+        {/* Header */}
+        <div className="flex items-start gap-3.5 mb-3">
           <CourseIcon course={course} size="md" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 group-hover:text-brand transition-colors truncate">
+            <p className="text-base font-semibold text-gray-900 group-hover:text-brand transition-colors truncate">
               {course.name}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -238,10 +263,44 @@ function CourseGridCard({ course, price, navigate }: { course: CourseWithLessons
               {' · '}{price}
             </p>
           </div>
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded shrink-0 ${
+            course.billing_mode === 'recurring' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+          }`}>
+            {course.billing_mode === 'recurring' ? 'Recurring' : 'One-time'}
+          </span>
         </div>
 
         {course.description && (
-          <p className="text-[11px] text-gray-400 line-clamp-2 mb-3">{course.description}</p>
+          <p className="text-xs text-gray-400 line-clamp-2 mb-4">{course.description}</p>
+        )}
+
+        {/* Enrollment stats */}
+        <div className="flex items-stretch gap-3 mb-4">
+          <div className="flex-1 rounded-lg bg-brand-light/60 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-brand tabular-nums">{course.active_mentees}</p>
+            <p className="text-[10px] text-brand/70 font-medium mt-0.5">In progress</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-green-50 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-green-600 tabular-nums">{course.completed_mentees}</p>
+            <p className="text-[10px] text-green-600/70 font-medium mt-0.5">Completed</p>
+          </div>
+          <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+            <p className="text-xl font-bold text-gray-700 tabular-nums">{totalEnrolled}</p>
+            <p className="text-[10px] text-gray-500 font-medium mt-0.5">Total</p>
+          </div>
+        </div>
+
+        {/* Completion rate bar */}
+        {totalEnrolled > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-gray-500">Completion rate</span>
+              <span className="text-[10px] font-semibold text-gray-600 tabular-nums">{completionRate}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-green-400 transition-all" style={{ width: `${completionRate}%` }} />
+            </div>
+          </div>
         )}
 
         {/* Lesson build progress */}
@@ -249,26 +308,19 @@ function CourseGridCard({ course, price, navigate }: { course: CourseWithLessons
       </div>
 
       {/* Actions footer */}
-      <div className="px-4 py-2.5 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-          course.billing_mode === 'recurring' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-        }`}>
-          {course.billing_mode === 'recurring' ? 'Recurring' : 'One-time'}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/edit`) }}
-            className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-          >
-            Settings
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/builder`) }}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"
-          >
-            Builder
-          </button>
-        </div>
+      <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-end gap-2">
+        <button
+          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/edit`) }}
+          className="px-3.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
+        >
+          Settings
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/builder`) }}
+          className="px-3.5 py-1.5 text-xs font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"
+        >
+          Builder
+        </button>
       </div>
     </div>
   )
@@ -276,7 +328,7 @@ function CourseGridCard({ course, price, navigate }: { course: CourseWithLessons
 
 // ── List Row ──
 
-function CourseListRow({ course, price, navigate }: { course: CourseWithLessons; price: string; navigate: (path: string) => void }) {
+function CourseListRow({ course, price, navigate }: { course: CourseWithStats; price: string; navigate: (path: string) => void }) {
   return (
     <div className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
       <CourseIcon course={course} size="sm" />
@@ -289,6 +341,12 @@ function CourseListRow({ course, price, navigate }: { course: CourseWithLessons;
         <p className="text-xs text-gray-400 mt-0.5">
           {course.lesson_count ? `${course.lesson_count} lessons` : 'No lesson target'}
         </p>
+      </div>
+
+      {/* Enrollment counts */}
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-xs tabular-nums"><span className="font-semibold text-brand">{course.active_mentees}</span> <span className="text-gray-400">active</span></span>
+        <span className="text-xs tabular-nums"><span className="font-semibold text-green-600">{course.completed_mentees}</span> <span className="text-gray-400">done</span></span>
       </div>
 
       {/* Lesson progress */}
