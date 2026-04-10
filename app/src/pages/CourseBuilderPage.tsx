@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout, supabaseRestCall } from '../lib/supabase'
+import { supabase, supabaseRestCall } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import { reportSupabaseError } from '../lib/errorReporter'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import RichTextEditor from '../components/RichTextEditor'
 import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption } from '../types'
@@ -118,17 +117,17 @@ export default function CourseBuilderPage() {
   async function deleteLesson(lessonId: string) {
     if (!profile || !id) return
     try {
-      const { error: e } = await withTimeout(supabase.from('lessons').delete().eq('id', lessonId), 15000, 'deleteLesson')
+      const { error: e } = await supabaseRestCall('lessons', 'DELETE', {}, `id=eq.${lessonId}`)
       if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete: ' + e.message }); return }
       const updated = lessons.filter(l => l.id !== lessonId)
-      for (let i = 0; i < updated.length; i++) {
-        if (updated[i].order_index !== i) {
-          updated[i] = { ...updated[i], order_index: i }
-          await supabase.from('lessons').update({ order_index: i }).eq('id', updated[i].id)
-        }
-      }
-      setLessons(updated)
-      if (selectedLessonId === lessonId) setSelectedLessonId(updated[0]?.id ?? null)
+      const reindexed = updated.map((l, i) => ({ ...l, order_index: i }))
+      setLessons(reindexed)
+      await Promise.all(
+        reindexed
+          .filter((_l, i) => updated[i].order_index !== i)
+          .map(l => supabaseRestCall('lessons', 'PATCH', { order_index: l.order_index }, `id=eq.${l.id}`))
+      )
+      if (selectedLessonId === lessonId) setSelectedLessonId(reindexed[0]?.id ?? null)
     } catch (err) {
       setLessonMsg({ type: 'error', text: (err as Error).message || 'Failed to delete' })
     }
@@ -169,47 +168,49 @@ export default function CourseBuilderPage() {
     setLessons(updated)
     dragIndexRef.current = null; setDragOverIndex(null)
     try {
-      for (const l of updated) {
-        const { error } = await supabase.from('lessons').update({ order_index: l.order_index }).eq('id', l.id)
-        if (error) { setLessons(prev); return }
-      }
+      const results = await Promise.all(
+        updated.map(l => supabaseRestCall('lessons', 'PATCH', { order_index: l.order_index }, `id=eq.${l.id}`))
+      )
+      if (results.some(r => r.error)) { setLessons(prev) }
     } catch { setLessons(prev) }
   }
 
-  // --- Section actions ---
+  // --- Section actions (all use supabaseRestCall to avoid SDK write hang) ---
   async function addSection() {
     if (!selectedLessonId || !profile) return
     const newIndex = sections.length
-    const { data, error: e } = await supabase
-      .from('lesson_sections')
-      .insert({ lesson_id: selectedLessonId, organization_id: profile.organization_id, order_index: newIndex })
-      .select()
-      .single()
-    if (e) { reportSupabaseError(e, { component: 'CourseBuilderPage', action: 'addSection' }); return }
-    setSections(prev => [...prev, data as LessonSection])
+    const { data, error: e } = await supabaseRestCall('lesson_sections', 'POST', {
+      lesson_id: selectedLessonId, organization_id: profile.organization_id, order_index: newIndex,
+    })
+    if (e) { setLessonMsg({ type: 'error', text: 'Failed to add section: ' + e.message }); return }
+    if (!data?.length) { setLessonMsg({ type: 'error', text: 'Section was not created. Please try again.' }); return }
+    setSections(prev => [...prev, data[0] as unknown as LessonSection])
   }
 
   async function updateSection(sectionId: string, updates: Partial<LessonSection>) {
-    const { error: e } = await supabase.from('lesson_sections').update(updates).eq('id', sectionId)
+    const { error: e } = await supabaseRestCall('lesson_sections', 'PATCH', updates as Record<string, unknown>, `id=eq.${sectionId}`)
     if (e) { console.error('[CourseBuilder] updateSection error:', e); return }
     setSections(prev => prev.map(s => s.id === sectionId ? { ...s, ...updates } as LessonSection : s))
   }
 
   async function deleteSection(sectionId: string) {
-    await supabase.from('lesson_sections').delete().eq('id', sectionId)
-    setSections(prev => {
-      const filtered = prev.filter(s => s.id !== sectionId)
-      // Re-index
-      filtered.forEach((s, i) => {
-        if (s.order_index !== i) supabase.from('lesson_sections').update({ order_index: i }).eq('id', s.id)
-      })
-      return filtered.map((s, i) => ({ ...s, order_index: i }))
-    })
+    const { error: e } = await supabaseRestCall('lesson_sections', 'DELETE', {}, `id=eq.${sectionId}`)
+    if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete section.' }); return }
     // Remove questions belonging to this section
     setQuestions(prev => prev.filter(q => q.section_id !== sectionId))
+    // Calculate new order and update state
+    const filtered = sections.filter(s => s.id !== sectionId)
+    const reindexed = filtered.map((s, i) => ({ ...s, order_index: i }))
+    setSections(reindexed)
+    // Re-index in DB (await all to prevent race conditions)
+    await Promise.all(
+      reindexed
+        .filter((_s, i) => filtered[i].order_index !== i)
+        .map(s => supabaseRestCall('lesson_sections', 'PATCH', { order_index: s.order_index }, `id=eq.${s.id}`))
+    )
   }
 
-  // --- Question actions ---
+  // --- Question actions (all use supabaseRestCall to avoid SDK write hang) ---
   async function addQuestion(type: 'quiz' | 'response', sectionId: string | null) {
     if (!selectedLessonId || !profile) return
     const sectionQuestions = questions.filter(q => q.section_id === sectionId)
@@ -221,19 +222,39 @@ export default function CourseBuilderPage() {
       question_text: '', question_type: type, options, order_index: newIndex,
     })
     if (e) { setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
-    if (data?.length) setQuestions(prev => [...prev, data[0] as unknown as LessonQuestion])
+    if (!data?.length) { setLessonMsg({ type: 'error', text: 'Question was not created. Please try again.' }); return }
+    setQuestions(prev => [...prev, data[0] as unknown as LessonQuestion])
   }
 
   async function updateQuestion(questionId: string, updates: Partial<LessonQuestion>) {
-    const { error: e } = await withTimeout(supabase.from('lesson_questions').update(updates).eq('id', questionId), 15000, 'updateQuestion')
+    const { error: e } = await supabaseRestCall('lesson_questions', 'PATCH', updates as Record<string, unknown>, `id=eq.${questionId}`)
     if (e) { setLessonMsg({ type: 'error', text: 'Failed to save question.' }); return }
     setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } as LessonQuestion : q))
   }
 
   async function deleteQuestion(questionId: string) {
-    const { error: e } = await withTimeout(supabase.from('lesson_questions').delete().eq('id', questionId), 15000, 'deleteQuestion')
+    const deleted = questions.find(q => q.id === questionId)
+    const { error: e } = await supabaseRestCall('lesson_questions', 'DELETE', {}, `id=eq.${questionId}`)
     if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete question.' }); return }
-    setQuestions(prev => prev.filter(q => q.id !== questionId))
+    // Remove from state and re-index sibling questions
+    const filtered = questions.filter(q => q.id !== questionId)
+    if (deleted) {
+      const toReindex = filtered
+        .filter(q => q.section_id === deleted.section_id && q.lesson_id === deleted.lesson_id && q.order_index > deleted.order_index)
+      const reindexed = filtered.map(q => {
+        if (q.section_id === deleted.section_id && q.lesson_id === deleted.lesson_id && q.order_index > deleted.order_index) {
+          return { ...q, order_index: q.order_index - 1 }
+        }
+        return q
+      })
+      setQuestions(reindexed)
+      // Persist re-indexed order to DB
+      await Promise.all(
+        toReindex.map(q => supabaseRestCall('lesson_questions', 'PATCH', { order_index: q.order_index - 1 }, `id=eq.${q.id}`))
+      )
+    } else {
+      setQuestions(filtered)
+    }
   }
 
   // --- Render ---
@@ -496,9 +517,25 @@ function QuestionCard({
 }) {
   const [text, setText] = useState(question.question_text)
   const [options, setOptions] = useState<QuizOption[]>(question.options ?? [])
+  const [validationMsg, setValidationMsg] = useState<string | null>(null)
   const isQuiz = question.question_type === 'quiz'
 
+  function validate(qText?: string, qOptions?: QuizOption[]): string | null {
+    const t = (qText ?? text).trim()
+    if (!t) return 'Question text is required.'
+    if (isQuiz) {
+      const opts = qOptions ?? options
+      if (opts.length < 2) return 'Quiz questions need at least 2 options.'
+      if (opts.some(o => !o.text.trim())) return 'All options need text.'
+      if (!opts.some(o => o.is_correct)) return 'Select a correct answer.'
+    }
+    return null
+  }
+
   function autoSave(overrideText?: string, overrideOptions?: QuizOption[]) {
+    const msg = validate(overrideText, overrideOptions)
+    setValidationMsg(msg)
+    if (msg) return
     onUpdate(question.id, { question_text: (overrideText ?? text).trim(), ...(isQuiz ? { options: overrideOptions ?? options } : {}) })
   }
 
@@ -510,7 +547,7 @@ function QuestionCard({
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
-    <div className="rounded border border-gray-200 p-3">
+    <div className={`rounded border p-3 ${validationMsg ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-500">Q{index + 1}</span>
@@ -535,6 +572,7 @@ function QuestionCard({
           <button onClick={addOption} className="text-xs font-medium text-brand hover:text-brand-hover transition-colors">+ Add option</button>
         </div>
       )}
+      {validationMsg && <p className="mt-2 text-[10px] text-amber-600">{validationMsg}</p>}
     </div>
   )
 }
