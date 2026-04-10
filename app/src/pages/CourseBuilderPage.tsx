@@ -399,39 +399,36 @@ export default function CourseBuilderPage() {
                 </div>
               </div>
 
-              {/* Add section buttons */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold shrink-0">Add:</span>
-                <button type="button" onClick={() => addSection('text')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">+ Text</button>
-                <button type="button" onClick={() => addSection('video')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors">+ Video</button>
-                <button type="button" onClick={() => addSection('quiz')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">+ Quiz</button>
-                <button type="button" onClick={() => addSection('response')} className="px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">+ Response</button>
-              </div>
-
               {/* Sections */}
               {sectionsLoading ? (
                 <p className="text-xs text-gray-400 text-center py-4">Loading sections...</p>
               ) : (
                 <>
+                  {/* Add buttons before first section */}
+                  <AddSectionBar onAdd={addSection} />
+
                   {sections.map((section, si) => (
-                    <div
-                      key={section.id}
-                      draggable
-                      onDragStart={() => secDragStart(si)}
-                      onDragOver={e => secDragOverHandler(e, si)}
-                      onDrop={() => secDrop(si)}
-                      onDragEnd={() => { secDragRef.current = null; setSecDragOver(null) }}
-                      className={secDragOver === si ? 'ring-2 ring-brand/30 rounded-md' : ''}
-                    >
-                      <SectionEditor
-                        section={section}
-                        questions={questions.filter(q => q.section_id === section.id)}
-                        onUpdateSection={updateSection}
-                        onDeleteSection={deleteSection}
-                        onAddQuestion={addQuestion}
-                        onUpdateQuestion={updateQuestion}
-                        onDeleteQuestion={deleteQuestion}
-                      />
+                    <div key={section.id}>
+                      <div
+                        draggable
+                        onDragStart={() => secDragStart(si)}
+                        onDragOver={e => secDragOverHandler(e, si)}
+                        onDrop={() => secDrop(si)}
+                        onDragEnd={() => { secDragRef.current = null; setSecDragOver(null) }}
+                        className={secDragOver === si ? 'ring-2 ring-brand/30 rounded-md' : ''}
+                      >
+                        <SectionEditor
+                          section={section}
+                          questions={questions.filter(q => q.section_id === section.id)}
+                          onUpdateSection={updateSection}
+                          onDeleteSection={deleteSection}
+                          onAddQuestion={addQuestion}
+                          onUpdateQuestion={updateQuestion}
+                          onDeleteQuestion={deleteQuestion}
+                        />
+                      </div>
+                      {/* Add buttons after each section */}
+                      <AddSectionBar onAdd={addSection} />
                     </div>
                   ))}
 
@@ -452,6 +449,33 @@ export default function CourseBuilderPage() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Add Section Bar (appears between sections) ──
+
+function AddSectionBar({ onAdd }: { onAdd: (type: SectionType) => Promise<void> }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (!expanded) {
+    return (
+      <div className="flex justify-center py-1">
+        <button type="button" onClick={() => setExpanded(true)}
+          className="px-3 py-1 text-[11px] font-medium text-gray-400 hover:text-brand rounded-full border border-dashed border-gray-200 hover:border-brand/40 transition-colors">
+          + Add Section
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2 py-1.5">
+      <button type="button" onClick={() => { onAdd('text'); setExpanded(false) }} className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">+ Text</button>
+      <button type="button" onClick={() => { onAdd('video'); setExpanded(false) }} className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors">+ Video</button>
+      <button type="button" onClick={() => { onAdd('quiz'); setExpanded(false) }} className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">+ Quiz</button>
+      <button type="button" onClick={() => { onAdd('response'); setExpanded(false) }} className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">+ Response</button>
+      <button type="button" onClick={() => setExpanded(false)} className="px-1.5 py-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors">&times;</button>
     </div>
   )
 }
