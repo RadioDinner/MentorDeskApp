@@ -185,6 +185,35 @@ export interface Lesson {
   updated_at: string
 }
 
+export type LessonProgressStatus = 'not_started' | 'in_progress' | 'completed'
+
+export interface LessonProgress {
+  id: string
+  organization_id: string
+  mentee_id: string
+  mentee_offering_id: string
+  lesson_id: string
+  status: LessonProgressStatus
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuestionResponse {
+  id: string
+  organization_id: string
+  mentee_id: string
+  mentee_offering_id: string
+  lesson_id: string
+  question_id: string
+  response_text: string | null
+  selected_option_index: number | null
+  is_correct: boolean | null
+  answered_at: string
+  created_at: string
+}
+
 export type DueDateMode = 'none' | 'course' | 'lesson'
 
 export interface StaffMember {

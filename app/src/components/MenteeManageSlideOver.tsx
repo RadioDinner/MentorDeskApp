@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee, Offering, MenteeOffering, StaffMember } from '../types'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -13,6 +13,7 @@ interface Props {
 interface MenteeOfferingWithDetails extends MenteeOffering {
   offering?: Offering
   lesson_count?: number
+  completed_lessons?: number
 }
 
 export default function MenteeManageSlideOver({ mentee, profile, onClose }: Props) {
@@ -77,9 +78,29 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           }
         }
 
+        // Fetch completed lesson counts from lesson_progress
+        const courseMoIds = menteeOfferings
+          .filter(mo => mo.offering?.type === 'course')
+          .map(mo => mo.id)
+        const completedCounts: Record<string, number> = {}
+        if (courseMoIds.length > 0) {
+          const { data: progressData } = await supabase
+            .from('lesson_progress')
+            .select('mentee_offering_id')
+            .in('mentee_offering_id', courseMoIds)
+            .eq('status', 'completed')
+
+          if (progressData) {
+            for (const p of progressData) {
+              completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
+            }
+          }
+        }
+
         const enriched: MenteeOfferingWithDetails[] = menteeOfferings.map(mo => ({
           ...mo,
           lesson_count: lessonCounts[mo.offering_id] ?? 0,
+          completed_lessons: completedCounts[mo.id] ?? 0,
         }))
         setAssignments(enriched)
 
@@ -418,50 +439,245 @@ function DonutChart({ value, total, color, size = 56 }: { value: number; total: 
 function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   const offering = assignment.offering
   const totalLessons = assignment.lesson_count ?? 0
-  const completedLessons = 0 // Will come from lesson_progress table later
+  const completedLessons = assignment.completed_lessons ?? 0
   const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
   const isCompleted = assignment.status === 'completed'
 
+  const [expanded, setExpanded] = useState(false)
+  const [lessonDetails, setLessonDetails] = useState<(Lesson & { progress: LessonProgress | null; responses: (QuestionResponse & { question: LessonQuestion })[] })[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  async function loadDetails() {
+    if (lessonDetails.length > 0) { setExpanded(!expanded); return }
+    setExpanded(true)
+    setDetailLoading(true)
+    try {
+      // First fetch lessons and progress + responses in parallel
+      const [lessonsRes, progressRes, responsesRes] = await Promise.all([
+        supabase.from('lessons').select('*').eq('offering_id', assignment.offering_id).order('order_index', { ascending: true }),
+        supabase.from('lesson_progress').select('*').eq('mentee_offering_id', assignment.id),
+        supabase.from('question_responses').select('*').eq('mentee_offering_id', assignment.id),
+      ])
+
+      const lessons = (lessonsRes.data ?? []) as Lesson[]
+      const progressMap: Record<string, LessonProgress> = {}
+      for (const p of (progressRes.data ?? []) as LessonProgress[]) {
+        progressMap[p.lesson_id] = p
+      }
+
+      // Now fetch questions by lesson IDs
+      const lessonIds = lessons.map(l => l.id)
+      const questionsByLesson: Record<string, LessonQuestion[]> = {}
+      if (lessonIds.length > 0) {
+        const { data: questionsData } = await supabase
+          .from('lesson_questions')
+          .select('*')
+          .in('lesson_id', lessonIds)
+          .order('order_index', { ascending: true })
+
+        for (const q of (questionsData ?? []) as LessonQuestion[]) {
+          if (!questionsByLesson[q.lesson_id]) questionsByLesson[q.lesson_id] = []
+          questionsByLesson[q.lesson_id].push(q)
+        }
+      }
+
+      // Build response map by question_id
+      const responsesByQuestion: Record<string, QuestionResponse> = {}
+      for (const r of (responsesRes.data ?? []) as QuestionResponse[]) {
+        responsesByQuestion[r.question_id] = r
+      }
+
+      setLessonDetails(lessons.map(l => ({
+        ...l,
+        progress: progressMap[l.id] ?? null,
+        responses: (questionsByLesson[l.id] ?? []).map(q => ({
+          ...(responsesByQuestion[q.id] ?? { id: '', organization_id: '', mentee_id: '', mentee_offering_id: '', lesson_id: l.id, question_id: q.id, response_text: null, selected_option_index: null, is_correct: null, answered_at: '', created_at: '' } as QuestionResponse),
+          question: q,
+        })),
+      })))
+    } catch (err) {
+      console.error('[CourseCard] loadDetails error:', err)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   return (
-    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
-          {offering?.name ?? 'Unknown course'}
-        </p>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
-          isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'
+    <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="px-4 py-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+            {offering?.name ?? 'Unknown course'}
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={loadDetails}
+              className="text-[10px] text-gray-400 hover:text-brand transition-colors"
+            >
+              {expanded ? 'Hide' : 'Details'}
+            </button>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+              isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'
+            }`}>
+              {isCompleted ? 'Completed' : 'Active'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] text-gray-500">Progress</span>
+              <span className="text-[11px] font-medium text-gray-700 tabular-nums">{pct}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+          <div className="text-center shrink-0">
+            <p className="text-lg font-bold text-gray-900 tabular-nums leading-none">{completedLessons}<span className="text-gray-300">/{totalLessons}</span></p>
+            <p className="text-[10px] text-gray-400 mt-0.5">lessons</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-[10px] text-gray-400">
+          {assignment.assigned_at && (
+            <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+          )}
+          {offering?.expected_completion_days && (
+            <span>{offering.expected_completion_days}d expected</span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded detail view */}
+      {expanded && (
+        <div className="border-t border-gray-100 px-4 py-3">
+          {detailLoading ? (
+            <p className="text-xs text-gray-400 text-center py-2">Loading lesson details...</p>
+          ) : lessonDetails.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No lessons in this course yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {lessonDetails.map((lesson, idx) => {
+                const status = lesson.progress?.status ?? 'not_started'
+                const hasResponses = lesson.responses.some(r => r.answered_at)
+                return (
+                  <LessonDetailRow
+                    key={lesson.id}
+                    lesson={lesson}
+                    index={idx}
+                    status={status}
+                    hasResponses={hasResponses}
+                    responses={lesson.responses}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LessonDetailRow({
+  lesson,
+  index,
+  status,
+  hasResponses,
+  responses,
+}: {
+  lesson: Lesson & { progress: LessonProgress | null }
+  index: number
+  status: string
+  hasResponses: boolean
+  responses: (QuestionResponse & { question: LessonQuestion })[]
+}) {
+  const [showResponses, setShowResponses] = useState(false)
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 py-1">
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[9px] font-semibold ${
+          status === 'completed'
+            ? 'bg-green-100 text-green-600'
+            : status === 'in_progress'
+              ? 'bg-brand-light text-brand'
+              : 'bg-gray-100 text-gray-400'
         }`}>
-          {isCompleted ? 'Completed' : 'Active'}
-        </span>
+          {status === 'completed' ? (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            index + 1
+          )}
+        </div>
+        <p className={`text-xs flex-1 truncate ${status === 'completed' ? 'text-gray-500' : 'text-gray-700'}`}>
+          {lesson.title}
+        </p>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {lesson.progress?.completed_at && (
+            <span className="text-[9px] text-gray-400">
+              {new Date(lesson.progress.completed_at).toLocaleDateString()}
+            </span>
+          )}
+          {hasResponses && (
+            <button
+              onClick={() => setShowResponses(!showResponses)}
+              className="text-[9px] text-brand hover:text-brand-hover transition-colors"
+            >
+              {showResponses ? 'Hide' : 'Responses'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-500">Progress</span>
-            <span className="text-[11px] font-medium text-gray-700 tabular-nums">{pct}%</span>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-        <div className="text-center shrink-0">
-          <p className="text-lg font-bold text-gray-900 tabular-nums leading-none">{completedLessons}<span className="text-gray-300">/{totalLessons}</span></p>
-          <p className="text-[10px] text-gray-400 mt-0.5">lessons</p>
-        </div>
-      </div>
+      {showResponses && responses.length > 0 && (
+        <div className="ml-7 mb-2 space-y-1.5">
+          {responses.map((r) => {
+            const q = r.question
+            const isQuiz = q.question_type === 'quiz'
+            const options = (q.options ?? []) as { text: string; is_correct: boolean }[]
+            const answered = !!r.answered_at
 
-      <div className="flex items-center gap-4 text-[10px] text-gray-400">
-        {assignment.assigned_at && (
-          <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
-        )}
-        {offering?.expected_completion_days && (
-          <span>{offering.expected_completion_days}d expected</span>
-        )}
-      </div>
+            return (
+              <div key={q.id} className="rounded border border-gray-100 px-3 py-2 bg-gray-50/50">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${
+                    isQuiz ? 'bg-violet-50 text-violet-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {isQuiz ? 'Quiz' : 'Response'}
+                  </span>
+                  {answered && isQuiz && (
+                    <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${
+                      r.is_correct ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                    }`}>
+                      {r.is_correct ? 'Correct' : 'Incorrect'}
+                    </span>
+                  )}
+                  {!answered && (
+                    <span className="text-[9px] text-gray-400">Not answered</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-700 mb-1">{q.question_text || 'No question text'}</p>
+                {answered && isQuiz && r.selected_option_index != null && (
+                  <p className="text-[10px] text-gray-500">
+                    Selected: {options[r.selected_option_index]?.text ?? `Option ${r.selected_option_index + 1}`}
+                  </p>
+                )}
+                {answered && !isQuiz && r.response_text && (
+                  <p className="text-[10px] text-gray-500 italic">{r.response_text}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

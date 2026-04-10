@@ -24,6 +24,7 @@ import CourseBuilderPage from './pages/CourseBuilderPage'
 import AuditLogPage from './pages/AuditLogPage'
 import MenteeEngagementsPage from './pages/MenteeEngagementsPage'
 import MenteeCoursesPage from './pages/MenteeCoursesPage'
+import MenteeCourseViewerPage from './pages/MenteeCourseViewerPage'
 import MenteeBillingPage from './pages/MenteeBillingPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -73,6 +74,7 @@ export default function App() {
             {/* Mentee-specific routes */}
             <Route path="/my-engagements" element={<MenteeEngagementsPage />} />
             <Route path="/my-courses" element={<MenteeCoursesPage />} />
+            <Route path="/my-courses/:id" element={<MenteeCourseViewerPage />} />
             <Route path="/my-billing" element={<MenteeBillingPage />} />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
