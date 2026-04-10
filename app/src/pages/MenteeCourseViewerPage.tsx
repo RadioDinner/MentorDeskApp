@@ -288,13 +288,12 @@ export default function MenteeCourseViewerPage() {
                 </div>
               )}
 
-              {/* Sections — type-aware rendering */}
+              {/* Sections — type-aware rendering (text sections render all content for backwards compat) */}
               {sections.map(section => {
-                const sType = (section as LessonSection & { section_type?: string }).section_type ?? 'text'
+                const sType = (section as LessonSection & { section_type?: string }).section_type || 'text'
                 const sectionQuestions = questions.filter(q => q.section_id === section.id)
-                const showContent = sType === 'text'
-                const showVideo = sType === 'video'
-                const showQuestions = sType === 'quiz' || sType === 'response'
+                // Text sections (and legacy sections without a type) render everything
+                const isTextOrLegacy = sType === 'text'
                 return (
                   <div key={section.id} className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
                     {section.title && (
@@ -302,13 +301,13 @@ export default function MenteeCourseViewerPage() {
                         <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
                       </div>
                     )}
-                    {showVideo && section.video_url && <VideoEmbed url={section.video_url} />}
-                    {showContent && section.content && (
+                    {(isTextOrLegacy || sType === 'video') && section.video_url && <VideoEmbed url={section.video_url} />}
+                    {(isTextOrLegacy) && section.content && (
                       <div className="px-5 py-4">
                         <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: replaceDynamicFields(section.content, fieldCtx) }} />
                       </div>
                     )}
-                    {showQuestions && sectionQuestions.length > 0 && (
+                    {(isTextOrLegacy || sType === 'quiz' || sType === 'response') && sectionQuestions.length > 0 && (
                       <div className="px-5 py-5">
                         <div className="space-y-4">
                           {sectionQuestions.map((q, qi) => (
