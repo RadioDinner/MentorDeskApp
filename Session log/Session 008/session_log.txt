@@ -1,0 +1,184 @@
+SESSION 008 - HANDOFF LOG
+==========================
+Date: 2026-04-10
+Branch: main (direct push)
+
+
+SUMMARY
+--------
+Massive feature session covering course viewer, scheduling system,
+engagement management, invoicing, course builder revamp, and several
+bug fixes. 17 prompts processed with 12+ commits to main.
+
+
+CHANGES MADE
+-------------
+
+1. BUG FIX: MENTEE COURSES NOT SHOWING
+   - MenteeCoursesPage rewritten to query mentee_offerings instead of
+     pairings (root cause: courses assigned via mentee_offerings since
+     Session 007 but page still queried old pairings table)
+   - Now shows progress bars, click-to-open course viewer
+
+2. BUG FIX: MENTEE ENGAGEMENTS NOT SHOWING
+   - Same root cause as courses — MenteeEngagementsPage rewritten to
+     query mentee_offerings instead of pairings
+   - Shows session credits, remaining count, pricing info
+
+3. MENTEE COURSE VIEWER (new page: /my-courses/:id)
+   - Lesson sidebar with progress indicators (not started/in progress/completed)
+   - Renders lesson sections with HTML content, video embed, questions
+   - Quiz questions with option selection and correct/incorrect feedback
+   - Response questions with auto-save (1.5s debounce)
+   - "Complete Lesson" button with auto-advance to next lesson
+   - Course completion detection when all lessons done
+
+4. LESSON PROGRESS TRACKING (new tables)
+   - lesson_progress: tracks mentee completion of individual lessons
+   - question_responses: tracks mentee answers with auto-save support
+   - Migration 976 with full RLS policies
+
+5. COURSE BUILDER REVAMP
+   - Sticky lesson header (title, description, due days)
+   - Lessons now have sections: each section has subtitle, rich text
+     content, video URL, and its own questions
+   - Per-section "+ Response" and "+ Quiz" buttons
+   - Legacy lesson-level questions preserved for backwards compat
+   - Migration 971: lesson_sections table + section_id FK on questions
+
+6. MENTOR PROGRESS VIEW
+   - Inline course progress summaries on mentee list rows
+   - CourseCard in Manage panel shows real progress from lesson_progress
+   - Expandable detail: per-lesson status, completion dates, responses
+   - Quiz grading: per-lesson grade badge (3/4) + overall course grade
+     summary with percentage and color coding
+
+7. COURSES PAGE REDESIGN
+   - Grid/list toggle with localStorage persistence
+   - Grid: rectangular cards with icon, title, lesson count, price,
+     billing mode badge, lesson build progress bar
+   - Icons: emoji or image URL, gradient letter fallback
+   - Migration 973: icon_url on offerings
+
+8. SCHEDULING SYSTEM (new tables + pages)
+   - availability_schedules: mentor recurring weekly time blocks
+   - availability_overrides: one-off blocks for specific dates
+   - meetings: scheduled sessions with external calendar integration
+     fields (Google/Outlook/Apple ready)
+   - Migration 972 with full RLS policies
+   - AvailabilityPage (/availability): weekly schedule editor for mentors
+   - Added to mentor sidebar
+
+9. MENTEE ENGAGEMENT DETAIL (new page: /my-engagements/:id)
+   - Click engagement to open detail view
+   - Session credits with visual progress bar
+   - Schedule meetings: date picker filtered by mentor availability,
+     conflict detection (other mentees' meetings block the same slot)
+   - Upcoming meetings, session history, past meetings
+
+10. CREDIT SYSTEM REWORK
+    - Credits consumed when meeting END TIME passes, not at booking
+    - New credits.ts utility: computeCredits() returns used, reserved,
+      remaining, availableToBook
+    - Future meetings "reserve" credits but don't consume them
+
+11. MEETING CONFLICT DETECTION (scheduling.ts)
+    - getAvailableSlots(): subtracts booked meetings from availability
+    - hasConflict(): validates proposed time against all mentor meetings
+    - Prevents double-booking across mentees
+    - Future-ready for Google Calendar external blocks
+
+12. ENGAGEMENT MANAGEMENT (expanded EngagementCard)
+    - Session logging with date and notes
+    - Session history with delete
+    - Full settings editor (price, setup fee, sessions, period, end date)
+    - Invoice section: create, status changes, amount editing
+    - Visual invoice projection
+    - Meeting scheduler with conflict detection
+    - Migration 975: engagement_sessions table + ends_at on mentee_offerings
+
+13. PER-ENGAGEMENT INVOICING
+    - invoices.mentee_offering_id FK (migration 974)
+    - Auto-create setup fee invoice on engagement open
+    - Auto-send first recurring invoice when auto_send_invoice is enabled
+    - Create/edit/status-change invoices inline
+    - Migration 970: auto_send_invoice on offerings
+
+14. PAIRINGS MODULE FIX
+    - "Pair with mentor" button added to By Status tab for unpaired mentees
+    - "Assign Mentors" button in header when unpaired mentees exist
+    - Assistant mentors now included in mentor dropdown
+
+15. MENTOR CAPACITY
+    - max_active_mentees column on staff (migration 969)
+    - Field in PersonEditPage for mentor/assistant_mentor
+    - At-capacity mentors greyed out in pairing dropdowns with tooltip
+    - By Mentor tab shows "At capacity" badge
+
+16. COURSE CARD BUTTONS
+    - Settings and Builder links upgraded to proper styled buttons
+
+
+DATABASE MIGRATIONS TO RUN (newest first)
+-------------------------------------------
+- 969_mentor_capacity.sql
+- 970_auto_send_invoice.sql
+- 971_lesson_sections.sql
+- 972_scheduling.sql
+- 973_offering_icon.sql
+- 974_invoice_mentee_offering.sql
+- 975_engagement_sessions.sql
+- 976_lesson_progress.sql
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. ENGAGEMENT MANAGEMENT MODAL (from prompt 12):
+   - User wants a full-page modal overlay instead of the in-place expand
+   - Wants larger text, better visuals throughout
+   - The close-out date save may still have issues (ends_at as TIMESTAMPTZ
+     receiving a date string — needs verification after migration runs)
+   - Invoice projection should follow close-out date rules:
+     * If close-out is set: project invoices from start to close-out
+     * If indefinite: only show current + next month
+   - auto_send_invoice toggle was added but the modal UI wasn't rebuilt
+
+2. GOOGLE CALENDAR INTEGRATION:
+   - meetings table has external_calendar_id/provider/event_url fields
+   - scheduling.ts designed for external block injection
+   - Need: OAuth flow, event sync, real-time availability merge
+
+3. SUPABASE SDK WRITE HANG:
+   - Still using raw fetch() workaround for Course Builder
+   - Root cause still unknown
+
+4. REMAINING BIG FEATURES:
+   - Reports module (placeholder exists, mentor sidebar has it)
+   - Admin invoicing/payroll/billing pages
+   - Signup/invite flows
+   - Stripe integration for payments
+   - Messaging between mentee and mentor
+
+5. STALE REMOTE BRANCH:
+   - remotes/origin/claude/features-and-bugfixes-ozhMk (403 on delete)
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- Real codebase: app/ (TypeScript/React 19/Vite/Tailwind CSS 4)
+- Backend: Supabase (Postgres + Auth + RLS)
+- Deployment: Vercel (auto-deploys from main)
+- 15+ tables: organizations, staff, mentees, offerings, pairings, lessons,
+  lesson_sections, lesson_questions, audit_log, invoices, payroll,
+  error_reports, mentee_offerings, engagement_sessions, lesson_progress,
+  question_responses, availability_schedules, availability_overrides, meetings
+- 28+ page components in app/src/pages/
+- 3 role-specific portals: Admin (full), Mentor (mentees + availability +
+  reports), Mentee (engagements + courses + billing)
+- Course builder with sections, rich text, video, per-section questions
+- Scheduling system with availability, conflict detection, meeting management
+- Credit system: meetings consume credits when end time passes
+- Per-engagement invoicing with projections and auto-send
+- Mentor capacity system with pairing enforcement
+- Build passes clean (tsc + vite)
