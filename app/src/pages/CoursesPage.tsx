@@ -258,13 +258,13 @@ function CourseGridCard({ course, price, navigate }: { course: CourseWithLessons
         <div className="flex items-center gap-2">
           <button
             onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/edit`) }}
-            className="text-[10px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
           >
             Settings
           </button>
           <button
             onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/builder`) }}
-            className="text-[10px] font-medium text-brand hover:text-brand-hover transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"
           >
             Builder
           </button>

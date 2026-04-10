@@ -30,3 +30,5 @@ SESSION 008 - PROMPT HISTORY
 14. Ok, I found a bit of a problem with the "Pairings" module. Currently when a mentee doesn't have a mentor assigned, it doesn't give me the option to assign someone.
 
 15. I want Mentors and Assistant Mentors to be able to set in their profile how many active mentees they want, I want to setup a system so that we see that in the pairings screen. If he wants 4 mentees, then that can be set in his edit screen. Then when he's reached 4 assigned mentees in the pairing screen, it'll give you a tooltip as to why his name is greyed out.
+
+16. I love the grid layout of the courses module!!!! On the cards in the grid though, I want the settings and builder links to be bigger and be buttons, not just words.
