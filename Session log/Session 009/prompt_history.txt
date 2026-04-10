@@ -6,3 +6,5 @@ SESSION 009 - PROMPT HISTORY
 2. When I click the button +Response or +Quiz in the sections of the lessons, it doesn't work. Also, I tried to delete Lesson questions at the bottom and it didn't work. It gave me a message saying "Failed to delete question."
 
 While we're looking at questions, fix the re-indexing bug, race conditions and validation.
+
+3. While we're looking at the course builder, I want you to add, for each section, a place for notes on the right side of the section card. These notes are for the course creator, and will only be visible to themselves, when editing a course, or to the other course creators.

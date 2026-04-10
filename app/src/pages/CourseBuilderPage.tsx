@@ -437,6 +437,7 @@ function SectionEditor({
   const [title, setTitle] = useState(section.title ?? '')
   const [content, setContent] = useState(section.content ?? '')
   const [videoUrl, setVideoUrl] = useState(section.video_url ?? '')
+  const [notes, setNotes] = useState(section.notes ?? '')
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -445,6 +446,7 @@ function SectionEditor({
       title: title.trim() || null,
       content: content.trim() || null,
       video_url: videoUrl.trim() || null,
+      notes: notes.trim() || null,
     })
     setSaving(false)
   }
@@ -469,37 +471,54 @@ function SectionEditor({
         </div>
       </div>
 
-      <div className="px-5 py-4 space-y-4">
-        {/* Content */}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Content</label>
-          <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." />
-        </div>
-
-        {/* Video */}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Video URL</label>
-          <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} onBlur={save} className={inputClass} placeholder="https://youtube.com/watch?v=..." />
-        </div>
-
-        {/* Questions for this section */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-medium text-gray-700">Questions</label>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onAddQuestion('response', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">+ Response</button>
-              <button type="button" onClick={() => onAddQuestion('quiz', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors">+ Quiz</button>
-            </div>
+      <div className="flex">
+        {/* Left: section content */}
+        <div className="flex-1 min-w-0 px-5 py-4 space-y-4">
+          {/* Content */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Content</label>
+            <RichTextEditor content={content} onChange={setContent} placeholder="Write section content..." />
           </div>
-          {questions.length === 0 ? (
-            <p className="text-[10px] text-gray-400">No questions in this section.</p>
-          ) : (
-            <div className="space-y-3">
-              {questions.map((q, qi) => (
-                <QuestionCard key={q.id} question={q} index={qi} onUpdate={onUpdateQuestion} onDelete={onDeleteQuestion} />
-              ))}
+
+          {/* Video */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Video URL</label>
+            <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} onBlur={save} className={inputClass} placeholder="https://youtube.com/watch?v=..." />
+          </div>
+
+          {/* Questions for this section */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-gray-700">Questions</label>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => onAddQuestion('response', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">+ Response</button>
+                <button type="button" onClick={() => onAddQuestion('quiz', section.id)} className="px-2 py-0.5 text-[10px] font-semibold rounded border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors">+ Quiz</button>
+              </div>
             </div>
-          )}
+            {questions.length === 0 ? (
+              <p className="text-[10px] text-gray-400">No questions in this section.</p>
+            ) : (
+              <div className="space-y-3">
+                {questions.map((q, qi) => (
+                  <QuestionCard key={q.id} question={q} index={qi} onUpdate={onUpdateQuestion} onDelete={onDeleteQuestion} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: creator notes */}
+        <div className="w-56 shrink-0 border-l border-gray-100 bg-amber-50/30 px-3 py-4">
+          <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Creator Notes</label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            onBlur={save}
+            rows={6}
+            className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs text-gray-700 placeholder-gray-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/50 transition resize-none"
+            placeholder="Private notes for course creators..."
+          />
+          <p className="mt-1.5 text-[9px] text-amber-600/70">Only visible to course creators</p>
         </div>
       </div>
     </div>

@@ -251,6 +251,7 @@ export interface LessonSection {
   title: string | null
   content: string | null
   video_url: string | null
+  notes: string | null
   order_index: number
   created_at: string
   updated_at: string
