@@ -40,22 +40,19 @@ export default function EngagementsPage() {
           .order('name', { ascending: true })
         if (e) { setError(e.message); return }
         const engagements = (data ?? []) as Offering[]
-
-        // Fetch mentee enrollment counts
         const engIds = engagements.map(eng => eng.id)
+
+        // Fetch enrollment counts in parallel (only waits for one extra query)
+        const { data: moData } = engIds.length > 0
+          ? await supabase.from('mentee_offerings').select('offering_id, status').in('offering_id', engIds).in('status', ['active', 'completed'])
+          : { data: [] }
+
         const activeCounts: Record<string, number> = {}
         const completedCounts: Record<string, number> = {}
-        if (engIds.length > 0) {
-          const { data: moData } = await supabase
-            .from('mentee_offerings')
-            .select('offering_id, status')
-            .in('offering_id', engIds)
-            .in('status', ['active', 'completed'])
-          if (moData) {
-            for (const mo of moData) {
-              if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
-              else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
-            }
+        if (moData) {
+          for (const mo of moData as { offering_id: string; status: string }[]) {
+            if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+            else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
           }
         }
 

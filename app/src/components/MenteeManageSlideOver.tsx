@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, withTimeout } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
@@ -46,79 +46,53 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
 
-  // Fetch data
+  // Fetch data — parallelized to minimize total wait time
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
       try {
-        // Fetch org settings for multi-engagement flag
-        const { data: orgData } = await withTimeout(
+        // Round 1: Fire all independent queries in parallel
+        const [orgRes, moRes, offeringsRes] = await Promise.all([
           supabase.from('organizations').select('allow_multi_engagement').eq('id', profile.organization_id).single(),
-          10000, 'fetchOrgSettings',
-        )
-
-        setAllowMultiEngagement(orgData?.allow_multi_engagement ?? false)
-
-        const { data: moData } = await withTimeout(
           supabase.from('mentee_offerings').select('*, offering:offerings(*)').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('assigned_at', { ascending: false }),
-          10000, 'fetchMenteeOfferings',
-        )
+          supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
+        ])
 
-        const menteeOfferings = (moData ?? []) as (MenteeOffering & { offering: Offering })[]
+        setAllowMultiEngagement(orgRes.data?.allow_multi_engagement ?? false)
 
-        const courseOfferingIds = menteeOfferings
-          .filter(mo => mo.offering?.type === 'course')
-          .map(mo => mo.offering_id)
+        const menteeOfferings = (moRes.data ?? []) as (MenteeOffering & { offering: Offering })[]
+        const offerings = (offeringsRes.data ?? []) as Offering[]
+        const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
+        setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
+        setAvailableEngagements(offerings.filter(o => o.type === 'engagement' && !assignedIds.has(o.id)))
+
+        // Round 2: Fetch lesson counts + progress in parallel (depends on round 1 IDs)
+        const courseOfferingIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.offering_id)
+        const courseMoIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.id)
+
+        const [lessonsRes, progressRes] = await Promise.all([
+          courseOfferingIds.length > 0
+            ? supabase.from('lessons').select('offering_id').in('offering_id', courseOfferingIds)
+            : Promise.resolve({ data: [] }),
+          courseMoIds.length > 0
+            ? supabase.from('lesson_progress').select('mentee_offering_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed')
+            : Promise.resolve({ data: [] }),
+        ])
 
         const lessonCounts: Record<string, number> = {}
-        if (courseOfferingIds.length > 0) {
-          const { data: lessonsData } = await withTimeout(
-            supabase.from('lessons').select('offering_id').in('offering_id', courseOfferingIds),
-            10000, 'fetchLessonCounts',
-          )
-          if (lessonsData) {
-            for (const l of lessonsData) {
-              lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
-            }
-          }
-        }
+        if (lessonsRes.data) for (const l of lessonsRes.data as { offering_id: string }[]) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
 
-        // Fetch completed lesson counts from lesson_progress
-        const courseMoIds = menteeOfferings
-          .filter(mo => mo.offering?.type === 'course')
-          .map(mo => mo.id)
         const completedCounts: Record<string, number> = {}
-        if (courseMoIds.length > 0) {
-          const { data: progressData } = await withTimeout(
-            supabase.from('lesson_progress').select('mentee_offering_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed'),
-            10000, 'fetchCompletedLessons',
-          )
-          if (progressData) {
-            for (const p of progressData) {
-              completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
-            }
-          }
-        }
+        if (progressRes.data) for (const p of progressRes.data as { mentee_offering_id: string }[]) completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
 
-        const enriched: MenteeOfferingWithDetails[] = menteeOfferings.map(mo => ({
+        setAssignments(menteeOfferings.map(mo => ({
           ...mo,
           lesson_count: lessonCounts[mo.offering_id] ?? 0,
           completed_lessons: completedCounts[mo.id] ?? 0,
-        }))
-        setAssignments(enriched)
-
-        const { data: allOfferings } = await withTimeout(
-          supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
-          10000, 'fetchOfferings',
-        )
-
-        const offerings = (allOfferings ?? []) as Offering[]
-        const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
-
-        setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
-        setAvailableEngagements(offerings.filter(o => o.type === 'engagement' && !assignedIds.has(o.id)))
+        })))
       } catch (err) {
         console.error('[MenteeManageSlideOver] fetch error:', err)
+        setMsg({ type: 'error', text: 'Failed to load data. Please try again.' })
       } finally {
         setLoading(false)
       }

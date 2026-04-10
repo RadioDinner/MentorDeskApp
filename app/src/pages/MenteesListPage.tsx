@@ -114,21 +114,21 @@ export default function MenteesListPage() {
           }
         }
 
-        // Get lesson counts per offering
-        if (courseOfferingIds.size > 0) {
-          const { data: lessonsData } = await supabase
-            .from('lessons')
-            .select('offering_id')
-            .in('offering_id', Array.from(courseOfferingIds))
+        // Fetch lesson counts + completed progress in parallel
+        const [lessonsRes, progressRes] = await Promise.all([
+          courseOfferingIds.size > 0
+            ? supabase.from('lessons').select('offering_id').in('offering_id', Array.from(courseOfferingIds))
+            : Promise.resolve({ data: [] }),
+          courseMoIds.length > 0
+            ? supabase.from('lesson_progress').select('mentee_offering_id, mentee_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed')
+            : Promise.resolve({ data: [] }),
+        ])
 
+        if (lessonsRes.data) {
           const lessonCountsByOffering: Record<string, number> = {}
-          if (lessonsData) {
-            for (const l of lessonsData) {
-              lessonCountsByOffering[l.offering_id] = (lessonCountsByOffering[l.offering_id] || 0) + 1
-            }
+          for (const l of lessonsRes.data as { offering_id: string }[]) {
+            lessonCountsByOffering[l.offering_id] = (lessonCountsByOffering[l.offering_id] || 0) + 1
           }
-
-          // Sum total lessons per mentee
           for (const mo of menteeOfferings) {
             if (mo.offering?.type === 'course' && summaries[mo.mentee_id]) {
               summaries[mo.mentee_id].totalLessons += lessonCountsByOffering[mo.offering_id] ?? 0
@@ -136,19 +136,10 @@ export default function MenteesListPage() {
           }
         }
 
-        // Get completed lessons per mentee_offering
-        if (courseMoIds.length > 0) {
-          const { data: progressData } = await supabase
-            .from('lesson_progress')
-            .select('mentee_offering_id, mentee_id')
-            .in('mentee_offering_id', courseMoIds)
-            .eq('status', 'completed')
-
-          if (progressData) {
-            for (const p of progressData as { mentee_offering_id: string; mentee_id: string }[]) {
-              if (summaries[p.mentee_id]) {
-                summaries[p.mentee_id].completedLessons++
-              }
+        if (progressRes.data) {
+          for (const p of progressRes.data as { mentee_offering_id: string; mentee_id: string }[]) {
+            if (summaries[p.mentee_id]) {
+              summaries[p.mentee_id].completedLessons++
             }
           }
         }

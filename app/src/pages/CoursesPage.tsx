@@ -42,38 +42,27 @@ export default function CoursesPage() {
         if (e) { setError(e.message); return }
 
         const courses = (data ?? []) as Offering[]
-
-        // Fetch actual lesson counts per course
         const courseIds = courses.map(c => c.id)
-        let lessonCounts: Record<string, number> = {}
-        if (courseIds.length > 0) {
-          const { data: lessonsData } = await supabase
-            .from('lessons')
-            .select('offering_id')
-            .in('offering_id', courseIds)
 
-          if (lessonsData) {
-            for (const l of lessonsData) {
-              lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
-            }
-          }
-        }
+        // Fetch lesson counts + enrollment counts in parallel
+        const [lessonsRes, moRes] = await Promise.all([
+          courseIds.length > 0
+            ? supabase.from('lessons').select('offering_id').in('offering_id', courseIds)
+            : Promise.resolve({ data: [] }),
+          courseIds.length > 0
+            ? supabase.from('mentee_offerings').select('offering_id, status').in('offering_id', courseIds).in('status', ['active', 'completed'])
+            : Promise.resolve({ data: [] }),
+        ])
 
-        // Fetch mentee enrollment counts per course
+        const lessonCounts: Record<string, number> = {}
+        if (lessonsRes.data) for (const l of lessonsRes.data as { offering_id: string }[]) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
+
         const activeCounts: Record<string, number> = {}
         const completedCounts: Record<string, number> = {}
-        if (courseIds.length > 0) {
-          const { data: moData } = await supabase
-            .from('mentee_offerings')
-            .select('offering_id, status')
-            .in('offering_id', courseIds)
-            .in('status', ['active', 'completed'])
-
-          if (moData) {
-            for (const mo of moData) {
-              if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
-              else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
-            }
+        if (moRes.data) {
+          for (const mo of moRes.data as { offering_id: string; status: string }[]) {
+            if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+            else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
           }
         }
 

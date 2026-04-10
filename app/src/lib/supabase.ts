@@ -95,6 +95,19 @@ export async function supabaseRestCall(
 }
 
 /**
+ * Lightweight warm-up ping to wake the Supabase project from cold start.
+ * Call this early (e.g. on auth state change) so that subsequent queries
+ * hit a warm connection. Fire-and-forget — don't await in the critical path.
+ */
+export function warmUpSupabase() {
+  Promise.resolve(supabase.from('organizations').select('id').limit(1)).then(() => {
+    console.log('[Supabase] Warm-up ping completed')
+  }).catch(() => {
+    // Ignore errors — this is best-effort
+  })
+}
+
+/**
  * Quick connectivity test: attempt a simple read + write to verify
  * the Supabase connection works for both operations.
  */

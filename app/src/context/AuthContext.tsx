@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, warmUpSupabase } from '../lib/supabase'
 import { purgeExpiredArchives } from '../lib/archivePurge'
 import type { StaffMember, Mentee } from '../types'
 
@@ -192,10 +192,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeSafetyTimeout = setTimeout(() => {
         console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
         setLoading(false)
-      }, 6000)
+      }, 15000)
 
       try {
         if (session?.user) {
+          // Warm up Supabase connection early (fire-and-forget) to avoid
+          // cold-start delays on the first real page queries
+          warmUpSupabase()
+
           // On token refresh, don't disrupt the current profile
           // Only do a full profile fetch on initial load or sign-in
           if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
