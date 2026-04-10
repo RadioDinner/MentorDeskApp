@@ -52,7 +52,7 @@ export default function PairingsPage() {
     setError(null)
     try {
       const [mentorRes, menteeRes, pairingRes, orgRes] = await Promise.all([
-        supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).eq('role', 'mentor').order('first_name'),
+        supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).in('role', ['mentor', 'assistant_mentor']).order('first_name'),
         supabase.from('mentees').select('id, first_name, last_name, email, flow_step_id').eq('organization_id', profile.organization_id).order('first_name'),
         supabase.from('pairings').select(`
           id, status, mentor_id, mentee_id, offering_id,
@@ -140,7 +140,19 @@ export default function PairingsPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Pairings</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Pairings</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {pairings.length} active pairing{pairings.length !== 1 ? 's' : ''}
+            {unpairedMentees.length > 0 && <span className="text-amber-600"> · {unpairedMentees.length} unpaired</span>}
+          </p>
+        </div>
+        {unpairedMentees.length > 0 && tab !== 'unpaired' && (
+          <button onClick={() => setTab('unpaired')}
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
+            Assign Mentors ({unpairedMentees.length})
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -382,8 +394,25 @@ export default function PairingsPage() {
                                 {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
                               </select>
                             </>
+                          ) : pairingMenteeId === mentee.id ? (
+                            <>
+                              <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
+                                <option value="">Select mentor...</option>
+                                {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                              </select>
+                              <button disabled={!selectedMentorId || pairing}
+                                onClick={() => quickPair(mentee.id, selectedMentorId)}
+                                className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50 transition">
+                                {pairing ? '...' : 'Pair'}
+                              </button>
+                              <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
+                                className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                            </>
                           ) : (
-                            <span className="text-xs text-gray-400">Unpaired</span>
+                            <button onClick={() => setPairingMenteeId(mentee.id)}
+                              className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover transition">
+                              Pair with mentor
+                            </button>
                           )}
                         </div>
                       </div>
