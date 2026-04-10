@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { computeCredits } from '../lib/credits'
+import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 
 interface Props {
@@ -151,12 +152,7 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
     setEditingInvoiceId(null)
   }
 
-  function formatTime(time: string): string {
-    const [h, m] = time.split(':').map(Number)
-    const ampm = h >= 12 ? 'PM' : 'AM'
-    const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`
-  }
+
 
   function getBlocksForDate(date: string) {
     if (!date) return []
@@ -165,6 +161,11 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
 
   async function scheduleMeeting() {
     if (!schedDate || !schedStart || !schedEnd) return
+    // Check for conflicts with all existing meetings for this mentor
+    if (hasConflict(schedDate, schedStart, schedEnd, meetings)) {
+      setMsg({ type: 'error', text: 'This time conflicts with another meeting.' })
+      return
+    }
     setScheduling(true)
     const startsAt = `${schedDate}T${schedStart}:00`
     const endsAt = `${schedDate}T${schedEnd}:00`
@@ -179,6 +180,9 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
     setShowScheduler(false); setSchedDate(''); setSchedStart(''); setSchedEnd(''); setSchedTitle('')
     setScheduling(false)
   }
+
+  // Available slots for selected date (accounts for existing bookings)
+  const schedAvailableSlots = schedDate ? getAvailableSlots(schedDate, availability, meetings) : []
 
   // Invoice projection
   function getProjectedInvoices() {
@@ -325,8 +329,17 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                           <input type="time" value={schedEnd} onChange={e => setSchedEnd(e.target.value)} className={inputClass} />
                         </div>
                       </div>
-                      {schedDate && getBlocksForDate(schedDate).length > 0 && (
-                        <p className="text-xs text-gray-500">Available: {getBlocksForDate(schedDate).map(b => `${formatTime(b.start_time)}–${formatTime(b.end_time)}`).join(', ')}</p>
+                      {schedDate && schedAvailableSlots.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {schedAvailableSlots.map((slot, i) => (
+                            <span key={i} className="px-2 py-1 rounded bg-green-50 border border-green-200 text-xs text-green-700">
+                              {formatTimeDisplay(slot.start)}–{formatTimeDisplay(slot.end)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {schedDate && schedAvailableSlots.length === 0 && getBlocksForDate(schedDate).length > 0 && (
+                        <p className="text-xs text-amber-600">All available time on this date is booked.</p>
                       )}
                       <input type="text" value={schedTitle} onChange={e => setSchedTitle(e.target.value)} placeholder="Meeting title (optional)" className={inputClass} />
                       <button onClick={scheduleMeeting} disabled={scheduling || !schedDate || !schedStart || !schedEnd}
