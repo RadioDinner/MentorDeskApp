@@ -48,3 +48,9 @@ Also, I want the save and delete links on the lesson sections to be buttons, not
 the option to allow multiple open engagements per mentee should be renamed, "Multiple open engagements" and be put into an "Offerings" card.
 
 19. I want staff/admins and mentors to be able to reset a course that is assigned to a mentee, reset a specific lesson, or delete the course from the active list or mark lessons or the course complete manually from the "Mentee" manage sideload window.
+
+20. In the "Manage" popout in the open engagements card, if I click on the settings to edit them I see the price of the course as it should be from the engagements settings but when I edit the close out date I get this message "Could not find the 'allocation_period' column of 'mentee_offerings' in the schema cache". It doesn't save the closeout date and it should keep the default price that it started with or was set to
+
+21. I want to be able to add folders to the engagements and courses screen. These will function just like they would on a desktop.
+
+After you finish this task, merge to main, and wrap the session. Write the handoff document and we'll see you next time.

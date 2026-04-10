@@ -94,8 +94,18 @@ export interface Offering {
   due_date_mode: DueDateMode
   expected_completion_days: number | null
   auto_send_invoice: boolean
+  folder_id: string | null
   created_at: string
   updated_at: string
+}
+
+export interface OfferingFolder {
+  id: string
+  organization_id: string
+  name: string
+  folder_type: 'course' | 'engagement'
+  order_index: number
+  created_at: string
 }
 
 export interface Mentee {

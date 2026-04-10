@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
-import type { Offering } from '../types'
+import OfferingFolderManager from '../components/OfferingFolderManager'
+import type { Offering, OfferingFolder } from '../types'
 
 type ViewMode = 'list' | 'grid'
 
@@ -16,6 +17,8 @@ export default function EngagementsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<EngagementWithStats[]>([])
+  const [folders, setFolders] = useState<OfferingFolder[]>([])
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -32,13 +35,13 @@ export default function EngagementsPage() {
     async function fetch() {
       setLoading(true)
       try {
-        const { data, error: e } = await supabase
-          .from('offerings')
-          .select('*')
-          .eq('organization_id', profile!.organization_id)
-          .eq('type', 'engagement')
-          .order('name', { ascending: true })
-        if (e) { setError(e.message); return }
+        const [offeringsRes, foldersRes] = await Promise.all([
+          supabase.from('offerings').select('*').eq('organization_id', profile!.organization_id).eq('type', 'engagement').order('name', { ascending: true }),
+          supabase.from('offering_folders').select('*').eq('organization_id', profile!.organization_id).eq('folder_type', 'engagement').order('order_index', { ascending: true }),
+        ])
+        if (offeringsRes.error) { setError(offeringsRes.error.message); return }
+        const data = offeringsRes.data
+        setFolders((foldersRes.data ?? []) as OfferingFolder[])
         const engagements = (data ?? []) as Offering[]
         const engIds = engagements.map(eng => eng.id)
 
@@ -75,6 +78,13 @@ export default function EngagementsPage() {
     setViewMode(mode)
     localStorage.setItem('mentordesk_engagements_view', mode)
   }
+
+  async function moveOfferingToFolder(offeringId: string, folderId: string | null) {
+    await supabase.from('offerings').update({ folder_id: folderId }).eq('id', offeringId)
+    setItems(prev => prev.map(e => e.id === offeringId ? { ...e, folder_id: folderId } : e))
+  }
+
+  const visibleItems = items.filter(e => (e.folder_id ?? null) === currentFolderId)
 
   function getPrice(item: Offering): string {
     if (item.recurring_price_cents > 0) return `$${(item.recurring_price_cents / 100).toFixed(2)}/mo`
@@ -126,25 +136,40 @@ export default function EngagementsPage() {
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           Failed to load engagements: {error}
         </div>
-      ) : items.length === 0 ? (
-        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">No engagements found.</p>
-          <p className="text-xs text-gray-400 mt-1">Create your first engagement to get started.</p>
-        </div>
-      ) : viewMode === 'grid' ? (
-        /* ── Grid View ── */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {items.map(item => (
-            <EngagementGridCard key={item.id} item={item} price={getPrice(item)} navigate={navigate} />
-          ))}
-        </div>
       ) : (
-        /* ── List View ── */
-        <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
-          {items.map(item => (
-            <EngagementListRow key={item.id} item={item} price={getPrice(item)} navigate={navigate} />
-          ))}
-        </div>
+        <>
+          {profile?.organization_id && (
+            <OfferingFolderManager
+              folders={folders} setFolders={setFolders}
+              currentFolderId={currentFolderId} setCurrentFolderId={setCurrentFolderId}
+              folderType="engagement" orgId={profile.organization_id}
+              onMoveOffering={moveOfferingToFolder}
+            />
+          )}
+
+          {visibleItems.length === 0 ? (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
+              <p className="text-sm text-gray-500">{currentFolderId ? 'This folder is empty.' : 'No engagements found.'}</p>
+              <p className="text-xs text-gray-400 mt-1">{currentFolderId ? 'Drag engagements into this folder.' : 'Create your first engagement to get started.'}</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {visibleItems.map(item => (
+                <div key={item.id} draggable onDragStart={e => e.dataTransfer.setData('offering-id', item.id)}>
+                  <EngagementGridCard item={item} price={getPrice(item)} navigate={navigate} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
+              {visibleItems.map(item => (
+                <div key={item.id} draggable onDragStart={e => e.dataTransfer.setData('offering-id', item.id)}>
+                  <EngagementListRow item={item} price={getPrice(item)} navigate={navigate} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

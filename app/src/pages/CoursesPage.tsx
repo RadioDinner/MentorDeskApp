@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
-import type { Offering } from '../types'
+import OfferingFolderManager from '../components/OfferingFolderManager'
+import type { Offering, OfferingFolder } from '../types'
 
 type ViewMode = 'list' | 'grid'
 
@@ -17,6 +18,8 @@ export default function CoursesPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<CourseWithStats[]>([])
+  const [folders, setFolders] = useState<OfferingFolder[]>([])
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -33,13 +36,13 @@ export default function CoursesPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const { data, error: e } = await supabase
-          .from('offerings')
-          .select('*')
-          .eq('organization_id', profile!.organization_id)
-          .eq('type', 'course')
-          .order('name', { ascending: true })
-        if (e) { setError(e.message); return }
+        const [offeringsRes, foldersRes] = await Promise.all([
+          supabase.from('offerings').select('*').eq('organization_id', profile!.organization_id).eq('type', 'course').order('name', { ascending: true }),
+          supabase.from('offering_folders').select('*').eq('organization_id', profile!.organization_id).eq('folder_type', 'course').order('order_index', { ascending: true }),
+        ])
+        if (offeringsRes.error) { setError(offeringsRes.error.message); return }
+        const data = offeringsRes.data
+        setFolders((foldersRes.data ?? []) as OfferingFolder[])
 
         const courses = (data ?? []) as Offering[]
         const courseIds = courses.map(c => c.id)
@@ -86,6 +89,13 @@ export default function CoursesPage() {
     setViewMode(mode)
     localStorage.setItem('mentordesk_courses_view', mode)
   }
+
+  async function moveOfferingToFolder(offeringId: string, folderId: string | null) {
+    await supabase.from('offerings').update({ folder_id: folderId }).eq('id', offeringId)
+    setItems(prev => prev.map(c => c.id === offeringId ? { ...c, folder_id: folderId } : c))
+  }
+
+  const visibleItems = items.filter(c => (c.folder_id ?? null) === currentFolderId)
 
   function getPrice(course: Offering): string {
     if (course.billing_mode === 'recurring' && course.recurring_price_cents > 0) {
@@ -141,25 +151,40 @@ export default function CoursesPage() {
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           Failed to load courses: {error}
         </div>
-      ) : items.length === 0 ? (
-        <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">No courses found.</p>
-          <p className="text-xs text-gray-400 mt-1">Create your first course to get started.</p>
-        </div>
-      ) : viewMode === 'grid' ? (
-        /* ── Grid View ── */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {items.map(course => (
-            <CourseGridCard key={course.id} course={course} price={getPrice(course)} navigate={navigate} />
-          ))}
-        </div>
       ) : (
-        /* ── List View ── */
-        <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
-          {items.map(course => (
-            <CourseListRow key={course.id} course={course} price={getPrice(course)} navigate={navigate} />
-          ))}
-        </div>
+        <>
+          {profile?.organization_id && (
+            <OfferingFolderManager
+              folders={folders} setFolders={setFolders}
+              currentFolderId={currentFolderId} setCurrentFolderId={setCurrentFolderId}
+              folderType="course" orgId={profile.organization_id}
+              onMoveOffering={moveOfferingToFolder}
+            />
+          )}
+
+          {visibleItems.length === 0 ? (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
+              <p className="text-sm text-gray-500">{currentFolderId ? 'This folder is empty.' : 'No courses found.'}</p>
+              <p className="text-xs text-gray-400 mt-1">{currentFolderId ? 'Drag courses into this folder.' : 'Create your first course to get started.'}</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {visibleItems.map(course => (
+                <div key={course.id} draggable onDragStart={e => e.dataTransfer.setData('offering-id', course.id)}>
+                  <CourseGridCard course={course} price={getPrice(course)} navigate={navigate} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
+              {visibleItems.map(course => (
+                <div key={course.id} draggable onDragStart={e => e.dataTransfer.setData('offering-id', course.id)}>
+                  <CourseListRow course={course} price={getPrice(course)} navigate={navigate} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
