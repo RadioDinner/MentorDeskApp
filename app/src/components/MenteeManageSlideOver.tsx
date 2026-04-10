@@ -237,6 +237,14 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     setMsg({ type: 'success', text: 'Updated.' })
   }
 
+  function handleCourseRemove(id: string) {
+    setAssignments(prev => prev.filter(a => a.id !== id))
+  }
+
+  function handleCourseStatusChange(id: string, newStatus: string) {
+    setAssignments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as MenteeOfferingWithDetails['status'] } : a))
+  }
+
   const activeCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'active')
   const completedCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'completed')
   const activeEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'active')
@@ -355,13 +363,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} />)}
+                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                         {completedCourses.length > 0 && activeCourses.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} />)}
+                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                       </div>
                     )}
                   </div>
@@ -488,7 +496,11 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
 // ── Sub-components ──
 
-function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
+function CourseCard({ assignment, onRemove, onStatusChange }: {
+  assignment: MenteeOfferingWithDetails
+  onRemove: (id: string) => void
+  onStatusChange: (id: string, status: string) => void
+}) {
   const offering = assignment.offering
   const totalLessons = assignment.lesson_count ?? 0
   const completedLessons = assignment.completed_lessons ?? 0
@@ -498,6 +510,68 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
   const [expanded, setExpanded] = useState(false)
   const [lessonDetails, setLessonDetails] = useState<(Lesson & { progress: LessonProgress | null; responses: (QuestionResponse & { question: LessonQuestion })[] })[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [actionMsg, setActionMsg] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'reset' | 'remove' | 'complete'; label: string } | null>(null)
+
+  async function resetCourse() {
+    setConfirmAction(null)
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
+    ])
+    if (assignment.status === 'completed') {
+      await supabase.from('mentee_offerings').update({ status: 'active', completed_at: null }).eq('id', assignment.id)
+      onStatusChange(assignment.id, 'active')
+    }
+    setLessonDetails(prev => prev.map(l => ({ ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) })))
+    setActionMsg('Course progress reset.')
+    setTimeout(() => setActionMsg(null), 3000)
+  }
+
+  async function markCourseComplete() {
+    setConfirmAction(null)
+    const now = new Date().toISOString()
+    await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', assignment.id)
+    onStatusChange(assignment.id, 'completed')
+    setActionMsg('Course marked as completed.')
+    setTimeout(() => setActionMsg(null), 3000)
+  }
+
+  async function removeCourse() {
+    setConfirmAction(null)
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
+    ])
+    await supabase.from('mentee_offerings').delete().eq('id', assignment.id)
+    onRemove(assignment.id)
+  }
+
+  async function resetLesson(lessonId: string) {
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
+    ])
+    setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) } : l))
+    setActionMsg(`Lesson reset.`)
+    setTimeout(() => setActionMsg(null), 3000)
+  }
+
+  async function markLessonComplete(lessonId: string) {
+    const now = new Date().toISOString()
+    const existing = lessonDetails.find(l => l.id === lessonId)?.progress
+    if (existing) {
+      await supabase.from('lesson_progress').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', existing.id)
+    } else {
+      await supabase.from('lesson_progress').insert({
+        organization_id: assignment.organization_id, mentee_id: assignment.mentee_id, mentee_offering_id: assignment.id,
+        lesson_id: lessonId, status: 'completed', started_at: now, completed_at: now,
+      })
+    }
+    setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: { ...(l.progress ?? {} as LessonProgress), status: 'completed', completed_at: now } as LessonProgress } : l))
+    setActionMsg('Lesson marked as completed.')
+    setTimeout(() => setActionMsg(null), 3000)
+  }
 
   async function loadDetails() {
     if (lessonDetails.length > 0) { setExpanded(!expanded); return }
@@ -562,19 +636,29 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
             {offering?.name ?? 'Unknown course'}
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={loadDetails}
-              className="text-[10px] text-gray-400 hover:text-brand transition-colors"
-            >
-              {expanded ? 'Hide' : 'Details'}
-            </button>
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-              isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'
-            }`}>
+            <button onClick={loadDetails} className="text-[10px] text-gray-400 hover:text-brand transition-colors">{expanded ? 'Hide' : 'Details'}</button>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
               {isCompleted ? 'Completed' : 'Active'}
             </span>
           </div>
         </div>
+
+        {/* Action message */}
+        {actionMsg && <p className="text-[10px] text-green-600 font-medium mb-2">{actionMsg}</p>}
+
+        {/* Confirmation dialog */}
+        {confirmAction && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 mb-2">
+            <p className="text-xs text-amber-800 mb-2">{confirmAction.label}</p>
+            <div className="flex items-center gap-2">
+              <button onClick={confirmAction.type === 'reset' ? resetCourse : confirmAction.type === 'complete' ? markCourseComplete : removeCourse}
+                className="px-2.5 py-1 text-[11px] font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors">
+                Confirm
+              </button>
+              <button onClick={() => setConfirmAction(null)} className="px-2.5 py-1 text-[11px] font-medium rounded border border-gray-200 text-gray-600 hover:bg-white transition-colors">Cancel</button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-3 mb-2">
           <div className="flex-1">
@@ -602,6 +686,24 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
           {offering?.expected_completion_days && (
             <span>{offering.expected_completion_days}d expected</span>
           )}
+        </div>
+
+        {/* Course actions */}
+        <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
+          {!isCompleted && (
+            <button type="button" onClick={() => setConfirmAction({ type: 'complete', label: 'Mark this course as completed for this mentee?' })}
+              className="px-2 py-1 text-[10px] font-medium rounded border border-green-200 text-green-600 hover:bg-green-50 transition-colors">
+              Mark Complete
+            </button>
+          )}
+          <button type="button" onClick={() => setConfirmAction({ type: 'reset', label: 'Reset all progress and responses for this course? This cannot be undone.' })}
+            className="px-2 py-1 text-[10px] font-medium rounded border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors">
+            Reset Progress
+          </button>
+          <button type="button" onClick={() => setConfirmAction({ type: 'remove', label: 'Remove this course assignment? All progress will be deleted.' })}
+            className="px-2 py-1 text-[10px] font-medium rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+            Remove
+          </button>
         </div>
       </div>
 
@@ -640,6 +742,8 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
                     status={status}
                     hasResponses={hasResponses}
                     responses={lesson.responses}
+                    onResetLesson={resetLesson}
+                    onMarkComplete={markLessonComplete}
                   />
                 )
               })}
@@ -657,12 +761,16 @@ function LessonDetailRow({
   status,
   hasResponses,
   responses,
+  onResetLesson,
+  onMarkComplete,
 }: {
   lesson: Lesson & { progress: LessonProgress | null }
   index: number
   status: string
   hasResponses: boolean
   responses: (QuestionResponse & { question: LessonQuestion })[]
+  onResetLesson: (lessonId: string) => void
+  onMarkComplete: (lessonId: string) => void
 }) {
   const [showResponses, setShowResponses] = useState(false)
 
@@ -714,13 +822,14 @@ function LessonDetailRow({
             </span>
           )}
           {hasResponses && (
-            <button
-              onClick={() => setShowResponses(!showResponses)}
-              className="text-[9px] text-brand hover:text-brand-hover transition-colors"
-            >
+            <button onClick={() => setShowResponses(!showResponses)} className="text-[9px] text-brand hover:text-brand-hover transition-colors">
               {showResponses ? 'Hide' : 'Responses'}
             </button>
           )}
+          {status !== 'completed' && (
+            <button onClick={() => onMarkComplete(lesson.id)} className="text-[9px] text-green-600 hover:text-green-700 transition-colors">Done</button>
+          )}
+          <button onClick={() => onResetLesson(lesson.id)} className="text-[9px] text-amber-500 hover:text-amber-600 transition-colors">Reset</button>
         </div>
       </div>
 
