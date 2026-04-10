@@ -45,6 +45,7 @@ export default function PersonEditPage() {
   const [payType, setPayType] = useState<PayType | ''>('')
   const [payRate, setPayRate] = useState('')
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
+  const [maxActiveMentees, setMaxActiveMentees] = useState('')
   const [compensationSaving, setCompensationSaving] = useState(false)
   const [compensationMsg, setCompensationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -86,6 +87,7 @@ export default function PersonEditPage() {
       setCountry(p.country ?? '')
       setPayType(p.pay_type ?? '')
       setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
+      setMaxActiveMentees(p.max_active_mentees != null ? String(p.max_active_mentees) : '')
 
       // Fetch org pay settings to determine available types
       const { data: orgData } = await supabase
@@ -149,12 +151,14 @@ export default function PersonEditPage() {
     setCompensationSaving(true)
 
     const rateNum = payRate ? parseFloat(payRate) : null
+    const maxMentees = maxActiveMentees ? parseInt(maxActiveMentees) : null
 
     const { error } = await supabase
       .from('staff')
       .update({
         pay_type: payType || null,
         pay_rate: rateNum,
+        max_active_mentees: maxMentees,
       })
       .eq('id', person.id)
 
@@ -165,8 +169,8 @@ export default function PersonEditPage() {
       return
     }
 
-    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate }
-    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum }
+    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, max_active_mentees: person.max_active_mentees }
+    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, max_active_mentees: maxMentees }
     setPerson({ ...person, ...newComp })
     if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
     setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
@@ -487,9 +491,29 @@ export default function PersonEditPage() {
                   </div>
                 )}
 
+                {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
+                  <div>
+                    <label htmlFor="maxMentees" className="block text-xs font-medium text-gray-700 mb-1">
+                      Max active mentees
+                    </label>
+                    <input
+                      id="maxMentees"
+                      type="number"
+                      min="1"
+                      value={maxActiveMentees}
+                      onChange={e => setMaxActiveMentees(e.target.value)}
+                      placeholder="No limit"
+                      className={inputClass + ' max-w-32'}
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
+                    </p>
+                  </div>
+                )}
+
                 <button type="submit" disabled={compensationSaving}
                   className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {compensationSaving ? 'Saving…' : 'Save compensation'}
+                  {compensationSaving ? 'Saving…' : 'Save'}
                 </button>
               </form>
             </div>

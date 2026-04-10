@@ -6,7 +6,7 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
 
-interface MentorOption { id: string; first_name: string; last_name: string }
+interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
 interface MenteeRow { id: string; first_name: string; last_name: string; email: string; flow_step_id: string | null }
 interface PairingRow {
   id: string; status: PairingStatus; mentor_id: string; mentee_id: string
@@ -52,7 +52,7 @@ export default function PairingsPage() {
     setError(null)
     try {
       const [mentorRes, menteeRes, pairingRes, orgRes] = await Promise.all([
-        supabase.from('staff').select('id, first_name, last_name').eq('organization_id', profile.organization_id).in('role', ['mentor', 'assistant_mentor']).order('first_name'),
+        supabase.from('staff').select('id, first_name, last_name, max_active_mentees').eq('organization_id', profile.organization_id).in('role', ['mentor', 'assistant_mentor']).order('first_name'),
         supabase.from('mentees').select('id, first_name, last_name, email, flow_step_id').eq('organization_id', profile.organization_id).order('first_name'),
         supabase.from('pairings').select(`
           id, status, mentor_id, mentee_id, offering_id,
@@ -122,6 +122,27 @@ export default function PairingsPage() {
 
   const pairedMenteeIds = new Set(pairings.map(p => p.mentee_id))
   const unpairedMentees = mentees.filter(m => !pairedMenteeIds.has(m.id))
+
+  // Compute active mentee count per mentor
+  const mentorPairingCounts: Record<string, number> = {}
+  for (const p of pairings) {
+    if (p.status === 'active' || p.status === 'paused') {
+      mentorPairingCounts[p.mentor_id] = (mentorPairingCounts[p.mentor_id] ?? 0) + 1
+    }
+  }
+
+  function isMentorAtCapacity(mentorId: string): boolean {
+    const mentor = mentors.find(m => m.id === mentorId)
+    if (!mentor?.max_active_mentees) return false
+    return (mentorPairingCounts[mentorId] ?? 0) >= mentor.max_active_mentees
+  }
+
+  function getMentorCapacityLabel(mentorId: string): string | null {
+    const mentor = mentors.find(m => m.id === mentorId)
+    if (!mentor?.max_active_mentees) return null
+    const current = mentorPairingCounts[mentorId] ?? 0
+    return `${current}/${mentor.max_active_mentees}`
+  }
 
   const flowStepName = (id: string | null) => {
     if (!id) return null
@@ -202,8 +223,16 @@ export default function PairingsPage() {
                     {mentor.first_name[0]}{mentor.last_name[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{mentor.first_name} {mentor.last_name}</p>
-                    <p className="text-xs text-gray-400">{mentorPairings.length} mentee{mentorPairings.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900">{mentor.first_name} {mentor.last_name}</p>
+                      {isMentorAtCapacity(mentor.id) && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">At capacity</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {mentorPairings.length} mentee{mentorPairings.length !== 1 ? 's' : ''}
+                      {mentor.max_active_mentees && <span> · {mentor.max_active_mentees} max</span>}
+                    </p>
                   </div>
                 </div>
 
@@ -234,7 +263,11 @@ export default function PairingsPage() {
                             onChange={e => changeMentor(p.id, e.target.value)}
                             className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
                           >
-                            {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                            {mentors.map(m => {
+                            const atCap = isMentorAtCapacity(m.id)
+                            const capLabel = getMentorCapacityLabel(m.id)
+                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                          })}
                           </select>
                         </div>
                       </div>
@@ -278,7 +311,11 @@ export default function PairingsPage() {
                       <>
                         <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
                           <option value="">Select mentor...</option>
-                          {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                          {mentors.map(m => {
+                            const atCap = isMentorAtCapacity(m.id)
+                            const capLabel = getMentorCapacityLabel(m.id)
+                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                          })}
                         </select>
                         <button disabled={!selectedMentorId || pairing}
                           onClick={() => quickPair(mentee.id, selectedMentorId)}
@@ -391,14 +428,22 @@ export default function PairingsPage() {
                                 onChange={e => changeMentor(currentPairing.id, e.target.value)}
                                 className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
                               >
-                                {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                                {mentors.map(m => {
+                            const atCap = isMentorAtCapacity(m.id)
+                            const capLabel = getMentorCapacityLabel(m.id)
+                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                          })}
                               </select>
                             </>
                           ) : pairingMenteeId === mentee.id ? (
                             <>
                               <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
                                 <option value="">Select mentor...</option>
-                                {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                                {mentors.map(m => {
+                            const atCap = isMentorAtCapacity(m.id)
+                            const capLabel = getMentorCapacityLabel(m.id)
+                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                          })}
                               </select>
                               <button disabled={!selectedMentorId || pairing}
                                 onClick={() => quickPair(mentee.id, selectedMentorId)}

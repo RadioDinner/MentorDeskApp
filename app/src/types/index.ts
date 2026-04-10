@@ -331,6 +331,7 @@ export interface StaffMember {
   pay_rate: number | null
   access_groups: string[]
   allowed_modules: string[]
+  max_active_mentees: number | null
   archived_at: string | null
   created_at: string
   updated_at: string

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import type { PairingStatus, FlowStep } from '../types'
 
-interface MentorOption { id: string; first_name: string; last_name: string }
+interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
 interface MenteeRow { id: string; first_name: string; last_name: string; email: string; flow_step_id: string | null }
 interface PairingRow {
   id: string; status: PairingStatus; mentor_id: string; mentee_id: string
