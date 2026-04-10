@@ -32,3 +32,7 @@ SESSION 008 - PROMPT HISTORY
 15. I want Mentors and Assistant Mentors to be able to set in their profile how many active mentees they want, I want to setup a system so that we see that in the pairings screen. If he wants 4 mentees, then that can be set in his edit screen. Then when he's reached 4 assigned mentees in the pairing screen, it'll give you a tooltip as to why his name is greyed out.
 
 16. I love the grid layout of the courses module!!!! On the cards in the grid though, I want the settings and builder links to be bigger and be buttons, not just words.
+
+17. In the course builder sections, I want the questions to be per section, not per lesson. Keep the overall lesson questions, and add the ability to add questions to the sections. Also, if there are quiz questions on the lesson, count the number of questions in the lesson and when the mentor is viewing the mentees progress, I want the mentor to be able to see the grade of completed lessons
+
+After you do this, wrap the session, create the handoff, merge to main and we'll be done for this session

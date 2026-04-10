@@ -588,6 +588,21 @@ function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
             <p className="text-xs text-gray-400 text-center py-2">No lessons in this course yet.</p>
           ) : (
             <div className="space-y-1.5">
+              {/* Overall quiz grade summary */}
+              {(() => {
+                const allQuizResponses = lessonDetails.flatMap(l => l.responses.filter(r => r.question.question_type === 'quiz' && r.answered_at))
+                const totalQ = allQuizResponses.length
+                const correctQ = allQuizResponses.filter(r => r.is_correct).length
+                if (totalQ === 0) return null
+                const pctGrade = Math.round((correctQ / totalQ) * 100)
+                const color = pctGrade >= 90 ? 'text-green-700 bg-green-50 border-green-200' : pctGrade >= 70 ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-red-700 bg-red-50 border-red-200'
+                return (
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-md border mb-1 ${color}`}>
+                    <span className="text-[11px] font-medium">Quiz Grade</span>
+                    <span className="text-[11px] font-bold tabular-nums">{correctQ}/{totalQ} correct ({pctGrade}%)</span>
+                  </div>
+                )
+              })()}
               {lessonDetails.map((lesson, idx) => {
                 const status = lesson.progress?.status ?? 'not_started'
                 const hasResponses = lesson.responses.some(r => r.answered_at)
@@ -625,6 +640,16 @@ function LessonDetailRow({
 }) {
   const [showResponses, setShowResponses] = useState(false)
 
+  // Compute quiz grade
+  const quizResponses = responses.filter(r => r.question.question_type === 'quiz' && r.answered_at)
+  const totalQuiz = quizResponses.length
+  const correctQuiz = quizResponses.filter(r => r.is_correct).length
+  const totalQuestions = responses.length
+  const answeredQuestions = responses.filter(r => r.answered_at).length
+  const gradeColor = totalQuiz > 0
+    ? correctQuiz === totalQuiz ? 'text-green-600 bg-green-50' : correctQuiz >= totalQuiz * 0.7 ? 'text-blue-600 bg-blue-50' : 'text-red-600 bg-red-50'
+    : ''
+
   return (
     <div>
       <div className="flex items-center gap-2 py-1">
@@ -647,6 +672,16 @@ function LessonDetailRow({
           {lesson.title}
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quiz grade badge */}
+          {totalQuiz > 0 && (
+            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded tabular-nums ${gradeColor}`}>
+              {correctQuiz}/{totalQuiz}
+            </span>
+          )}
+          {/* Question count */}
+          {totalQuestions > 0 && totalQuiz === 0 && (
+            <span className="text-[9px] text-gray-400 tabular-nums">{answeredQuestions}/{totalQuestions} Q</span>
+          )}
           {lesson.progress?.completed_at && (
             <span className="text-[9px] text-gray-400">
               {new Date(lesson.progress.completed_at).toLocaleDateString()}
