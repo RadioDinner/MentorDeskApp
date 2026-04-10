@@ -32,6 +32,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
   const [managingEngagementId, setManagingEngagementId] = useState<string | null>(null)
+  const [confirmMultiEngagement, setConfirmMultiEngagement] = useState(false)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -268,8 +269,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   // Engagement open button logic
   const hasActiveEngagement = activeEngagements.length > 0
-  const canOpenEngagement = availableEngagements.length > 0 && (!hasActiveEngagement || allowMultiEngagement)
-  const showOpenButtonDisabled = availableEngagements.length > 0 && hasActiveEngagement && !allowMultiEngagement
+  const engagementBlocked = hasActiveEngagement && !allowMultiEngagement
 
   const selectClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
@@ -399,27 +399,35 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       <h3 className="text-sm font-semibold text-gray-900">Engagements</h3>
                       <p className="text-[11px] text-gray-400">{activeEngagements.length} active, {completedEngagements.length} completed</p>
                     </div>
-                    {canOpenEngagement ? (
-                      <button
-                        onClick={() => { setShowEngagementSelect(!showEngagementSelect); setShowCourseSelect(false) }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Open
-                      </button>
-                    ) : showOpenButtonDisabled ? (
-                      <span
-                        title="Multiple open engagements are disabled for this organization. Enable in Company Settings."
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 border border-gray-200 rounded cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Open
-                      </span>
-                    ) : null}
+                    {availableEngagements.length > 0 && (
+                      engagementBlocked ? (
+                        <span
+                          title="Simultaneous engagements disabled per company settings. Contact your admin to have this changed."
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 border border-gray-200 rounded cursor-not-allowed"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          Assign
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (hasActiveEngagement) {
+                              setConfirmMultiEngagement(true)
+                            } else {
+                              setShowEngagementSelect(!showEngagementSelect); setShowCourseSelect(false)
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          Assign
+                        </button>
+                      )
+                    )}
                   </div>
 
                   <div className="px-4 py-3">
@@ -435,7 +443,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                     {activeEngagements.length === 0 && completedEngagements.length === 0 ? (
                       <div className="text-center py-6">
                         <p className="text-sm text-gray-400">No engagements open.</p>
-                        {canOpenEngagement && (
+                        {availableEngagements.length > 0 && (
                           <button onClick={() => setShowEngagementSelect(true)} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
                             Open first engagement
                           </button>
@@ -458,6 +466,32 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
             </>
           )}
         </div>
+
+        {/* Confirmation dialog: open engagement when one is already active */}
+        {confirmMultiEngagement && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-20 rounded-lg">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-xl px-6 py-5 max-w-sm mx-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Open another engagement?</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                This mentee already has {activeEngagements.length} active engagement{activeEngagements.length !== 1 ? 's' : ''}. Are you sure you want to open an additional engagement?
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setConfirmMultiEngagement(false)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setConfirmMultiEngagement(false); setShowEngagementSelect(true); setShowCourseSelect(false) }}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition-colors"
+                >
+                  Yes, open engagement
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Engagement management modal */}
         {managingEngagementId && (() => {
