@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
-import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy, CancelOutcome } from '../types'
+import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import Button from '../components/ui/Button'
 import { useToast } from '../context/ToastContext'
@@ -21,10 +23,10 @@ interface OfferingCreatePageProps {
   offeringType: OfferingType
 }
 
-const DISPENSE_OPTIONS: { value: DispenseMode; label: string; short: string }[] = [
-  { value: 'completion', label: 'After previous lesson is completed', short: 'After completion' },
-  { value: 'interval', label: 'On a schedule (every X days)', short: 'Scheduled' },
-  { value: 'all_at_once', label: 'All lessons available immediately', short: 'All at once' },
+const DISPENSE_OPTIONS: { value: DispenseMode; label: string }[] = [
+  { value: 'completion', label: 'After previous lesson is completed' },
+  { value: 'interval', label: 'On a schedule (every X days)' },
+  { value: 'all_at_once', label: 'All lessons available immediately' },
 ]
 
 const PREVIEW_OPTIONS: { value: PreviewMode; label: string }[] = [
@@ -33,9 +35,7 @@ const PREVIEW_OPTIONS: { value: PreviewMode; label: string }[] = [
   { value: 'full_preview', label: 'Full preview' },
 ]
 
-type BillingMode = 'one_time' | 'recurring'
-
-function formatOutcome(outcome: CancelOutcome): string {
+function formatOutcome(outcome: string): string {
   return outcome === 'keep_credit' ? 'keep credit' : 'lose credit'
 }
 
@@ -51,36 +51,62 @@ function PolicySummary({ policy }: { policy: CancellationPolicy }) {
   )
 }
 
+const schema = z.object({
+  name:            z.string().min(1, 'Name is required'),
+  description:     z.string(),
+  addToFlow:       z.boolean(),
+  // Course fields
+  billingMode:     z.enum(['one_time', 'recurring']),
+  price:           z.string(),
+  recurringPrice:  z.string(),
+  setupFee:        z.string(),
+  dispenseMode:    z.enum(['completion', 'interval', 'all_at_once']),
+  intervalDays:    z.string(),
+  lessonCount:     z.string(),
+  dueDate:         z.string(),
+  previewMode:     z.enum(['hidden', 'titles_only', 'full_preview']),
+  // Engagement fields
+  meetingCount:    z.string(),
+  meetingDuration: z.string(),
+  allocationPeriod: z.enum(['monthly', 'weekly', 'per_cycle']),
+  useOrgDefault:   z.boolean(),
+})
+
+type FormValues = z.infer<typeof schema>
+
+const errorClass = 'mt-1 text-[11px] text-red-500'
+
 export default function OfferingCreatePage({ title, offeringType }: OfferingCreatePageProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const isCourse = offeringType === 'course'
   const toast = useToast()
 
-  // Shared
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [addToFlow, setAddToFlow] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  // Course
-  const [billingMode, setBillingMode] = useState<BillingMode>('one_time')
-  const [price, setPrice] = useState('')
-  const [recurringPrice, setRecurringPrice] = useState('')
-  const [setupFee, setSetupFee] = useState('')
-  const [dispenseMode, setDispenseMode] = useState<DispenseMode>('completion')
-  const [intervalDays, setIntervalDays] = useState('')
-  const [lessonCount, setLessonCount] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
-
-  // Engagement
-  const [meetingCount, setMeetingCount] = useState('')
-  const [meetingDuration, setMeetingDuration] = useState('60')
-  const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
-  const [useOrgDefault, setUseOrgDefault] = useState(true)
+  // cancelPolicy stays outside RHF — managed by CancellationPolicyEditor
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
   const [orgDefaultPolicy, setOrgDefaultPolicy] = useState<CancellationPolicy | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: '', description: '', addToFlow: false,
+      billingMode: 'one_time', price: '', recurringPrice: '', setupFee: '',
+      dispenseMode: 'completion', intervalDays: '', lessonCount: '', dueDate: '',
+      previewMode: 'titles_only',
+      meetingCount: '', meetingDuration: '60',
+      allocationPeriod: 'monthly', useOrgDefault: true,
+    },
+  })
+
+  const billingMode  = watch('billingMode')
+  const dispenseMode = watch('dispenseMode')
+  const useOrgDefault = watch('useOrgDefault')
 
   // Fetch org default cancellation policy for summary display
   useEffect(() => {
@@ -92,55 +118,58 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       }
     }
     fetchOrgPolicy()
-  }, [profile?.organization_id])
+  }, [profile?.organization_id, isCourse])
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function onSubmit(values: FormValues) {
     if (!profile) return
-    setSaving(true)
 
     try {
       const record: Record<string, unknown> = {
         organization_id: profile.organization_id,
         type: offeringType,
-        name: name.trim(),
-        description: description.trim() || null,
+        name: values.name.trim(),
+        description: values.description.trim() || null,
       }
 
       if (isCourse) {
-        record.billing_mode = billingMode
-        record.price_cents = billingMode === 'one_time' && price ? Math.round(parseFloat(price) * 100) : 0
-        record.recurring_price_cents = billingMode === 'recurring' && recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
-        record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
-        record.dispense_mode = dispenseMode
-        record.dispense_interval_days = dispenseMode === 'interval' && intervalDays ? parseInt(intervalDays) : null
-        record.lesson_count = lessonCount ? parseInt(lessonCount) : null
-        record.course_due_date = billingMode === 'one_time' && dueDate ? dueDate : null
-        record.preview_mode = previewMode
+        record.billing_mode = values.billingMode
+        record.price_cents = values.billingMode === 'one_time' && values.price ? Math.round(parseFloat(values.price) * 100) : 0
+        record.recurring_price_cents = values.billingMode === 'recurring' && values.recurringPrice ? Math.round(parseFloat(values.recurringPrice) * 100) : 0
+        record.setup_fee_cents = values.setupFee ? Math.round(parseFloat(values.setupFee) * 100) : 0
+        record.dispense_mode = values.dispenseMode
+        record.dispense_interval_days = values.dispenseMode === 'interval' && values.intervalDays ? parseInt(values.intervalDays) : null
+        record.lesson_count = values.lessonCount ? parseInt(values.lessonCount) : null
+        record.course_due_date = values.billingMode === 'one_time' && values.dueDate ? values.dueDate : null
+        record.preview_mode = values.previewMode
       } else {
         record.billing_mode = 'recurring'
-        record.recurring_price_cents = recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
-        record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
-        record.meeting_count = meetingCount ? parseInt(meetingCount) : null
-        record.default_meeting_duration_minutes = meetingDuration ? Math.max(5, parseInt(meetingDuration)) : 60
-        record.allocation_period = allocationPeriod
-        record.use_org_default_cancellation = useOrgDefault
-        record.cancellation_policy = useOrgDefault ? null : cancelPolicy
+        record.recurring_price_cents = values.recurringPrice ? Math.round(parseFloat(values.recurringPrice) * 100) : 0
+        record.setup_fee_cents = values.setupFee ? Math.round(parseFloat(values.setupFee) * 100) : 0
+        record.meeting_count = values.meetingCount ? parseInt(values.meetingCount) : null
+        record.default_meeting_duration_minutes = values.meetingDuration ? Math.max(5, parseInt(values.meetingDuration)) : 60
+        record.allocation_period = values.allocationPeriod
+        record.use_org_default_cancellation = values.useOrgDefault
+        record.cancellation_policy = values.useOrgDefault ? null : cancelPolicy
       }
 
       console.log('[OfferingCreate] inserting record:', record)
       const { data, error } = await supabase.from('offerings').insert(record).select('id')
       console.log('[OfferingCreate] insert result:', { data, error })
-      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } }); toast.error(error.message); return }
+      if (error) {
+        console.error('[OfferingCreate] insert FAILED:', error.message, error)
+        reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } })
+        toast.error(error.message)
+        return
+      }
 
       if (data && data.length > 0) {
-        await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
+        await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: values.name.trim() } })
 
-        if (addToFlow) {
+        if (values.addToFlow) {
           const { data: orgData } = await supabase.from('organizations').select('mentee_flow').eq('id', profile.organization_id).single()
           if (orgData) {
             const flow = (orgData.mentee_flow as { steps: unknown[] }) ?? { steps: [] }
-            flow.steps.push({ id: crypto.randomUUID(), name: name.trim(), type: offeringType, offering_id: data[0].id, in_flow: true, order: flow.steps.length })
+            flow.steps.push({ id: crypto.randomUUID(), name: values.name.trim(), type: offeringType, offering_id: data[0].id, in_flow: true, order: flow.steps.length })
             await supabase.from('organizations').update({ mentee_flow: flow }).eq('id', profile.organization_id)
           }
         }
@@ -154,10 +183,9 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         navigate(offeringType === 'course' ? '/courses' : '/engagements')
       }
     } catch (err) {
+      reportSupabaseError({ message: (err as Error).message }, { component: 'OfferingCreatePage', action: 'create' })
       toast.error((err as Error).message || 'Failed to create offering')
       console.error(err)
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -166,7 +194,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const selectClass = inputClass + ' bg-white'
   const dollarInput = 'w-full rounded border border-gray-300 pl-7 pr-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
-  // ======== COURSE LAYOUT (two columns, single screen) ========
+  // ======== COURSE LAYOUT ========
   if (isCourse) {
     return (
       <div className="max-w-5xl">
@@ -175,7 +203,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
           <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
             {/* LEFT COLUMN — 3/5 */}
@@ -185,11 +213,15 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
                 <div className="space-y-3">
                   <div>
                     <label htmlFor="offeringName" className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                    <input id="offeringName" type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. JumpStart Your Freedom" className={inputClass} />
+                    <input id="offeringName" type="text" placeholder="e.g. JumpStart Your Freedom"
+                      {...register('name')}
+                      className={`${inputClass}${errors.name ? ' border-red-400 focus:border-red-400 focus:ring-red-200' : ''}`} />
+                    {errors.name && <p className={errorClass}>{errors.name.message}</p>}
                   </div>
                   <div>
                     <label htmlFor="offeringDesc" className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-                    <textarea id="offeringDesc" rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional" className={inputClass + ' resize-none'} />
+                    <textarea id="offeringDesc" rows={2} placeholder="Optional"
+                      {...register('description')} className={inputClass + ' resize-none'} />
                   </div>
                 </div>
               </div>
@@ -201,11 +233,12 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="lessonCount" className="block text-xs font-medium text-gray-700 mb-1">Lessons</label>
-                      <input id="lessonCount" type="number" min="1" value={lessonCount} onChange={e => setLessonCount(e.target.value)} placeholder="e.g. 27" className={inputClass + ' max-w-28'} />
+                      <input id="lessonCount" type="number" min="1" placeholder="e.g. 27"
+                        {...register('lessonCount')} className={inputClass + ' max-w-28'} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Upcoming visibility</label>
-                      <select value={previewMode} onChange={e => setPreviewMode(e.target.value as PreviewMode)} className={selectClass}>
+                      <select {...register('previewMode')} className={selectClass}>
                         {PREVIEW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </div>
@@ -216,7 +249,9 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
                     <div className="space-y-1.5">
                       {DISPENSE_OPTIONS.map(opt => (
                         <label key={opt.value} className={`flex items-center gap-2.5 px-3 py-2 rounded border cursor-pointer transition-colors text-sm ${dispenseMode === opt.value ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
-                          <input type="radio" name="dispenseMode" value={opt.value} checked={dispenseMode === opt.value} onChange={e => setDispenseMode(e.target.value as DispenseMode)} className="accent-brand" />
+                          <input type="radio" value={opt.value} checked={dispenseMode === opt.value}
+                            onChange={() => setValue('dispenseMode', opt.value as DispenseMode)}
+                            className="accent-brand" />
                           <span className={dispenseMode === opt.value ? 'text-gray-900 font-medium' : 'text-gray-600'}>{opt.label}</span>
                         </label>
                       ))}
@@ -226,7 +261,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
                   {dispenseMode === 'interval' && (
                     <div>
                       <label htmlFor="intervalDays" className="block text-xs font-medium text-gray-700 mb-1">Days between lessons</label>
-                      <input id="intervalDays" type="number" min="1" value={intervalDays} onChange={e => setIntervalDays(e.target.value)} placeholder="e.g. 7" className={inputClass + ' max-w-28'} />
+                      <input id="intervalDays" type="number" min="1" placeholder="e.g. 7"
+                        {...register('intervalDays')} className={inputClass + ' max-w-28'} />
                     </div>
                   )}
                 </div>
@@ -235,19 +271,18 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
             {/* RIGHT COLUMN — 2/5 */}
             <div className="lg:col-span-2 space-y-4">
-              {/* Pricing + Billing */}
+              {/* Pricing */}
               <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
                 <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Pricing</h2>
                 <div className="space-y-3">
-                  {/* Billing mode */}
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Billing type</label>
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => setBillingMode('one_time')}
+                      <button type="button" onClick={() => setValue('billingMode', 'one_time')}
                         className={`px-3 py-2 text-xs font-medium rounded border transition-colors ${billingMode === 'one_time' ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
                         One-time
                       </button>
-                      <button type="button" onClick={() => setBillingMode('recurring')}
+                      <button type="button" onClick={() => setValue('billingMode', 'recurring')}
                         className={`px-3 py-2 text-xs font-medium rounded border transition-colors ${billingMode === 'recurring' ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
                         Monthly
                       </button>
@@ -260,33 +295,34 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
                         <label htmlFor="price" className="block text-xs font-medium text-gray-700 mb-1">Course price</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                          <input id="price" type="number" step="0.01" min="0" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" className={dollarInput} />
+                          <input id="price" type="number" step="0.01" min="0" placeholder="0.00"
+                            {...register('price')} className={dollarInput} />
                         </div>
                       </div>
                       <div>
                         <label htmlFor="dueDate" className="block text-xs font-medium text-gray-700 mb-1">Due date</label>
-                        <input id="dueDate" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+                        <input id="dueDate" type="date" {...register('dueDate')} className={inputClass} />
                         <p className="text-[10px] text-gray-400 mt-1">Optional. One-time courses can still have no due date.</p>
                       </div>
                     </>
                   ) : (
-                    <>
-                      <div>
-                        <label htmlFor="recurringPrice" className="block text-xs font-medium text-gray-700 mb-1">Monthly price</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                          <input id="recurringPrice" type="number" step="0.01" min="0" value={recurringPrice} onChange={e => setRecurringPrice(e.target.value)} placeholder="0.00" className={dollarInput} />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1">Charged monthly until the mentee completes all lessons.</p>
+                    <div>
+                      <label htmlFor="recurringPrice" className="block text-xs font-medium text-gray-700 mb-1">Monthly price</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                        <input id="recurringPrice" type="number" step="0.01" min="0" placeholder="0.00"
+                          {...register('recurringPrice')} className={dollarInput} />
                       </div>
-                    </>
+                      <p className="text-[10px] text-gray-400 mt-1">Charged monthly until the mentee completes all lessons.</p>
+                    </div>
                   )}
 
                   <div>
                     <label htmlFor="setupFee" className="block text-xs font-medium text-gray-700 mb-1">Setup fee</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                      <input id="setupFee" type="number" step="0.01" min="0" value={setupFee} onChange={e => setSetupFee(e.target.value)} placeholder="0.00" className={dollarInput} />
+                      <input id="setupFee" type="number" step="0.01" min="0" placeholder="0.00"
+                        {...register('setupFee')} className={dollarInput} />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">One-time fee charged at enrollment.</p>
                   </div>
@@ -297,7 +333,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
               <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
                 <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Options</h2>
                 <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={addToFlow} onChange={e => setAddToFlow(e.target.checked)} className="mt-0.5 accent-brand" />
+                  <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
                     <p className="text-[10px] text-gray-400">Include as a step in the mentee progression.</p>
@@ -307,7 +343,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
               {/* Actions */}
               <div className="flex items-center gap-3">
-                <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Course'}</Button>
+                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating…' : 'Create Course'}</Button>
                 <Button variant="secondary" type="button" onClick={() => navigate(backRoute)}>Cancel</Button>
               </div>
             </div>
@@ -325,16 +361,20 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
           <div className="space-y-3">
             <div>
               <label htmlFor="offeringName" className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-              <input id="offeringName" type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. 4x Mentoring" className={inputClass} />
+              <input id="offeringName" type="text" placeholder="e.g. 4x Mentoring"
+                {...register('name')}
+                className={`${inputClass}${errors.name ? ' border-red-400 focus:border-red-400 focus:ring-red-200' : ''}`} />
+              {errors.name && <p className={errorClass}>{errors.name.message}</p>}
             </div>
             <div>
               <label htmlFor="offeringDesc" className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-              <textarea id="offeringDesc" rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional" className={inputClass + ' resize-none'} />
+              <textarea id="offeringDesc" rows={2} placeholder="Optional"
+                {...register('description')} className={inputClass + ' resize-none'} />
             </div>
           </div>
         </div>
@@ -344,15 +384,17 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label htmlFor="meetingCount" className="block text-xs font-medium text-gray-700 mb-1">Meetings per cycle</label>
-              <input id="meetingCount" type="number" min="1" value={meetingCount} onChange={e => setMeetingCount(e.target.value)} placeholder="e.g. 4" className={inputClass} />
+              <input id="meetingCount" type="number" min="1" placeholder="e.g. 4"
+                {...register('meetingCount')} className={inputClass} />
             </div>
             <div>
               <label htmlFor="meetingDuration" className="block text-xs font-medium text-gray-700 mb-1">Meeting length (min)</label>
-              <input id="meetingDuration" type="number" min="5" step="5" value={meetingDuration} onChange={e => setMeetingDuration(e.target.value)} placeholder="60" className={inputClass} />
+              <input id="meetingDuration" type="number" min="5" step="5" placeholder="60"
+                {...register('meetingDuration')} className={inputClass} />
             </div>
             <div>
               <label htmlFor="allocPeriod" className="block text-xs font-medium text-gray-700 mb-1">Allocation period</label>
-              <select id="allocPeriod" value={allocationPeriod} onChange={e => setAllocationPeriod(e.target.value as AllocationPeriod)} className={selectClass}>
+              <select id="allocPeriod" {...register('allocationPeriod')} className={selectClass}>
                 {ALLOCATION_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
@@ -366,7 +408,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
               <label htmlFor="engRecurringPrice" className="block text-xs font-medium text-gray-700 mb-1">Monthly price</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                <input id="engRecurringPrice" type="number" step="0.01" min="0" value={recurringPrice} onChange={e => setRecurringPrice(e.target.value)} placeholder="0.00" className={dollarInput} />
+                <input id="engRecurringPrice" type="number" step="0.01" min="0" placeholder="0.00"
+                  {...register('recurringPrice')} className={dollarInput} />
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Automatically invoiced monthly when a mentee is assigned to this engagement.</p>
             </div>
@@ -374,7 +417,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
               <label htmlFor="engSetupFee" className="block text-xs font-medium text-gray-700 mb-1">Setup fee (one-time)</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                <input id="engSetupFee" type="number" step="0.01" min="0" value={setupFee} onChange={e => setSetupFee(e.target.value)} placeholder="0.00" className={dollarInput} />
+                <input id="engSetupFee" type="number" step="0.01" min="0" placeholder="0.00"
+                  {...register('setupFee')} className={dollarInput} />
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Charged once at enrollment.</p>
             </div>
@@ -384,7 +428,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
           <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Cancellation Policy</h2>
           <label className="flex items-start gap-2.5 mb-3 cursor-pointer">
-            <input type="checkbox" checked={useOrgDefault} onChange={e => setUseOrgDefault(e.target.checked)} className="mt-0.5 accent-brand" />
+            <input type="checkbox" {...register('useOrgDefault')} className="mt-0.5 accent-brand" />
             <div>
               <p className="text-sm font-medium text-gray-900">Use organization default</p>
               <p className="text-[10px] text-gray-400">Apply the default cancellation policy from Company Settings.</p>
@@ -398,7 +442,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
           <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="checkbox" checked={addToFlow} onChange={e => setAddToFlow(e.target.checked)} className="mt-0.5 accent-brand" />
+            <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
             <div>
               <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
               <p className="text-[10px] text-gray-400">Include as a step in the mentee progression.</p>
@@ -407,7 +451,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         </div>
 
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Engagement'}</Button>
+          <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating…' : 'Create Engagement'}</Button>
           <Button variant="secondary" type="button" onClick={() => navigate(backRoute)}>Cancel</Button>
         </div>
       </form>
