@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
+import Button from '../components/ui/Button'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit, AllocationGrantMode, AllocationRefreshMode } from '../types'
@@ -181,10 +182,9 @@ export default function CompanySettingsPage() {
         {/* Header with save */}
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-semibold text-gray-900">Company Settings</h1>
-          <button type="submit" disabled={saving}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+          <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          </Button>
         </div>
 
         {msg && (
@@ -523,8 +523,7 @@ export default function CompanySettingsPage() {
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                 <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="New group name (e.g. Operations, Course Builder)" className={inputClass + ' flex-1'}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!newGroupName.trim()) return; const ng: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }; setRoleGroups(gs => [...gs, ng]); setEditingGroup(ng); setNewGroupName('') } }} />
-                <button type="button" onClick={() => { if (!newGroupName.trim()) return; const ng: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }; setRoleGroups(gs => [...gs, ng]); setEditingGroup(ng); setNewGroupName('') }}
-                  className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add Group</button>
+                <Button type="button" onClick={() => { if (!newGroupName.trim()) return; const ng: RoleGroup = { id: `rg-${crypto.randomUUID().slice(0, 8)}`, name: newGroupName.trim(), module_groups: [] }; setRoleGroups(gs => [...gs, ng]); setEditingGroup(ng); setNewGroupName('') }}>Add Group</Button>
               </div>
               {roleGroups.length === 0 && (
                 <div className="bg-gray-50 rounded-lg border border-dashed border-gray-200 px-6 py-8 text-center">
@@ -598,10 +597,9 @@ export default function CompanySettingsPage() {
 
           {/* Save button at bottom too */}
           <div className="pt-2">
-            <button type="submit" disabled={saving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+            <Button type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </form>
@@ -801,8 +799,7 @@ function MenteeFlowEditor({
         <input type="text" value={newStepName} onChange={e => setNewStepName(e.target.value)}
           placeholder="Add a status (e.g. Lead, Graduated)" className={inputClass + ' flex-1'}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addStep() } }} />
-        <button type="button" onClick={addStep}
-          className="rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">Add</button>
+        <Button type="button" onClick={addStep}>Add</Button>
       </div>
     </div>
   )

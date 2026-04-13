@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { computeAllocations } from '../lib/credits'
+import Button from '../components/ui/Button'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode } from '../types'
 
@@ -372,9 +373,7 @@ export default function MenteeEngagementDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Schedule a Meeting</h2>
             {!showScheduler && (
-              <button onClick={() => setShowScheduler(true)} className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors">
-                + Schedule
-              </button>
+              <Button onClick={() => setShowScheduler(true)}>+ Schedule</Button>
             )}
           </div>
 
@@ -441,15 +440,13 @@ export default function MenteeEngagementDetailPage() {
               )}
 
               <div className="flex items-center gap-3 pt-1">
-                <button onClick={scheduleMeeting}
-                  disabled={scheduling || !selectedDate || !selectedStart || !selectedEnd || !!conflictError}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                <Button onClick={scheduleMeeting}
+                  disabled={scheduling || !selectedDate || !selectedStart || !selectedEnd || !!conflictError}>
                   {scheduling ? 'Scheduling...' : 'Confirm & Book'}
-                </button>
-                <button onClick={() => { setShowScheduler(false); setConflictError(null) }}
-                  className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                </Button>
+                <Button variant="ghost" onClick={() => { setShowScheduler(false); setConflictError(null) }}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}

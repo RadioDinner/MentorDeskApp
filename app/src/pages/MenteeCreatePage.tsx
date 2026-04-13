@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
+import Button from '../components/ui/Button'
 
 export default function MenteeCreatePage() {
   const { profile, refreshProfile } = useAuth()
@@ -155,14 +156,8 @@ export default function MenteeCreatePage() {
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button type="submit" disabled={saving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {saving ? 'Creating…' : 'Create Mentee Account'}
-            </button>
-            <button type="button" onClick={() => navigate('/mentees')}
-              className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-              Cancel
-            </button>
+            <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Mentee Account'}</Button>
+            <Button variant="secondary" type="button" onClick={() => navigate('/mentees')}>Cancel</Button>
           </div>
         </form>
       </div>

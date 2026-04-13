@@ -6,6 +6,7 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import OfferingFolderManager from '../components/OfferingFolderManager'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, OfferingFolder } from '../types'
+import Button from '../components/ui/Button'
 
 type ViewMode = 'list' | 'grid'
 
@@ -145,12 +146,7 @@ export default function EngagementsPage() {
               </svg>
             </button>
           </div>
-          <button
-            onClick={() => navigate('/engagements/new')}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + Create Engagement
-          </button>
+          <Button onClick={() => navigate('/engagements/new')}>+ Create Engagement</Button>
         </div>
       </div>
 
@@ -277,12 +273,10 @@ function EngagementGridCard({ item, price, navigate }: { item: EngagementWithSta
       </div>
 
       <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-end">
-        <button
-          onClick={e => { e.stopPropagation(); navigate(`/engagements/${item.id}/edit`) }}
-          className="px-3.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-        >
+        <Button variant="secondary" size="sm"
+          onClick={e => { e.stopPropagation(); navigate(`/engagements/${item.id}/edit`) }}>
           Settings
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -312,12 +306,10 @@ function EngagementListRow({ item, price, navigate }: { item: EngagementWithStat
         <span className="text-xs tabular-nums"><span className="font-semibold text-gray-600">{item.completed_mentees}</span> <span className="text-gray-400">done</span></span>
       </div>
 
-      <button
-        onClick={() => navigate(`/engagements/${item.id}/edit`)}
-        className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-      >
+      <Button variant="secondary" size="sm" className="shrink-0"
+        onClick={() => navigate(`/engagements/${item.id}/edit`)}>
         Settings
-      </button>
+      </Button>
     </div>
   )
 }

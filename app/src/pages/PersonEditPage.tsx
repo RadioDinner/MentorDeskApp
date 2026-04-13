@@ -7,6 +7,8 @@ import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
 import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Offering, PayFrequency } from '../types'
 import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES, PAY_FREQUENCY_LABELS } from '../types'
+import Button from '../components/ui/Button'
+import { formatDate } from '../lib/format'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -488,10 +490,9 @@ export default function PersonEditPage() {
               )}
 
               <div className="pt-2">
-                <button type="submit" disabled={saving}
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <Button type="submit" disabled={saving}>
                   {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -610,10 +611,9 @@ export default function PersonEditPage() {
                   )
                 })()}
 
-                <button type="submit" disabled={compensationSaving}
-                  className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <Button type="submit" disabled={compensationSaving} block>
                   {compensationSaving ? 'Saving…' : 'Save'}
-                </button>
+                </Button>
               </form>
             </div>
           )}
@@ -635,10 +635,9 @@ export default function PersonEditPage() {
                 <p className="text-[11px] text-gray-400">
                   Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
                 </p>
-                <button type="submit" disabled={compensationSaving}
-                  className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <Button type="submit" disabled={compensationSaving} block>
                   {compensationSaving ? 'Saving…' : 'Save'}
-                </button>
+                </Button>
               </form>
             </div>
           )}
@@ -680,7 +679,7 @@ export default function PersonEditPage() {
               Role: <span className="font-medium text-gray-700">{person.role}</span>
             </p>
             <p className="text-xs text-gray-500">
-              Added: {new Date(person.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              Added: {formatDate(person.created_at)}
             </p>
           </div>
 
@@ -770,14 +769,12 @@ export default function PersonEditPage() {
                     Would you rather <button type="button" onClick={() => { handleArchive(); setShowDeleteConfirm(false) }} className="text-amber-600 font-medium underline hover:text-amber-700">archive</button> them instead? Archived records can be restored later.
                   </p>
                   <div className="flex items-center gap-2 pt-1">
-                    <button type="button" disabled={deleting} onClick={handleDelete}
-                      className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <Button variant="danger" type="button" disabled={deleting} onClick={handleDelete}>
                       {deleting ? 'Deleting…' : 'Yes, permanently delete'}
-                    </button>
-                    <button type="button" onClick={() => setShowDeleteConfirm(false)}
-                      className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => setShowDeleteConfirm(false)}>
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

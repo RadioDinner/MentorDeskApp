@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import type { Mentee, FlowStep } from '../types'
+import Button from '../components/ui/Button'
+import { formatDate } from '../lib/format'
 
 export default function MenteeEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -245,10 +247,7 @@ export default function MenteeEditPage() {
               </div>
 
               <div className="pt-2">
-                <button type="submit" disabled={saving}
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
               </div>
             </form>
           </div>
@@ -307,7 +306,7 @@ export default function MenteeEditPage() {
                 </select>
               </div>
 
-              <button type="button" disabled={statusSaving}
+              <Button type="button" disabled={statusSaving} block className="mt-3"
                 onClick={async () => {
                   if (!mentee) return
                   setStatusMsg(null)
@@ -323,10 +322,9 @@ export default function MenteeEditPage() {
                   }
                   if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
                   setStatusMsg({ type: 'success', text: 'Status updated.' })
-                }}
-                className="mt-3 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                }}>
                 {statusSaving ? 'Saving…' : 'Save status'}
-              </button>
+              </Button>
             </div>
           )}
 
@@ -340,7 +338,7 @@ export default function MenteeEditPage() {
               </span>
             </div>
             <p className="text-xs text-gray-500">
-              Added: {new Date(mentee.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              Added: {formatDate(mentee.created_at)}
             </p>
           </div>
 
@@ -390,14 +388,10 @@ export default function MenteeEditPage() {
                     Would you rather <button type="button" onClick={() => { handleDeactivate(); setShowDeleteConfirm(false) }} className="text-amber-600 font-medium underline hover:text-amber-700">de-activate</button> them instead? De-activated mentees can be re-activated later.
                   </p>
                   <div className="flex items-center gap-2 pt-1">
-                    <button type="button" disabled={deleting} onClick={handleDeleteMentee}
-                      className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <Button variant="danger" type="button" disabled={deleting} onClick={handleDeleteMentee}>
                       {deleting ? 'Deleting…' : 'Yes, permanently delete'}
-                    </button>
-                    <button type="button" onClick={() => setShowDeleteConfirm(false)}
-                      className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-                      Cancel
-                    </button>
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
                   </div>
                 </div>
               )}

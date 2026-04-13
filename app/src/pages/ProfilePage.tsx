@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
+import Button from '../components/ui/Button'
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
@@ -296,10 +297,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={profileSaving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {profileSaving ? 'Saving…' : 'Save changes'}
-            </button>
+            <Button type="submit" disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save changes'}</Button>
           </div>
         </form>
       </div>
@@ -361,14 +359,11 @@ export default function ProfilePage() {
                       <p className="text-sm font-medium text-gray-700">{label}</p>
                       <p className="text-xs text-gray-400">{desc}</p>
                     </div>
-                    <button
-                      type="button"
+                    <Button variant="secondary" size="sm" type="button"
                       disabled={isCreating}
-                      onClick={() => createRoleAccount(role, table)}
-                      className="shrink-0 px-3 py-1.5 text-xs font-medium rounded border border-brand text-brand bg-white hover:bg-brand-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
+                      onClick={() => createRoleAccount(role, table)}>
                       {isCreating ? 'Creating…' : '+ Create'}
-                    </button>
+                    </Button>
                   </div>
                 )
               })}
@@ -417,10 +412,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={passwordSaving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {passwordSaving ? 'Updating…' : 'Update password'}
-            </button>
+            <Button type="submit" disabled={passwordSaving}>{passwordSaving ? 'Updating…' : 'Update password'}</Button>
           </div>
         </form>
       </div>

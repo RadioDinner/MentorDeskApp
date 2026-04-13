@@ -7,6 +7,7 @@ import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy, CancelOutcome } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
+import Button from '../components/ui/Button'
 
 const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
@@ -313,10 +314,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
               {/* Actions */}
               <div className="flex items-center gap-3">
-                <button type="submit" disabled={saving} className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {saving ? 'Creating…' : 'Create Course'}
-                </button>
-                <button type="button" onClick={() => navigate(backRoute)} className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Course'}</Button>
+                <Button variant="secondary" type="button" onClick={() => navigate(backRoute)}>Cancel</Button>
               </div>
             </div>
           </div>
@@ -422,10 +421,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         </div>
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-            {saving ? 'Creating…' : 'Create Engagement'}
-          </button>
-          <button type="button" onClick={() => navigate(backRoute)} className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Engagement'}</Button>
+          <Button variant="secondary" type="button" onClick={() => navigate(backRoute)}>Cancel</Button>
         </div>
       </form>
     </div>
