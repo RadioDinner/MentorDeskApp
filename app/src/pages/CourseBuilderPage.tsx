@@ -8,11 +8,13 @@ import RichTextEditor from '../components/RichTextEditor'
 import type { RichTextEditorHandle } from '../components/RichTextEditor'
 import { DYNAMIC_FIELDS } from '../lib/dynamicFields'
 import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption, SectionType } from '../types'
+import { useToast } from '../context/ToastContext'
 
 export default function CourseBuilderPage() {
   const { id } = useParams<{ id: string }>()
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [course, setCourse] = useState<Offering | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
@@ -34,7 +36,6 @@ export default function CourseBuilderPage() {
   const [lessonDescription, setLessonDescription] = useState('')
   const [lessonDueDays, setLessonDueDays] = useState('')
   const [lessonSaving, setLessonSaving] = useState(false)
-  const [lessonMsg, setLessonMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
 
@@ -100,7 +101,6 @@ export default function CourseBuilderPage() {
       setLessonTitle(selectedLesson.title)
       setLessonDescription(selectedLesson.description ?? '')
       setLessonDueDays(selectedLesson.due_days_offset != null ? String(selectedLesson.due_days_offset) : '')
-      setLessonMsg(null)
     }
   }, [selectedLessonId])
 
@@ -112,7 +112,7 @@ export default function CourseBuilderPage() {
       offering_id: id, organization_id: profile.organization_id,
       title: `Lesson ${newIndex + 1}`, order_index: newIndex,
     })
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to add lesson: ' + e.message }); return }
+    if (e) { toast.error('Failed to add lesson: ' + e.message); return }
     if (!data?.length) return
     const newLesson = data[0] as unknown as Lesson
     setLessons(prev => [...prev, newLesson])
@@ -124,7 +124,7 @@ export default function CourseBuilderPage() {
     if (!profile || !id) return
     try {
       const { error: e } = await supabaseRestCall('lessons', 'DELETE', {}, `id=eq.${lessonId}`)
-      if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete: ' + e.message }); return }
+      if (e) { toast.error('Failed to delete: ' + e.message); return }
       const updated = lessons.filter(l => l.id !== lessonId)
       const reindexed = updated.map((l, i) => ({ ...l, order_index: i }))
       setLessons(reindexed)
@@ -135,14 +135,13 @@ export default function CourseBuilderPage() {
       )
       if (selectedLessonId === lessonId) setSelectedLessonId(reindexed[0]?.id ?? null)
     } catch (err) {
-      setLessonMsg({ type: 'error', text: (err as Error).message || 'Failed to delete' })
+      toast.error((err as Error).message || 'Failed to delete')
     }
   }
 
   async function saveLessonHeader() {
     if (!selectedLesson || !profile) return
     setLessonSaving(true)
-    setLessonMsg(null)
     try {
       const updates = {
         title: lessonTitle.trim() || selectedLesson.title,
@@ -150,11 +149,11 @@ export default function CourseBuilderPage() {
         due_days_offset: enableLessonDueDates && lessonDueDays ? parseInt(lessonDueDays) : null,
       }
       const { error: e } = await supabaseRestCall('lessons', 'PATCH', updates, `id=eq.${selectedLesson.id}`)
-      if (e) { setLessonMsg({ type: 'error', text: 'Save failed: ' + e.message }); return }
+      if (e) { toast.error('Save failed: ' + e.message); return }
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
-      setLessonMsg({ type: 'success', text: 'Saved.' })
+      toast.success('Saved.')
     } catch (err) {
-      setLessonMsg({ type: 'error', text: (err as Error).message || 'Failed to save' })
+      toast.error((err as Error).message || 'Failed to save')
     } finally {
       setLessonSaving(false)
     }
@@ -188,8 +187,8 @@ export default function CourseBuilderPage() {
     const { data, error: e } = await supabaseRestCall('lesson_sections', 'POST', {
       lesson_id: selectedLessonId, organization_id: profile.organization_id, order_index: newIndex, section_type: sectionType,
     })
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to add section: ' + e.message }); return }
-    if (!data?.length) { setLessonMsg({ type: 'error', text: 'Section was not created. Please try again.' }); return }
+    if (e) { toast.error('Failed to add section: ' + e.message); return }
+    if (!data?.length) { toast.error('Section was not created. Please try again.'); return }
     const newSection = data[0] as unknown as LessonSection
     setSections(prev => [...prev, newSection])
     // Auto-create a question for quiz/response sections
@@ -227,7 +226,7 @@ export default function CourseBuilderPage() {
 
   async function deleteSection(sectionId: string) {
     const { error: e } = await supabaseRestCall('lesson_sections', 'DELETE', {}, `id=eq.${sectionId}`)
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete section.' }); return }
+    if (e) { toast.error('Failed to delete section.'); return }
     // Remove questions belonging to this section
     setQuestions(prev => prev.filter(q => q.section_id !== sectionId))
     // Calculate new order and update state
@@ -253,21 +252,21 @@ export default function CourseBuilderPage() {
       organization_id: profile.organization_id,
       question_text: '', question_type: type, options, order_index: newIndex,
     })
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to add question: ' + e.message }); return }
-    if (!data?.length) { setLessonMsg({ type: 'error', text: 'Question was not created. Please try again.' }); return }
+    if (e) { toast.error('Failed to add question: ' + e.message); return }
+    if (!data?.length) { toast.error('Question was not created. Please try again.'); return }
     setQuestions(prev => [...prev, data[0] as unknown as LessonQuestion])
   }
 
   async function updateQuestion(questionId: string, updates: Partial<LessonQuestion>) {
     const { error: e } = await supabaseRestCall('lesson_questions', 'PATCH', updates as Record<string, unknown>, `id=eq.${questionId}`)
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to save question.' }); return }
+    if (e) { toast.error('Failed to save question.'); return }
     setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } as LessonQuestion : q))
   }
 
   async function deleteQuestion(questionId: string) {
     const deleted = questions.find(q => q.id === questionId)
     const { error: e } = await supabaseRestCall('lesson_questions', 'DELETE', {}, `id=eq.${questionId}`)
-    if (e) { setLessonMsg({ type: 'error', text: 'Failed to delete question.' }); return }
+    if (e) { toast.error('Failed to delete question.'); return }
     // Remove from state and re-index sibling questions
     const filtered = questions.filter(q => q.id !== questionId)
     if (deleted) {
@@ -361,16 +360,6 @@ export default function CourseBuilderPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Status message */}
-              {lessonMsg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm ${
-                  lessonMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{lessonMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {lessonMsg.text}
-                </div>
-              )}
-
               {/* Sticky lesson header */}
               <div className="bg-white rounded-md border border-gray-200/80 px-5 py-3 sticky top-0 z-10 shadow-sm">
                 <div className="flex items-center gap-4">

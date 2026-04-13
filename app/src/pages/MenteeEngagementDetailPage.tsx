@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { computeAllocations } from '../lib/credits'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode } from '../types'
 
@@ -13,6 +14,7 @@ export default function MenteeEngagementDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { menteeProfile, profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [mo, setMo] = useState<(MenteeOffering & { offering: Offering }) | null>(null)
   const [sessions, setSessions] = useState<EngagementSession[]>([])
@@ -34,7 +36,6 @@ export default function MenteeEngagementDetailPage() {
   const [selectedStart, setSelectedStart] = useState('')
   const [selectedEnd, setSelectedEnd] = useState('')
   const [scheduling, setScheduling] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [conflictError, setConflictError] = useState<string | null>(null)
 
   const menteeId = menteeProfile?.id
@@ -172,7 +173,6 @@ export default function MenteeEngagementDetailPage() {
     }
 
     setScheduling(true)
-    setMsg(null)
     try {
       // Construct Date objects from the user's local wall-clock selection.
       // selectedDate is YYYY-MM-DD; selectedStart / selectedEnd are HH:MM.
@@ -206,7 +206,7 @@ export default function MenteeEngagementDetailPage() {
         .select()
         .single()
 
-      if (meetingErr) { setMsg({ type: 'error', text: meetingErr.message }); return }
+      if (meetingErr) { toast.error(meetingErr.message); return }
 
       const newMeeting = meetingData as Meeting
       setMyMeetings(prev => [newMeeting, ...prev])
@@ -215,9 +215,9 @@ export default function MenteeEngagementDetailPage() {
       setSelectedDate('')
       setSelectedStart('')
       setSelectedEnd('')
-      setMsg({ type: 'success', text: 'Meeting scheduled!' })
+      toast.success('Meeting scheduled!')
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to schedule' })
+      toast.error((err as Error).message || 'Failed to schedule')
     } finally {
       setScheduling(false)
     }
@@ -293,12 +293,6 @@ export default function MenteeEngagementDetailPage() {
           </span>
         </div>
       </div>
-
-      {msg && (
-        <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>{msg.text}
-        </div>
-      )}
 
       {/* Credits */}
       <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">

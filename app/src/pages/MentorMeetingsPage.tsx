@@ -4,6 +4,7 @@ import { supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Meeting } from '../types'
+import { Skeleton } from '../components/ui'
 
 type ViewMode = 'list' | 'calendar'
 
@@ -111,7 +112,7 @@ export default function MentorMeetingsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={8} className="h-11 w-full" gap="gap-2" />
       ) : error ? (
         <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : meetings.length === 0 ? (

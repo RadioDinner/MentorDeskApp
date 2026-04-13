@@ -8,6 +8,7 @@ import { reportSupabaseError } from '../lib/errorReporter'
 import type { StaffRole } from '../types'
 import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES } from '../types'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 
 interface PersonCreatePageProps {
   title: string
@@ -23,6 +24,7 @@ interface PersonCreatePageProps {
 export default function PersonCreatePage({ title, defaultRole, backRoute, allowRoleSelection }: PersonCreatePageProps) {
   const { profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -35,12 +37,10 @@ export default function PersonCreatePage({ title, defaultRole, backRoute, allowR
   const [zip, setZip] = useState('')
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!profile) return
-    setMsg(null)
     setSaving(true)
 
     // If a staff record with this email already exists, link to the same user_id
@@ -82,7 +82,7 @@ export default function PersonCreatePage({ title, defaultRole, backRoute, allowR
       const friendly = error.message.includes('staff_organization_id_email_role_key')
         ? `A ${role} account with the email "${email.trim()}" already exists in your organization.`
         : error.message
-      setMsg({ type: 'error', text: friendly })
+      toast.error(friendly)
       return
     }
 
@@ -117,17 +117,6 @@ export default function PersonCreatePage({ title, defaultRole, backRoute, allowR
 
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {msg && (
-            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-              msg.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-              {msg.text}
-            </div>
-          )}
-
           {/* Name */}
           <div className="grid grid-cols-2 gap-4">
             <div>

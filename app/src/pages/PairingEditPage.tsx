@@ -7,6 +7,7 @@ import { logAudit } from '../lib/audit'
 import type { PairingStatus } from '../types'
 import Button from '../components/ui/Button'
 import { formatDate } from '../lib/format'
+import { useToast } from '../context/ToastContext'
 
 interface PairingDetail {
   id: string
@@ -31,6 +32,7 @@ export default function PairingEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [pairing, setPairing] = useState<PairingDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -39,7 +41,6 @@ export default function PairingEditPage() {
   const [status, setStatus] = useState<PairingStatus>('active')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -76,7 +77,6 @@ export default function PairingEditPage() {
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!pairing) return
-    setMsg(null)
     setSaving(true)
 
     const updates: Record<string, unknown> = {
@@ -98,13 +98,10 @@ export default function PairingEditPage() {
 
     setSaving(false)
 
-    if (error) {
-      setMsg({ type: 'error', text: error.message })
-      return
-    }
+    if (error) { toast.error(error.message); return }
 
     if (currentUser && pairing) await logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
-    setMsg({ type: 'success', text: 'Pairing updated.' })
+    toast.success('Pairing updated.')
   }
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
@@ -142,18 +139,7 @@ export default function PairingEditPage() {
             <h2 className="text-base font-semibold text-gray-900 mb-6">Pairing Details</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
-              {msg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                  msg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {msg.text}
-                </div>
-              )}
-
-              <div>
+<div>
                 <label htmlFor="editStatus" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Status
                 </label>

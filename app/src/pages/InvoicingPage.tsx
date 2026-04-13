@@ -11,6 +11,7 @@ import { formatMoney, formatDate, formatDateShort } from '../lib/format'
 import { Badge, toneForStatus } from '../components/ui'
 import type { BadgeTone } from '../components/ui'
 import type { Invoice, InvoiceStatus } from '../types'
+import { Skeleton } from '../components/ui'
 
 type FilterTab = 'all' | 'draft' | 'sent' | 'overdue' | 'paid' | 'cancelled'
 
@@ -279,7 +280,7 @@ export default function InvoicingPage() {
 
       {/* Body */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={8} className="h-11 w-full" gap="gap-2" />
       ) : error ? (
         <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : filtered.length === 0 ? (

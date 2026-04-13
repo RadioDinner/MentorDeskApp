@@ -6,6 +6,8 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
+import { Skeleton } from '../components/ui'
 
 interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
 interface MenteeRow { id: string; first_name: string; last_name: string; email: string; flow_step_id: string | null }
@@ -21,6 +23,7 @@ type ViewTab = 'grid' | 'by_mentor' | 'by_offering' | 'by_status' | 'unpaired'
 
 export default function PairingsPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [tab, setTab] = useState<ViewTab>('grid')
   const [mentors, setMentors] = useState<MentorOption[]>([])
   const [mentees, setMentees] = useState<MenteeRow[]>([])
@@ -92,7 +95,7 @@ export default function PairingsPage() {
       mentee_id: menteeId,
     }).select('id').single()
     setPairing(false)
-    if (error) { setError(error.message); return }
+    if (error) { toast.error(error.message); return }
     const mentor = mentors.find(m => m.id === mentorId)
     const mentee = mentees.find(m => m.id === menteeId)
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
@@ -104,7 +107,7 @@ export default function PairingsPage() {
   async function changeMentor(pairingId: string, newMentorId: string) {
     if (!profile) return
     const { error } = await supabase.from('pairings').update({ mentor_id: newMentorId }).eq('id', pairingId)
-    if (error) { setError(error.message); return }
+    if (error) { toast.error(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'mentor_changed' } })
     fetchAll()
   }
@@ -114,12 +117,12 @@ export default function PairingsPage() {
     const updates: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'ended') updates.ended_at = new Date().toISOString()
     const { error } = await supabase.from('pairings').update(updates).eq('id', pairingId)
-    if (error) { setError(error.message); return }
+    if (error) { toast.error(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
     fetchAll()
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <div className="py-4"><Skeleton count={8} className="h-11 w-full" gap="gap-2" /></div>
   if (error) return <div className="rounded border bg-red-50 border-red-200 px-3 py-2.5 text-sm text-red-700">{error}</div>
 
   const pairedMenteeIds = new Set(pairings.map(p => p.mentee_id))

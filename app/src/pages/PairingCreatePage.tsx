@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 
 interface PersonOption {
   id: string
@@ -16,6 +17,7 @@ interface PersonOption {
 export default function PairingCreatePage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [mentors, setMentors] = useState<PersonOption[]>([])
   const [mentees, setMentees] = useState<PersonOption[]>([])
@@ -24,7 +26,6 @@ export default function PairingCreatePage() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [loadingOptions, setLoadingOptions] = useState(true)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -60,7 +61,6 @@ export default function PairingCreatePage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!profile || !mentorId || !menteeId) return
-    setMsg(null)
     setSaving(true)
 
     try {
@@ -75,17 +75,14 @@ export default function PairingCreatePage() {
         .select('id')
         .single()
 
-      if (error) {
-        setMsg({ type: 'error', text: error.message })
-        return
-      }
+      if (error) { toast.error(error.message); return }
 
       const mentor = mentors.find(m => m.id === mentorId)
       const mentee = mentees.find(m => m.id === menteeId)
       await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
       navigate('/pairings')
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to create pairing' })
+      toast.error((err as Error).message || 'Failed to create pairing')
       console.error(err)
     } finally {
       setSaving(false)
@@ -113,17 +110,6 @@ export default function PairingCreatePage() {
           <div className="text-sm text-gray-500">Loading...</div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {msg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                msg.type === 'success'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {msg.text}
-              </div>
-            )}
-
             {/* Mentor select */}
             <div>
               <label htmlFor="mentorSelect" className="block text-sm font-medium text-gray-700 mb-1.5">
