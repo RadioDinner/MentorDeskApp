@@ -1,3 +1,5 @@
 1. alright, let's kick off another session
 
 2. merge to main and continue merging to main for the remainder of this session
+
+3. where have we spent the least amount of time refining systems? And what features, aside from new features and integrations, are underdeveloped? Comprehensively review the entire software and tell me what could be improved.
