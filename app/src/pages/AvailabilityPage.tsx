@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import TimezoneSelect, { getBrowserTimezone } from '../components/TimezoneSelect'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 import type { AvailabilitySchedule, StaffMember } from '../types'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -16,9 +17,9 @@ export default function AvailabilityPage() {
   const { id: paramId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const toast = useToast()
   const [schedules, setSchedules] = useState<AvailabilitySchedule[]>([])
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [targetName, setTargetName] = useState<string | null>(null)
   const [timezone, setTimezone] = useState<string | null>(null)
   const [savingTz, setSavingTz] = useState(false)
@@ -66,20 +67,17 @@ export default function AvailabilityPage() {
   async function saveTimezone(tz: string | null) {
     if (!targetStaffId) return
     setSavingTz(true)
-    setMsg(null)
     const { error } = await supabase.from('staff').update({ timezone: tz }).eq('id', targetStaffId)
     setSavingTz(false)
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setTimezone(tz)
-    setMsg({ type: 'success', text: tz ? `Timezone set to ${tz}.` : 'Timezone cleared (using browser default).' })
+    toast.success(tz ? `Timezone set to ${tz}.` : 'Timezone cleared (using browser default).')
   }
 
   async function addBlock(dayOfWeek: number) {
     if (!profile) return
-    setMsg(null)
-
     if (newEnd <= newStart) {
-      setMsg({ type: 'error', text: 'End time must be after start time.' })
+      toast.error('End time must be after start time.')
       return
     }
 
@@ -87,7 +85,7 @@ export default function AvailabilityPage() {
     const dayBlocks = schedules.filter(s => s.day_of_week === dayOfWeek)
     const overlap = dayBlocks.some(s => newStart < s.end_time && newEnd > s.start_time)
     if (overlap) {
-      setMsg({ type: 'error', text: 'This block overlaps with an existing block.' })
+      toast.error('This block overlaps with an existing block.')
       return
     }
 
@@ -103,17 +101,17 @@ export default function AvailabilityPage() {
       .select()
       .single()
 
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setSchedules(prev => [...prev, data as AvailabilitySchedule].sort((a, b) =>
       a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time)
     ))
     setAddingDay(null)
-    setMsg({ type: 'success', text: 'Availability block added.' })
+    toast.success('Availability block added.')
   }
 
   async function removeBlock(id: string) {
     const { error } = await supabase.from('availability_schedules').delete().eq('id', id)
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setSchedules(prev => prev.filter(s => s.id !== id))
   }
 
@@ -121,10 +119,9 @@ export default function AvailabilityPage() {
   // existing ones on the destination day. Performs one insert per block.
   async function copyDay(fromDay: number, toDay: number) {
     if (!profile || fromDay === toDay) return
-    setMsg(null)
     const src = schedules.filter(s => s.day_of_week === fromDay)
     if (src.length === 0) {
-      setMsg({ type: 'error', text: `${DAY_SHORT[fromDay]} has no blocks to copy.` })
+      toast.error(`${DAY_SHORT[fromDay]} has no blocks to copy.`)
       return
     }
     const dst = schedules.filter(s => s.day_of_week === toDay)
@@ -134,7 +131,7 @@ export default function AvailabilityPage() {
     })
 
     if (toInsert.length === 0) {
-      setMsg({ type: 'error', text: `${DAY_SHORT[toDay]} already has overlapping blocks.` })
+      toast.error(`${DAY_SHORT[toDay]} already has overlapping blocks.`)
       return
     }
 
@@ -151,16 +148,13 @@ export default function AvailabilityPage() {
       .insert(rows)
       .select()
 
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setSchedules(prev => [...prev, ...(data as AvailabilitySchedule[])].sort((a, b) =>
       a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time)
     ))
     setCopyFromDay(null)
     const skipped = src.length - toInsert.length
-    setMsg({
-      type: 'success',
-      text: `Copied ${toInsert.length} block${toInsert.length !== 1 ? 's' : ''} to ${DAY_SHORT[toDay]}${skipped > 0 ? ` (${skipped} skipped — would overlap)` : ''}.`,
-    })
+    toast.success(`Copied ${toInsert.length} block${toInsert.length !== 1 ? 's' : ''} to ${DAY_SHORT[toDay]}${skipped > 0 ? ` (${skipped} skipped — would overlap)` : ''}.'`)
   }
 
   async function copyAllWeekdays(fromDay: number) {
@@ -198,15 +192,6 @@ export default function AvailabilityPage() {
           {isEditingOther ? 'Manage their recurring weekly schedule for mentee sessions.' : 'Set your recurring weekly schedule. Mentees can book sessions during these times.'}
         </p>
       </div>
-
-      {msg && (
-        <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm ${
-          msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-        }`}>
-          <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-          {msg.text}
-        </div>
-      )}
 
       {/* Timezone card */}
       <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">

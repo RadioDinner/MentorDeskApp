@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 import type { DynamicFieldContext } from '../lib/dynamicFields'
 import type {
   Offering, Lesson, LessonSection, LessonQuestion, MenteeOffering,
@@ -18,6 +19,7 @@ export default function MenteeCourseViewerPage() {
   const { id } = useParams<{ id: string }>()
   const { menteeProfile, profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [menteeOffering, setMenteeOffering] = useState<MenteeOffering | null>(null)
   const [course, setCourse] = useState<Offering | null>(null)
@@ -31,7 +33,6 @@ export default function MenteeCourseViewerPage() {
   const [responses, setResponses] = useState<Record<string, QuestionResponse>>({})
   const [contentLoading, setContentLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [fieldCtx, setFieldCtx] = useState<DynamicFieldContext>({})
 
   const menteeId = menteeProfile?.id
@@ -156,29 +157,29 @@ export default function MenteeCourseViewerPage() {
 
   async function completeLesson() {
     if (!selectedLesson || !menteeId || !id || !orgId) return
-    setSaving(true); setMsg(null)
+    setSaving(true)
     try {
       const now = new Date().toISOString()
       if (selectedLesson.progress) {
         const { error: e } = await supabase.from('lesson_progress').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', selectedLesson.progress.id)
-        if (e) { setMsg({ type: 'error', text: e.message }); return }
+        if (e) { toast.error(e.message); return }
       } else {
         const { error: e } = await supabase.from('lesson_progress').insert({
           organization_id: orgId, mentee_id: menteeId, mentee_offering_id: id, lesson_id: selectedLesson.id, status: 'completed', started_at: now, completed_at: now,
         })
-        if (e) { setMsg({ type: 'error', text: e.message }); return }
+        if (e) { toast.error(e.message); return }
       }
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, progress: { ...(l.progress ?? {}), status: 'completed', completed_at: now } as LessonProgress } : l))
       const updatedLessons = lessons.map(l => l.id === selectedLesson.id ? { ...l, progress: { status: 'completed' } } : l)
       if (updatedLessons.every(l => l.progress?.status === 'completed')) {
         await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', id)
-        setMsg({ type: 'success', text: 'Course completed! All lessons finished.' })
+        toast.success('Course completed! All lessons finished.')
       } else {
-        setMsg({ type: 'success', text: 'Lesson completed!' })
+        toast.success('Lesson completed!')
         const idx = lessons.findIndex(l => l.id === selectedLesson.id)
         if (lessons[idx + 1]) setTimeout(() => setSelectedLessonId(lessons[idx + 1].id), 800)
       }
-    } catch (err) { setMsg({ type: 'error', text: (err as Error).message || 'Failed' }) }
+    } catch (err) { toast.error((err as Error).message || 'Failed') }
     finally { setSaving(false) }
   }
 
@@ -216,12 +217,6 @@ export default function MenteeCourseViewerPage() {
         </div>
       </div>
 
-      {msg && (
-        <div className={`mb-4 flex items-start gap-3 rounded border px-3 py-2 text-sm ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>{msg.text}
-        </div>
-      )}
-
       <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 180px)' }}>
         {/* LEFT: Lesson sidebar */}
         <div className="w-64 shrink-0">
@@ -234,7 +229,7 @@ export default function MenteeCourseViewerPage() {
                 const status = lesson.progress?.status ?? 'not_started'
                 const isSelected = selectedLessonId === lesson.id
                 return (
-                  <button key={lesson.id} onClick={() => { setSelectedLessonId(lesson.id); setMsg(null) }}
+                  <button key={lesson.id} onClick={() => { setSelectedLessonId(lesson.id)}}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${isSelected ? 'bg-brand-light border-l-2 border-brand' : 'hover:bg-gray-50 border-l-2 border-transparent'}`}>
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold ${
                       status === 'completed' ? 'bg-green-100 text-green-600' : status === 'in_progress' ? 'bg-brand-light text-brand' : 'bg-gray-100 text-gray-400'
@@ -356,13 +351,13 @@ export default function MenteeCourseViewerPage() {
                   return (
                     <>
                       {prev ? (
-                        <button onClick={() => { setSelectedLessonId(prev.id); setMsg(null) }} className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
+                        <button onClick={() => { setSelectedLessonId(prev.id)}} className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                           {prev.title}
                         </button>
                       ) : <div />}
                       {next ? (
-                        <button onClick={() => { setSelectedLessonId(next.id); setMsg(null) }} className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
+                        <button onClick={() => { setSelectedLessonId(next.id)}} className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
                           {next.title}
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                         </button>

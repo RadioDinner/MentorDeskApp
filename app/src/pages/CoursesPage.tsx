@@ -7,6 +7,7 @@ import OfferingFolderManager from '../components/OfferingFolderManager'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, OfferingFolder } from '../types'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 
 type ViewMode = 'list' | 'grid'
 
@@ -168,7 +169,7 @@ export default function CoursesPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={8} className="h-11 w-full" gap="gap-2" />
       ) : error ? (
         <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : (

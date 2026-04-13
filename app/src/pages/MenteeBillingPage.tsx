@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { formatMoney, formatDate, formatDateShort } from '../lib/format'
 import { Button, Badge, toneForStatus } from '../components/ui'
+import { useToast } from '../context/ToastContext'
 
 interface Invoice {
   id: string
@@ -25,6 +26,7 @@ interface PaymentMethod {
 
 export default function MenteeBillingPage() {
   const { menteeProfile } = useAuth()
+  const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'invoices' | 'payment'>('invoices')
@@ -36,7 +38,6 @@ export default function MenteeBillingPage() {
   const [cardCvc, setCardCvc] = useState('')
   const [savedPayment, setSavedPayment] = useState<PaymentMethod | null>(null)
   const [savingPayment, setSavingPayment] = useState(false)
-  const [paymentMsg, setPaymentMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!menteeProfile) { setLoading(false); return }
@@ -77,12 +78,11 @@ export default function MenteeBillingPage() {
   async function handleSavePayment() {
     if (!menteeProfile) return
     if (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()) {
-      setPaymentMsg({ type: 'error', text: 'Please fill in all card fields.' })
+      toast.error('Please fill in all card fields.')
       return
     }
 
     setSavingPayment(true)
-    setPaymentMsg(null)
 
     // In production, this would go to Stripe/payment processor.
     // For now, we store a masked version in the mentee record.
@@ -102,17 +102,17 @@ export default function MenteeBillingPage() {
         .eq('id', menteeProfile.id)
 
       if (error) {
-        setPaymentMsg({ type: 'error', text: error.message })
+        toast.error(error.message)
       } else {
         setSavedPayment(paymentMethod)
         setCardNumber('')
         setCardExpiry('')
         setCardCvc('')
         setCardName('')
-        setPaymentMsg({ type: 'success', text: 'Payment method saved.' })
+        toast.success('Payment method saved.')
       }
     } catch (err) {
-      setPaymentMsg({ type: 'error', text: (err as Error).message || 'Failed to save' })
+      toast.error((err as Error).message || 'Failed to save')
     } finally {
       setSavingPayment(false)
     }
@@ -252,15 +252,6 @@ export default function MenteeBillingPage() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
               {savedPayment ? 'Update payment method' : 'Add payment method'}
             </p>
-
-            {paymentMsg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${
-                paymentMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span className="mt-0.5">{paymentMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {paymentMsg.text}
-              </div>
-            )}
 
             <div className="space-y-3">
               <div>

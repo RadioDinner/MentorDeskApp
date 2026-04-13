@@ -6,10 +6,12 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 
 export default function MenteeCreatePage() {
   const { profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -21,12 +23,10 @@ export default function MenteeCreatePage() {
   const [zip, setZip] = useState('')
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!profile) return
-    setMsg(null)
     setSaving(true)
 
     // If a staff member with this email exists, link to their user_id
@@ -67,7 +67,7 @@ export default function MenteeCreatePage() {
       const friendly = error.message.includes('mentees_organization_id_email_key')
         ? `A mentee with the email "${email.trim()}" already exists in your organization.`
         : error.message
-      setMsg({ type: 'error', text: friendly })
+      toast.error(friendly)
       return
     }
 
@@ -97,17 +97,6 @@ export default function MenteeCreatePage() {
 
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {msg && (
-            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-              msg.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-              {msg.text}
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="mFirstName" className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>

@@ -8,6 +8,7 @@ import { reportSupabaseError } from '../lib/errorReporter'
 import type { OfferingType, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy, CancelOutcome } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 
 const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
@@ -54,13 +55,13 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   const { profile } = useAuth()
   const navigate = useNavigate()
   const isCourse = offeringType === 'course'
+  const toast = useToast()
 
   // Shared
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [addToFlow, setAddToFlow] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Course
   const [billingMode, setBillingMode] = useState<BillingMode>('one_time')
@@ -96,7 +97,6 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!profile) return
-    setMsg(null)
     setSaving(true)
 
     try {
@@ -131,7 +131,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
       console.log('[OfferingCreate] inserting record:', record)
       const { data, error } = await supabase.from('offerings').insert(record).select('id')
       console.log('[OfferingCreate] insert result:', { data, error })
-      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } }); setMsg({ type: 'error', text: error.message }); return }
+      if (error) { console.error('[OfferingCreate] insert FAILED:', error.message, error); reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } }); toast.error(error.message); return }
 
       if (data && data.length > 0) {
         await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'offering', entity_id: data[0].id, details: { type: offeringType, name: name.trim() } })
@@ -154,7 +154,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         navigate(offeringType === 'course' ? '/courses' : '/engagements')
       }
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to create offering' })
+      toast.error((err as Error).message || 'Failed to create offering')
       console.error(err)
     } finally {
       setSaving(false)
@@ -174,13 +174,6 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
           <button onClick={() => navigate(backRoute)} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">&larr; Back</button>
           <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
         </div>
-
-        {msg && (
-          <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-            <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {msg.text}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -331,13 +324,6 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         <button onClick={() => navigate(backRoute)} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">&larr; Back</button>
         <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
       </div>
-
-      {msg && (
-        <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-          {msg.text}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">

@@ -8,6 +8,7 @@ import { reportSupabaseError } from '../lib/errorReporter'
 import type { Offering, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 import { formatDate } from '../lib/format'
 
 const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
@@ -32,6 +33,7 @@ export default function OfferingEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [offering, setOffering] = useState<Offering | null>(null)
   const [loading, setLoading] = useState(true)
@@ -56,7 +58,6 @@ export default function OfferingEditPage() {
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
   const [autoSendInvoice, setAutoSendInvoice] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -105,7 +106,6 @@ export default function OfferingEditPage() {
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!offering) return
-    setMsg(null)
     setSaving(true)
 
     const updates: Record<string, unknown> = {
@@ -145,16 +145,16 @@ export default function OfferingEditPage() {
 
       if (error) {
         reportSupabaseError(error, { component: 'OfferingEditPage', action: 'save' })
-        setMsg({ type: 'error', text: error.message })
+        toast.error(error.message)
         return
       }
 
       const oldVals = { name: offering.name, description: offering.description, billing_mode: offering.billing_mode, price_cents: offering.price_cents, recurring_price_cents: offering.recurring_price_cents, setup_fee_cents: offering.setup_fee_cents }
       setOffering({ ...offering, name: name.trim(), description: description.trim() || null })
       if (currentUser) await logAudit({ organization_id: offering.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'offering', entity_id: offering.id, details: { type: offering.type, name: name.trim() }, old_values: oldVals, new_values: updates })
-      setMsg({ type: 'success', text: 'Offering has been updated.' })
+      toast.success('Offering has been updated.')
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to save' })
+      toast.error((err as Error).message || 'Failed to save')
       console.error('[OfferingEdit] save error:', err)
     } finally {
       setSaving(false)
@@ -197,17 +197,6 @@ export default function OfferingEditPage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-5">
-        {msg && (
-          <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-            msg.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}>
-            <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {msg.text}
-          </div>
-        )}
-
         {/* Basic info */}
         <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-4">{typeLabel} Details</h2>
@@ -249,7 +238,7 @@ export default function OfferingEditPage() {
                       input.onchange = () => {
                         const file = input.files?.[0]
                         if (!file) return
-                        if (file.size > 512 * 1024) { setMsg({ type: 'error', text: 'Icon must be under 512KB.' }); return }
+                        if (file.size > 512 * 1024) { toast.error('Icon must be under 512KB.'); return }
                         const reader = new FileReader()
                         reader.onload = () => setIconUrl(reader.result as string)
                         reader.readAsDataURL(file)

@@ -4,6 +4,7 @@ import { computeCredits } from '../lib/credits'
 import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 import Button from './ui/Button'
+import { useToast } from '../context/ToastContext'
 
 interface Props {
   assignment: MenteeOffering & { offering?: Offering }
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function EngagementManageModal({ assignment, profile, mentee, onClose, onUpdate }: Props) {
+  const toast = useToast()
   const offering = assignment.offering
   const isCompleted = assignment.status === 'completed'
 
@@ -57,8 +59,6 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
   const [logNotes, setLogNotes] = useState('')
   const [logging, setLogging] = useState(false)
 
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-
   // Credit computation
   const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
   const credits = computeCredits(meetings, totalCredits)
@@ -94,7 +94,6 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
 
   async function handleSave() {
     setSaving(true)
-    setMsg(null)
     try {
       const endsAtValue = editIndefinite ? null : (editEndsAt ? new Date(editEndsAt + 'T23:59:59Z').toISOString() : null)
       await onUpdate(assignment.id, {
@@ -106,9 +105,9 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
         ends_at: endsAtValue,
       })
       setEditing(false)
-      setMsg({ type: 'success', text: 'Settings saved.' })
+      toast.success('Settings saved.')
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to save settings.' })
+      toast.error((err as Error).message || 'Failed to save settings.')
     } finally {
       setSaving(false)
     }
@@ -169,7 +168,7 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
     if (!schedDate || !schedStart || !schedEnd) return
     // Check for conflicts with all existing meetings for this mentor
     if (hasConflict(schedDate, schedStart, schedEnd, meetings)) {
-      setMsg({ type: 'error', text: 'This time conflicts with another meeting.' })
+      toast.error('This time conflicts with another meeting.')
       return
     }
     setScheduling(true)
@@ -260,13 +259,6 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
             </button>
           </div>
         </div>
-
-        {/* Status message */}
-        {msg && (
-          <div className={`shrink-0 px-8 py-2.5 text-sm flex items-center gap-2 ${msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-            <span>{msg.type === 'success' ? '\u2713' : '\u2717'}</span>{msg.text}
-          </div>
-        )}
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-8 py-6">

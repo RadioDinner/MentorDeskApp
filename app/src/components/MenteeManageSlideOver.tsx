@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Button from './ui/Button'
+import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
@@ -21,6 +22,7 @@ interface MenteeOfferingWithDetails extends MenteeOffering {
 
 export default function MenteeManageSlideOver({ mentee, profile, onClose }: Props) {
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [assignments, setAssignments] = useState<MenteeOfferingWithDetails[]>([])
   const [availableCourses, setAvailableCourses] = useState<Offering[]>([])
@@ -28,7 +30,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [allEngagements, setAllEngagements] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
@@ -38,7 +39,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setMsg({ type: 'error', text: 'Request timed out. Please try again.' })
+    toast.error('Request timed out. Please try again.')
   }, []))
 
   // Close on Escape
@@ -96,7 +97,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         })))
       } catch (err) {
         console.error('[MenteeManageSlideOver] fetch error:', err)
-        setMsg({ type: 'error', text: 'Failed to load data. Please try again.' })
+        toast.error('Failed to load data. Please try again.')
       } finally {
         setLoading(false)
       }
@@ -107,7 +108,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   async function assignOffering(offeringId: string) {
     setAssigning(true)
-    setMsg(null)
     try {
       // Find the offering template to copy pricing/settings
       const allOfferings = [...availableCourses, ...availableEngagements]
@@ -127,7 +127,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         })
         .select('id')
 
-      if (insertErr) { setMsg({ type: 'error', text: insertErr.message }); return }
+      if (insertErr) { toast.error(insertErr.message); return }
       const insertedId = insertedArr?.[0]?.id
 
       const { data } = await supabase
@@ -154,7 +154,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       }
 
       const offering = newMo.offering
-      setMsg({ type: 'success', text: `${offering?.type === 'course' ? 'Course assigned' : 'Engagement opened'} successfully.` })
+      toast.success(`${offering?.type === 'course' ? 'Course assigned' : 'Engagement opened'} successfully.`)
       setShowCourseSelect(false)
       setShowEngagementSelect(false)
 
@@ -221,7 +221,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         })
       }
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to assign' })
+      toast.error((err as Error).message || 'Failed to assign')
       console.error(err)
     } finally {
       setAssigning(false)
@@ -233,9 +233,9 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       .from('mentee_offerings')
       .update(updates)
       .eq('id', assignmentId)
-    if (error) { setMsg({ type: 'error', text: error.message }); throw new Error(error.message) }
+    if (error) { toast.error(error.message); throw new Error(error.message) }
     setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, ...updates } as MenteeOfferingWithDetails : a))
-    setMsg({ type: 'success', text: 'Updated.' })
+    toast.success('Updated.')
   }
 
   function handleCourseRemove(id: string) {
@@ -292,16 +292,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
             </button>
           </div>
         </div>
-
-        {/* Status message */}
-        {msg && (
-          <div className={`shrink-0 px-6 py-2.5 text-sm flex items-center gap-2 ${
-            msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-          }`}>
-            <span>{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {msg.text}
-          </div>
-        )}
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -498,10 +488,10 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
   const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
   const isCompleted = assignment.status === 'completed'
 
+  const toast = useToast()
   const [expanded, setExpanded] = useState(false)
   const [lessonDetails, setLessonDetails] = useState<(Lesson & { progress: LessonProgress | null; responses: (QuestionResponse & { question: LessonQuestion })[] })[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const [actionMsg, setActionMsg] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: 'reset' | 'remove' | 'complete'; label: string } | null>(null)
 
   async function resetCourse() {
@@ -515,8 +505,7 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
       onStatusChange(assignment.id, 'active')
     }
     setLessonDetails(prev => prev.map(l => ({ ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) })))
-    setActionMsg('Course progress reset.')
-    setTimeout(() => setActionMsg(null), 3000)
+    toast.success('Course progress reset.')
   }
 
   async function markCourseComplete() {
@@ -524,8 +513,7 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
     const now = new Date().toISOString()
     await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', assignment.id)
     onStatusChange(assignment.id, 'completed')
-    setActionMsg('Course marked as completed.')
-    setTimeout(() => setActionMsg(null), 3000)
+    toast.success('Course marked as completed.')
   }
 
   async function removeCourse() {
@@ -544,8 +532,7 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
       supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
     ])
     setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) } : l))
-    setActionMsg(`Lesson reset.`)
-    setTimeout(() => setActionMsg(null), 3000)
+    toast.success('Lesson reset.')
   }
 
   async function markLessonComplete(lessonId: string) {
@@ -560,8 +547,7 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
       })
     }
     setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: { ...(l.progress ?? {} as LessonProgress), status: 'completed', completed_at: now } as LessonProgress } : l))
-    setActionMsg('Lesson marked as completed.')
-    setTimeout(() => setActionMsg(null), 3000)
+    toast.success('Lesson marked as completed.')
   }
 
   async function loadDetails() {
@@ -633,9 +619,6 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
             </span>
           </div>
         </div>
-
-        {/* Action message */}
-        {actionMsg && <p className="text-[10px] text-green-600 font-medium mb-2">{actionMsg}</p>}
 
         {/* Confirmation dialog */}
         {confirmAction && (

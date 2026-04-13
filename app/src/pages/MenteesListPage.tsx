@@ -8,6 +8,7 @@ import MenteeManagePanel from '../components/MenteeManageSlideOver'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Mentee } from '../types'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 
 interface MenteeProgressSummary {
   activeCourses: number
@@ -193,7 +194,7 @@ export default function MenteesListPage() {
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'mentee', entity_id: id })
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <div className="py-4"><Skeleton count={8} className="h-11 w-full" gap="gap-2" /></div>
 
   if (error) {
     return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />

@@ -9,6 +9,7 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import type { StaffMember, StaffRole, RoleGroup } from '../types'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
+import { Skeleton } from '../components/ui'
 
 interface PeopleListPageProps {
   title: string
@@ -140,7 +141,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'staff', entity_id: personId })
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <div className="py-4"><Skeleton count={8} className="h-11 w-full" gap="gap-2" /></div>
 
   if (error) {
     return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />

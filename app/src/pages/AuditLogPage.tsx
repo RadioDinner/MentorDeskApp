@@ -6,6 +6,8 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import Badge from '../components/ui/Badge'
 import type { BadgeTone } from '../components/ui/Badge'
 import { formatDateShort, formatTime } from '../lib/format'
+import { useToast } from '../context/ToastContext'
+import { Skeleton } from '../components/ui'
 
 interface AuditRow {
   id: string
@@ -88,13 +90,13 @@ function formatDetails(details: Record<string, unknown> | null): string {
 
 export default function AuditLogPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [entries, setEntries] = useState<AuditRow[]>([])
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [reverting, setReverting] = useState<string | null>(null)
-  const [revertMsg, setRevertMsg] = useState<{ id: string; type: 'success' | 'error'; text: string } | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -162,7 +164,6 @@ export default function AuditLogPage() {
   async function handleRevert(entry: AuditRow) {
     if (!profile || !entry.old_values || !entry.entity_id) return
     setReverting(entry.id)
-    setRevertMsg(null)
 
     const result = await revertAuditEntry({
       entity_type: entry.entity_type,
@@ -182,9 +183,9 @@ export default function AuditLogPage() {
         old_values: entry.new_values,
         new_values: entry.old_values,
       })
-      setRevertMsg({ id: entry.id, type: 'success', text: 'Change reverted successfully.' })
+      toast.success('Change reverted successfully.')
     } else {
-      setRevertMsg({ id: entry.id, type: 'error', text: result.error || 'Revert failed.' })
+      toast.error(result.error || 'Revert failed.')
     }
     setReverting(null)
   }
@@ -232,7 +233,7 @@ export default function AuditLogPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={8} className="h-11 w-full" gap="gap-2" />
       ) : error ? (
         <div className="rounded border bg-red-50 border-red-200 px-3 py-2.5 text-sm text-red-700">
           Failed to load audit log: {error}
@@ -328,16 +329,6 @@ export default function AuditLogPage() {
                         )}
                       </tbody>
                     </table>
-
-                    {/* Revert message */}
-                    {revertMsg && revertMsg.id === entry.id && (
-                      <div className={`flex items-center gap-2 rounded border px-3 py-2 text-xs mb-2 ${
-                        revertMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-                      }`}>
-                        <span>{revertMsg.type === 'success' ? '✓' : '✗'}</span>
-                        {revertMsg.text}
-                      </div>
-                    )}
 
                     {/* Undo button — admin only, only for updates with old_values */}
                     {canRevert && (

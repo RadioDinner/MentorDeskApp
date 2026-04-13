@@ -10,6 +10,7 @@ import { formatDollars, parseDateOnly } from '../lib/format'
 import { Button, Badge } from '../components/ui'
 import { PAY_FREQUENCY_LABELS, STAFF_ROLE_LABELS } from '../types'
 import type { StaffMember, PayType, PayFrequency, TimeCard, Offering } from '../types'
+import { Skeleton } from '../components/ui'
 
 interface PayrollRow {
   staff: StaffMember
@@ -285,7 +286,7 @@ export default function PayrollPage() {
 
       {/* Body */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={8} className="h-11 w-full" gap="gap-2" />
       ) : error ? (
         <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : payrollRows.length === 0 ? (
