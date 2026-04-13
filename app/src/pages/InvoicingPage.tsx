@@ -8,10 +8,11 @@ import InvoiceEditModal from '../components/InvoiceEditModal'
 import type { InvoiceEditUpdates } from '../components/InvoiceEditModal'
 import { logAudit } from '../lib/audit'
 import { formatMoney, formatDate, formatDateShort } from '../lib/format'
-import { Badge, toneForStatus } from '../components/ui'
+import { Badge, toneForStatus, Skeleton, PageBar } from '../components/ui'
 import type { BadgeTone } from '../components/ui'
 import type { Invoice, InvoiceStatus } from '../types'
-import { Skeleton } from '../components/ui'
+
+const PAGE_SIZE = 25
 
 type FilterTab = 'all' | 'draft' | 'sent' | 'overdue' | 'paid' | 'cancelled'
 
@@ -58,6 +59,7 @@ export default function InvoicingPage() {
   const [acting, setActing] = useState<string | null>(null)
   const [editing, setEditing] = useState<InvoiceRow | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -216,6 +218,11 @@ export default function InvoicingPage() {
     return counts
   }, [invoices])
 
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  )
+
   // ─────────── Render ───────────
 
   return (
@@ -253,7 +260,7 @@ export default function InvoicingPage() {
           {(['all', 'draft', 'sent', 'overdue', 'paid', 'cancelled'] as FilterTab[]).map((tab, i) => (
             <button
               key={tab}
-              onClick={() => setFilter(tab)}
+              onClick={() => { setFilter(tab); setPage(1) }}
               className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                 i > 0 ? 'border-l border-gray-200' : ''
               } ${
@@ -272,7 +279,7 @@ export default function InvoicingPage() {
         <input
           type="text"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
           placeholder="Search by mentee, invoice #, or engagement..."
           className="flex-1 min-w-48 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
@@ -307,7 +314,7 @@ export default function InvoicingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(inv => (
+              {paginated.map(inv => (
                 <InvoiceTableRow
                   key={inv.id}
                   invoice={inv}
@@ -321,6 +328,7 @@ export default function InvoicingPage() {
               ))}
             </tbody>
           </table>
+          <PageBar page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} className="px-4" />
         </div>
       )}
 

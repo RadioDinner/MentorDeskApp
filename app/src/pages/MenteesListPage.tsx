@@ -8,7 +8,9 @@ import MenteeManagePanel from '../components/MenteeManageSlideOver'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Mentee } from '../types'
 import Button from '../components/ui/Button'
-import { Skeleton } from '../components/ui'
+import { Skeleton, PageBar } from '../components/ui'
+
+const PAGE_SIZE = 25
 
 interface MenteeProgressSummary {
   activeCourses: number
@@ -27,6 +29,7 @@ export default function MenteesListPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
   const [progressMap, setProgressMap] = useState<Record<string, MenteeProgressSummary>>({})
+  const [page, setPage] = useState(1)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -203,6 +206,10 @@ export default function MenteesListPage() {
   const activeMentees = mentees.filter(m => !m.archived_at)
   const archivedMentees = mentees.filter(m => m.archived_at)
   const displayMentees = showArchived ? mentees : activeMentees
+  // Compact mode shows all mentees (side-nav); full-width view paginates
+  const paginatedMentees = isCompact
+    ? displayMentees
+    : displayMentees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const selectedMentee = mentees.find(m => m.id === selectedMenteeId) ?? null
 
   return (
@@ -228,7 +235,7 @@ export default function MenteesListPage() {
             <div className="flex items-center gap-3">
               {!isMentor && archivedMentees.length > 0 && (
                 <button
-                  onClick={() => setShowArchived(!showArchived)}
+                  onClick={() => { setShowArchived(!showArchived); setPage(1) }}
                   className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
                     showArchived
                       ? 'border-brand bg-brand-light text-brand'
@@ -252,7 +259,7 @@ export default function MenteesListPage() {
           </div>
         ) : (
           <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 160px)' }}>
-            {displayMentees.map(mentee => {
+            {paginatedMentees.map(mentee => {
               const isArchived = !!mentee.archived_at
               const isSelected = selectedMenteeId === mentee.id
               const isConfirming = confirmDelete === mentee.id
@@ -382,6 +389,9 @@ export default function MenteesListPage() {
               )
             })}
           </div>
+        )}
+        {!isCompact && (
+          <PageBar page={page} pageSize={PAGE_SIZE} total={displayMentees.length} onPage={setPage} className="mt-2" />
         )}
       </div>
 

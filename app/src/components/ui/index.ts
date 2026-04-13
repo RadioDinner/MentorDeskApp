@@ -14,3 +14,5 @@ export type { ModalProps, ModalSize } from './Modal'
 
 export { default as Skeleton } from './Skeleton'
 export type {} from './Skeleton'
+
+export { default as PageBar } from './PageBar'

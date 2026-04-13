@@ -1,3 +1,6 @@
 SESSION 013 PROMPT HISTORY
 ==========================
 
+1. [session continued from Session 012 context]
+
+2. Ok, this is weird but instead of wrapping, let's keep working on the polish backlog. Always merge to main and push to main for the rest of this session.

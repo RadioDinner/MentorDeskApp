@@ -7,7 +7,9 @@ import Badge from '../components/ui/Badge'
 import type { BadgeTone } from '../components/ui/Badge'
 import { formatDateShort, formatTime } from '../lib/format'
 import { useToast } from '../context/ToastContext'
-import { Skeleton } from '../components/ui'
+import { Skeleton, PageBar } from '../components/ui'
+
+const PAGE_SIZE = 50
 
 interface AuditRow {
   id: string
@@ -103,6 +105,9 @@ export default function AuditLogPage() {
     setError('Request timed out. Please refresh the page.')
   }, []))
 
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+
   // Filters
   const [filterActor, setFilterActor] = useState('')
   const [filterType, setFilterType] = useState('')
@@ -134,22 +139,26 @@ export default function AuditLogPage() {
       setError(null)
 
       try {
+        const from = (page - 1) * PAGE_SIZE
+        const to = page * PAGE_SIZE - 1
+
         let query = supabase
           .from('audit_log')
           .select(`
             id, action, entity_type, entity_id, details, old_values, new_values, created_at,
             actor:staff!audit_log_actor_id_fkey ( id, first_name, last_name )
-          `)
+          `, { count: 'exact' })
           .eq('organization_id', profile!.organization_id)
           .order('created_at', { ascending: false })
-          .limit(200)
+          .range(from, to)
 
         if (filterActor) query = query.eq('actor_id', filterActor)
         if (filterType) query = query.eq('entity_type', filterType)
 
-        const { data, error: fetchError } = await query
+        const { data, error: fetchError, count: rowCount } = await query
         if (fetchError) { setError(fetchError.message); return }
         setEntries(data as unknown as AuditRow[])
+        if (rowCount !== null) setTotal(rowCount)
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -159,7 +168,7 @@ export default function AuditLogPage() {
     }
 
     fetchLog()
-  }, [profile?.organization_id, filterActor, filterType])
+  }, [profile?.organization_id, filterActor, filterType, page])
 
   async function handleRevert(entry: AuditRow) {
     if (!profile || !entry.old_values || !entry.entity_id) return
@@ -205,7 +214,7 @@ export default function AuditLogPage() {
       <div className="flex items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-gray-500">User</label>
-          <select value={filterActor} onChange={e => setFilterActor(e.target.value)} className={selectClass}>
+          <select value={filterActor} onChange={e => { setFilterActor(e.target.value); setPage(1) }} className={selectClass}>
             <option value="">All users</option>
             {staffOptions.map(s => (
               <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
@@ -215,7 +224,7 @@ export default function AuditLogPage() {
 
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-gray-500">Type</label>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)} className={selectClass}>
+          <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }} className={selectClass}>
             <option value="">All types</option>
             {Object.entries(ENTITY_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -224,7 +233,7 @@ export default function AuditLogPage() {
         </div>
 
         {(filterActor || filterType) && (
-          <button onClick={() => { setFilterActor(''); setFilterType('') }}
+          <button onClick={() => { setFilterActor(''); setFilterType(''); setPage(1) }}
             className="text-xs text-gray-500 hover:text-gray-700 transition-colors">
             Clear filters
           </button>
@@ -243,6 +252,7 @@ export default function AuditLogPage() {
           <p className="text-sm text-gray-500">No audit entries found.</p>
         </div>
       ) : (
+        <>
         <div className="space-y-1">
           {entries.map(entry => {
             const actionLabel = ACTION_LABELS[entry.action] ?? entry.action
@@ -347,6 +357,8 @@ export default function AuditLogPage() {
             )
           })}
         </div>
+        <PageBar page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} className="mt-2" />
+        </>
       )}
     </div>
   )
