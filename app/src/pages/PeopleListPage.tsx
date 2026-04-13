@@ -26,6 +26,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmArchive, setConfirmArchive] = useState<StaffMember | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -193,7 +194,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
               permissionGroups={permissionGroups}
               onUpdateModules={(modules) => updateModules(person.id, modules)}
               onEdit={() => navigate(`/people/${person.id}/edit`)}
-              onArchive={() => archivePerson(person.id)}
+              onArchive={() => setConfirmArchive(person)}
               onUnarchive={() => unarchivePerson(person.id)}
               onDelete={() => deletePerson(person.id)}
               confirmDelete={confirmDelete === person.id}
@@ -201,6 +202,57 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
               isSelf={person.id === profile?.id}
             />
           ))}
+        </div>
+      )}
+
+      {/* Archive confirmation modal */}
+      {confirmArchive && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setConfirmArchive(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900">Archive this person?</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Are you sure you want to archive{' '}
+                    <span className="font-medium text-gray-900">
+                      {confirmArchive.first_name} {confirmArchive.last_name}
+                    </span>
+                    ? They'll be hidden from active lists. You can restore them later from the archived view.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setConfirmArchive(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    const id = confirmArchive.id
+                    setConfirmArchive(null)
+                    await archivePerson(id)
+                  }}
+                  className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 transition-colors"
+                >
+                  Yes, archive
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -315,12 +367,13 @@ function StaffRow({
               {!isSelf && person.role !== 'admin' && (
                 <button
                   onClick={onArchive}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50 transition-colors"
                   title="Archive"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
+                  Archive
                 </button>
               )}
             </>
