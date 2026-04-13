@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { computeCredits } from '../lib/credits'
+import { computeAllocations } from '../lib/credits'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
-import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule } from '../types'
+import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode } from '../types'
 
 interface MentorInfo { id: string; first_name: string; last_name: string }
 
@@ -19,6 +19,9 @@ export default function MenteeEngagementDetailPage() {
   const [mentorAllMeetings, setMentorAllMeetings] = useState<Meeting[]>([])
   const [mentor, setMentor] = useState<MentorInfo | null>(null)
   const [showAllDays, setShowAllDays] = useState(true)
+  const [grantMode, setGrantMode] = useState<AllocationGrantMode>('on_open')
+  const [refreshMode, setRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
+  const [paidInvoiceDates, setPaidInvoiceDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,25 +51,34 @@ export default function MenteeEngagementDetailPage() {
         if (engagement.offering?.type !== 'engagement') { setError('This is not an engagement.'); return }
         setMo(engagement)
 
-        // Load org setting: show all days vs. only available days in scheduler
+        // Load org settings: scheduler visibility + allocation modes
         if (engagement.organization_id) {
           const { data: orgData } = await supabase
             .from('organizations')
-            .select('show_all_days_in_scheduler')
+            .select('show_all_days_in_scheduler, allocation_grant_mode, allocation_refresh_mode')
             .eq('id', engagement.organization_id)
             .single()
-          if (orgData && typeof (orgData as { show_all_days_in_scheduler?: boolean }).show_all_days_in_scheduler === 'boolean') {
-            setShowAllDays((orgData as { show_all_days_in_scheduler: boolean }).show_all_days_in_scheduler)
+          if (orgData) {
+            const o = orgData as {
+              show_all_days_in_scheduler?: boolean
+              allocation_grant_mode?: AllocationGrantMode
+              allocation_refresh_mode?: AllocationRefreshMode
+            }
+            if (typeof o.show_all_days_in_scheduler === 'boolean') setShowAllDays(o.show_all_days_in_scheduler)
+            if (o.allocation_grant_mode) setGrantMode(o.allocation_grant_mode)
+            if (o.allocation_refresh_mode) setRefreshMode(o.allocation_refresh_mode)
           }
         }
 
-        // Fetch sessions + meetings for this engagement
-        const [sessionsRes, meetingsRes] = await Promise.all([
+        // Fetch sessions + meetings + paid invoices for this engagement
+        const [sessionsRes, meetingsRes, invoicesRes] = await Promise.all([
           supabase.from('engagement_sessions').select('*').eq('mentee_offering_id', id!).order('session_date', { ascending: false }),
           supabase.from('meetings').select('*').eq('mentee_offering_id', id!).order('starts_at', { ascending: false }),
+          supabase.from('invoices').select('paid_at').eq('mentee_offering_id', id!).eq('status', 'paid').not('paid_at', 'is', null),
         ])
         setSessions((sessionsRes.data ?? []) as EngagementSession[])
         setMyMeetings((meetingsRes.data ?? []) as Meeting[])
+        setPaidInvoiceDates(((invoicesRes.data ?? []) as { paid_at: string }[]).map(r => r.paid_at))
 
         // Find mentor: try pairings first, then fall back to assigned_by staff
         let mentorFound: MentorInfo | null = null
@@ -207,15 +219,24 @@ export default function MenteeEngagementDetailPage() {
   }
 
   const offering = mo.offering
-  const totalCredits = mo.meeting_count ?? offering?.meeting_count ?? 0
-  const credits = computeCredits(myMeetings, totalCredits)
+  const meetingCountPerGrant = mo.meeting_count ?? offering?.meeting_count ?? 0
   const isCompleted = mo.status === 'completed'
   const period = mo.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
   const periodLabel = period === 'monthly' ? '/month' : period === 'weekly' ? '/week' : '/cycle'
 
-  const upcomingMeetings = credits.upcomingMeetings
+  const allocation = computeAllocations({
+    meetings: myMeetings,
+    meetingCountPerGrant,
+    allocationPeriod: period,
+    grantMode,
+    refreshMode,
+    openedAt: mo.assigned_at,
+    paidInvoiceDates,
+  })
+
+  const upcomingMeetings = allocation.upcomingMeetings
   const pastMeetings = myMeetings.filter(m => new Date(m.ends_at) <= new Date() || m.status === 'cancelled')
-  const canSchedule = !isCompleted && mentor && (credits.availableToBook === null || credits.availableToBook > 0 || totalCredits === 0)
+  const canSchedule = !isCompleted && mentor && (allocation.unlimited || (allocation.availableToBook ?? 0) > 0)
 
   // Meeting duration from offering (defaults to 60 minutes).
   const meetingDurationMinutes = offering?.default_meeting_duration_minutes ?? 60
@@ -260,30 +281,67 @@ export default function MenteeEngagementDetailPage() {
       {/* Credits */}
       <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
         <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-4">Session Credits</h2>
-        {totalCredits > 0 ? (
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900 tabular-nums">{totalCredits}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Allocated{periodLabel}</p>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">{credits.used} completed</span>
-                <span className={`text-sm font-semibold ${(credits.remaining ?? 0) <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                  {credits.remaining} remaining
-                </span>
-              </div>
-              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : (credits.remaining ?? 0) <= 1 ? 'bg-amber-400' : 'bg-brand'}`}
-                  style={{ width: `${totalCredits > 0 ? Math.round((credits.used / totalCredits) * 100) : 0}%` }} />
-              </div>
-              {credits.reserved > 0 && (
-                <p className="text-xs text-blue-600 mt-1.5">{credits.reserved} upcoming meeting{credits.reserved !== 1 ? 's' : ''} scheduled</p>
-              )}
-            </div>
-          </div>
+        {allocation.unlimited ? (
+          <p className="text-sm text-gray-500">Unlimited sessions — {allocation.used} completed</p>
         ) : (
-          <p className="text-sm text-gray-500">Unlimited sessions — {credits.used} completed</p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900 tabular-nums">{allocation.totalAllocated}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Granted so far</p>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-600">{allocation.used} completed · {allocation.reserved} scheduled</span>
+                  <span className={`text-sm font-semibold ${(allocation.availableToBook ?? 0) === 0 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
+                    {allocation.availableToBook ?? 0} available
+                  </span>
+                </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                  {/* Completed (brand solid) */}
+                  <div
+                    className={`h-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
+                    style={{ width: `${allocation.totalAllocated > 0 ? (allocation.used / allocation.totalAllocated) * 100 : 0}%` }}
+                  />
+                  {/* Reserved (brand translucent) */}
+                  <div
+                    className="h-full bg-brand/40 transition-all"
+                    style={{ width: `${allocation.totalAllocated > 0 ? (allocation.reserved / allocation.totalAllocated) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Legend + next-grant hint */}
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-brand" />Completed</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-brand/40" />Scheduled</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-gray-100 border border-gray-200" />Available</span>
+              </div>
+              <span className="text-gray-400">{meetingCountPerGrant} credits{periodLabel}</span>
+            </div>
+
+            {allocation.nextGrantHint && (
+              <p className="text-xs text-gray-500 border-t border-gray-100 pt-3">
+                {allocation.nextGrantHint}
+              </p>
+            )}
+
+            {/* Blocked states */}
+            {!isCompleted && allocation.totalAllocated === 0 && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                No credits available yet. Your first batch unlocks once your first invoice is paid.
+              </div>
+            )}
+            {!isCompleted && allocation.totalAllocated > 0 && (allocation.availableToBook ?? 0) === 0 && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                You've used all of your currently-granted credits.
+                {' '}
+                {allocation.nextGrantHint ?? 'Wait for your next allocation to schedule more meetings.'}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

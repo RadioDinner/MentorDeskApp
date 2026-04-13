@@ -5,7 +5,7 @@ import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit, AllocationGrantMode, AllocationRefreshMode } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
 
@@ -76,6 +76,8 @@ export default function CompanySettingsPage() {
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
   const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
+  const [allocationGrantMode, setAllocationGrantMode] = useState<AllocationGrantMode>('on_open')
+  const [allocationRefreshMode, setAllocationRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useLoadingGuard(loading, useCallback(() => {
@@ -100,6 +102,8 @@ export default function CompanySettingsPage() {
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
         setAllowMultiEngagement(o.allow_multi_engagement ?? false)
         setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
+        setAllocationGrantMode(o.allocation_grant_mode ?? 'on_open')
+        setAllocationRefreshMode(o.allocation_refresh_mode ?? 'by_cycle')
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       } catch (err) {
         setMsg({ type: 'error', text: 'Failed to load: ' + ((err as Error).message || 'Unknown error') })
@@ -124,6 +128,8 @@ export default function CompanySettingsPage() {
         enable_lesson_due_dates: enableLessonDueDates,
         allow_multi_engagement: allowMultiEngagement,
         show_all_days_in_scheduler: showAllDaysInScheduler,
+        allocation_grant_mode: allocationGrantMode,
+        allocation_refresh_mode: allocationRefreshMode,
         archive_settings: archiveSettings,
       }
       const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
@@ -272,6 +278,62 @@ export default function CompanySettingsPage() {
                 <button type="button" onClick={() => setShowAllDaysInScheduler(!showAllDaysInScheduler)} className={toggleClass(showAllDaysInScheduler)}>
                   <span className={dotClass(showAllDaysInScheduler)} />
                 </button>
+              </div>
+
+              {/* Allocation grant mode */}
+              <div className="rounded-lg border border-gray-200 px-4 py-4">
+                <p className="text-sm font-medium text-gray-900">Initial meeting allocation</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-3">When a mentee first receives their meeting credits for a new engagement.</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${allocationGrantMode === 'on_open' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="allocGrantMode" value="on_open"
+                      checked={allocationGrantMode === 'on_open'}
+                      onChange={() => setAllocationGrantMode('on_open')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Allocate as soon as the engagement is opened</p>
+                      <p className="text-xs text-gray-500">The mentee can start scheduling meetings the moment the engagement is assigned, before paying the first invoice.</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${allocationGrantMode === 'on_first_payment' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="allocGrantMode" value="on_first_payment"
+                      checked={allocationGrantMode === 'on_first_payment'}
+                      onChange={() => setAllocationGrantMode('on_first_payment')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Allocate once the first invoice is paid</p>
+                      <p className="text-xs text-gray-500">Credits stay locked until the mentee's first invoice for the engagement is marked paid.</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Allocation refresh mode */}
+              <div className="rounded-lg border border-gray-200 px-4 py-4">
+                <p className="text-sm font-medium text-gray-900">Additional allocations</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-3">How the mentee earns each subsequent batch of meeting credits.</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${allocationRefreshMode === 'by_cycle' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="allocRefreshMode" value="by_cycle"
+                      checked={allocationRefreshMode === 'by_cycle'}
+                      onChange={() => setAllocationRefreshMode('by_cycle')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">By cycle</p>
+                      <p className="text-xs text-gray-500">Additional batches are granted every weekly/monthly cycle based on the engagement's allocation period.</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${allocationRefreshMode === 'by_payment' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="allocRefreshMode" value="by_payment"
+                      checked={allocationRefreshMode === 'by_payment'}
+                      onChange={() => setAllocationRefreshMode('by_payment')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">By invoice payment</p>
+                      <p className="text-xs text-gray-500">Each time a new invoice for the engagement is paid, the mentee unlocks another batch of credits.</p>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

@@ -30,6 +30,8 @@ export interface MenteeFlow {
 export type CancelWindowUnit = 'hours' | 'days'
 export type CancelOutcome = 'keep_credit' | 'lose_credit'
 export type AllocationPeriod = 'monthly' | 'weekly' | 'per_cycle'
+export type AllocationGrantMode = 'on_open' | 'on_first_payment'
+export type AllocationRefreshMode = 'by_cycle' | 'by_payment'
 
 export interface CancellationPolicy {
   cancel_window_value: number
@@ -62,6 +64,8 @@ export interface Organization {
   enable_lesson_due_dates: boolean
   allow_multi_engagement: boolean
   show_all_days_in_scheduler: boolean
+  allocation_grant_mode: AllocationGrantMode
+  allocation_refresh_mode: AllocationRefreshMode
   archive_settings: ArchiveSettings
   created_at: string
 }
