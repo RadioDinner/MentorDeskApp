@@ -1,0 +1,7 @@
+1. ok, lets kick off a session. Review the most recent session and we'll start by troubleshooting any open items
+
+2. merge to main and continue merging to main for the remainder of the session
+
+3. All the migrations are run, and the stale branch is deleted. I'll check on that new engagement modal
+
+4. are you alive
