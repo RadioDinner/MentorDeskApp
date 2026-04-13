@@ -169,9 +169,21 @@ export default function MenteeEngagementDetailPage() {
     setScheduling(true)
     setMsg(null)
     try {
-      const startsAt = `${selectedDate}T${selectedStart}:00`
-      const endsAt = `${selectedDate}T${selectedEnd}:00`
-      const durationMinutes = Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60000)
+      // Construct Date objects from the user's local wall-clock selection.
+      // selectedDate is YYYY-MM-DD; selectedStart / selectedEnd are HH:MM.
+      // Using `new Date(y, m, d, h, min)` creates the timestamp in the user's
+      // local timezone; `.toISOString()` then encodes it correctly as UTC so
+      // the TIMESTAMPTZ column stores the right moment. Using a naive string
+      // like `${date}T${start}:00` would make Postgres assume UTC and shift
+      // the displayed time by the user's UTC offset.
+      const [year, monthNum, dayNum] = selectedDate.split('-').map(Number)
+      const [startH, startM] = selectedStart.split(':').map(Number)
+      const [endH, endM] = selectedEnd.split(':').map(Number)
+      const startsAtDate = new Date(year, monthNum - 1, dayNum, startH, startM, 0, 0)
+      const endsAtDate = new Date(year, monthNum - 1, dayNum, endH, endM, 0, 0)
+      const startsAt = startsAtDate.toISOString()
+      const endsAt = endsAtDate.toISOString()
+      const durationMinutes = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60000)
 
       const { data: meetingData, error: meetingErr } = await supabase
         .from('meetings')

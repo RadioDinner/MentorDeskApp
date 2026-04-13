@@ -6,6 +6,19 @@ export interface TimeSlot {
 }
 
 /**
+ * Convert a stored UTC timestamp to local wall-clock YYYY-MM-DD + minutes.
+ * Meetings are stored as TIMESTAMPTZ (UTC), but mentor availability is in
+ * wall-clock HH:MM, so we must convert before comparing.
+ */
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function localMinutes(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/**
  * Compute available time slots for a mentor on a given date.
  *
  * Takes the mentor's recurring availability blocks for that day of week,
@@ -23,11 +36,13 @@ export function getAvailableSlots(
 
   if (dayBlocks.length === 0) return []
 
-  // Get meetings on this date that are not cancelled
+  // Get meetings on this date that are not cancelled.
+  // Compare in the viewer's LOCAL timezone: convert each meeting's UTC
+  // starts_at to a Date, then derive a local YYYY-MM-DD key.
   const meetingsOnDate = existingMeetings.filter(m => {
     if (m.status === 'cancelled') return false
-    const meetingDate = m.starts_at.slice(0, 10)
-    return meetingDate === date
+    const meetingStart = new Date(m.starts_at)
+    return localDateKey(meetingStart) === date
   })
 
   // For each availability block, subtract booked meeting times
@@ -40,8 +55,8 @@ export function getAvailableSlots(
     // Collect booked intervals within this block
     const bookedIntervals: { start: number; end: number }[] = []
     for (const m of meetingsOnDate) {
-      const mStart = timeToMinutes(m.starts_at.slice(11, 16))
-      const mEnd = timeToMinutes(m.ends_at.slice(11, 16))
+      const mStart = localMinutes(new Date(m.starts_at))
+      const mEnd = localMinutes(new Date(m.ends_at))
       // Only include if it overlaps with this block
       if (mStart < blockEnd && mEnd > blockStart) {
         bookedIntervals.push({
@@ -108,6 +123,9 @@ export function generateBookableBlocks(
 
 /**
  * Check if a proposed meeting time conflicts with existing meetings.
+ * `date` is the wall-clock local date (YYYY-MM-DD), `startTime`/`endTime`
+ * are wall-clock HH:MM. Meetings are stored in UTC, so we parse them to
+ * Date and compare in the viewer's local timezone.
  */
 export function hasConflict(
   date: string,
@@ -120,9 +138,11 @@ export function hasConflict(
 
   return existingMeetings.some(m => {
     if (m.status === 'cancelled') return false
-    if (m.starts_at.slice(0, 10) !== date) return false
-    const mStart = timeToMinutes(m.starts_at.slice(11, 16))
-    const mEnd = timeToMinutes(m.ends_at.slice(11, 16))
+    const mStartDate = new Date(m.starts_at)
+    if (localDateKey(mStartDate) !== date) return false
+    const mEndDate = new Date(m.ends_at)
+    const mStart = localMinutes(mStartDate)
+    const mEnd = localMinutes(mEndDate)
     return propStart < mEnd && propEnd > mStart
   })
 }
