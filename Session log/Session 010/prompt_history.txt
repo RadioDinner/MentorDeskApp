@@ -25,3 +25,5 @@
 13. I want to start building out the invoicing module of the admin dashboard. In this tab, I want the ability to view, and process invoices.
 
 14. On the "My Engagements" module in the mentee login, I want a way for them to see the upcoming meetings, as well as the option to view past meetings in history. Eventually, I want the integrations with google meet and ms teams to provide an option to click "Join Meeting" if the meeting is happening soon
+
+15. In the "Pairings" module of the admin dashboard, I want to be a bit more thoughtful of how I set that up. I want a system in which I can view it as a user selected/ordered grid with filters and all that, then I want a "By Mentor","By Offering","By Status" and "Unpaired/Waiting List"
