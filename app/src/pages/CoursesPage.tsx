@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import OfferingFolderManager from '../components/OfferingFolderManager'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, OfferingFolder } from '../types'
 
 type ViewMode = 'list' | 'grid'
@@ -28,45 +29,68 @@ export default function CoursesPage() {
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { setLoading(false); return }
-    async function fetchData() {
+    const orgId = profile.organization_id
+
+    async function loadAll() {
       setLoading(true)
+      setError(null)
       try {
+        // Raw REST reads — bypass the SDK to avoid auth-lock / stale-conn hangs.
         const [offeringsRes, foldersRes] = await Promise.all([
-          supabase.from('offerings').select('*').eq('organization_id', profile!.organization_id).eq('type', 'course').order('name', { ascending: true }),
-          supabase.from('offering_folders').select('*').eq('organization_id', profile!.organization_id).eq('folder_type', 'course').order('order_index', { ascending: true }),
+          supabaseRestGet<Offering>(
+            'offerings',
+            `select=*&organization_id=eq.${orgId}&type=eq.course&order=name.asc`,
+            { label: 'courses:offerings' },
+          ),
+          supabaseRestGet<OfferingFolder>(
+            'offering_folders',
+            `select=*&organization_id=eq.${orgId}&folder_type=eq.course&order=order_index.asc`,
+            { label: 'courses:folders' },
+          ),
         ])
         if (offeringsRes.error) { setError(offeringsRes.error.message); return }
-        const data = offeringsRes.data
-        setFolders((foldersRes.data ?? []) as OfferingFolder[])
+        setFolders(foldersRes.data ?? [])
 
-        const courses = (data ?? []) as Offering[]
+        const courses = offeringsRes.data ?? []
         const courseIds = courses.map(c => c.id)
 
-        // Fetch lesson counts + enrollment counts in parallel
-        const [lessonsRes, moRes] = await Promise.all([
-          courseIds.length > 0
-            ? supabase.from('lessons').select('offering_id').in('offering_id', courseIds)
-            : Promise.resolve({ data: [] }),
-          courseIds.length > 0
-            ? supabase.from('mentee_offerings').select('offering_id, status').in('offering_id', courseIds).in('status', ['active', 'completed'])
-            : Promise.resolve({ data: [] }),
-        ])
+        let lessonsData: { offering_id: string }[] = []
+        let moData: { offering_id: string; status: string }[] = []
+        if (courseIds.length > 0) {
+          const idList = courseIds.join(',')
+          const [lessonsRes, moRes] = await Promise.all([
+            supabaseRestGet<{ offering_id: string }>(
+              'lessons',
+              `select=offering_id&offering_id=in.(${idList})`,
+              { label: 'courses:lessons' },
+            ),
+            supabaseRestGet<{ offering_id: string; status: string }>(
+              'mentee_offerings',
+              `select=offering_id,status&offering_id=in.(${idList})&status=in.(active,completed)`,
+              { label: 'courses:counts' },
+            ),
+          ])
+          if (lessonsRes.error) { setError(lessonsRes.error.message); return }
+          if (moRes.error) { setError(moRes.error.message); return }
+          lessonsData = lessonsRes.data ?? []
+          moData = moRes.data ?? []
+        }
 
         const lessonCounts: Record<string, number> = {}
-        if (lessonsRes.data) for (const l of lessonsRes.data as { offering_id: string }[]) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
+        for (const l of lessonsData) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
 
         const activeCounts: Record<string, number> = {}
         const completedCounts: Record<string, number> = {}
-        if (moRes.data) {
-          for (const mo of moRes.data as { offering_id: string; status: string }[]) {
-            if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
-            else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
-          }
+        for (const mo of moData) {
+          if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+          else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
         }
 
         setItems(courses.map(c => ({
@@ -77,12 +101,14 @@ export default function CoursesPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[CoursesPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }
     }
-    fetchData()
+
+    fetchRef.current = loadAll
+    loadAll()
   }, [profile?.organization_id])
 
   function toggleView(mode: ViewMode) {
@@ -148,9 +174,7 @@ export default function CoursesPage() {
       {loading ? (
         <div className="text-sm text-gray-500">Loading...</div>
       ) : error ? (
-        <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-          Failed to load courses: {error}
-        </div>
+        <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : (
         <>
           {profile?.organization_id && (

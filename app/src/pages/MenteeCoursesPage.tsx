@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabaseRestGet } from '../lib/supabase'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, MenteeOffering } from '../types'
 
 interface MenteeCourse extends MenteeOffering {
@@ -15,71 +17,77 @@ export default function MenteeCoursesPage() {
   const navigate = useNavigate()
   const [courses, setCourses] = useState<MenteeCourse[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!menteeProfile) { setLoading(false); return }
+    const menteeId = menteeProfile.id
 
-    async function fetchData() {
+    async function loadData() {
       setLoading(true)
+      setError(null)
       try {
-        // Get all mentee_offerings for this mentee that are courses
-        const { data: moData } = await supabase
-          .from('mentee_offerings')
-          .select('*, offering:offerings(*)')
-          .eq('mentee_id', menteeProfile!.id)
-          .in('status', ['active', 'completed'])
-          .order('assigned_at', { ascending: false })
-
-        const menteeOfferings = (moData ?? []) as (MenteeOffering & { offering: Offering })[]
+        const moRes = await supabaseRestGet<MenteeOffering & { offering: Offering | null }>(
+          'mentee_offerings',
+          `select=*,offering:offerings(*)&mentee_id=eq.${menteeId}&status=in.(active,completed)&order=assigned_at.desc`,
+          { label: 'mentee:courses:mo' },
+        )
+        if (moRes.error) { setError(moRes.error.message); return }
+        const menteeOfferings = moRes.data ?? []
         const courseOfferings = menteeOfferings.filter(mo => mo.offering?.type === 'course')
 
         if (courseOfferings.length === 0) { setCourses([]); return }
 
-        // Get lesson counts for each course offering
         const offeringIds = courseOfferings.map(mo => mo.offering_id)
-        const { data: lessonsData } = await supabase
-          .from('lessons')
-          .select('offering_id')
-          .in('offering_id', offeringIds)
+        const moIds = courseOfferings.map(mo => mo.id)
+        const [lessonsRes, progressRes] = await Promise.all([
+          supabaseRestGet<{ offering_id: string }>(
+            'lessons',
+            `select=offering_id&offering_id=in.(${offeringIds.join(',')})`,
+            { label: 'mentee:courses:lessons' },
+          ),
+          supabaseRestGet<{ mentee_offering_id: string }>(
+            'lesson_progress',
+            `select=mentee_offering_id&mentee_offering_id=in.(${moIds.join(',')})&status=eq.completed`,
+            { label: 'mentee:courses:progress' },
+          ),
+        ])
+        if (lessonsRes.error) { setError(lessonsRes.error.message); return }
+        if (progressRes.error) { setError(progressRes.error.message); return }
 
         const lessonCounts: Record<string, number> = {}
-        if (lessonsData) {
-          for (const l of lessonsData) {
-            lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
-          }
-        }
-
-        // Get completed lesson counts from lesson_progress
-        const moIds = courseOfferings.map(mo => mo.id)
-        const { data: progressData } = await supabase
-          .from('lesson_progress')
-          .select('mentee_offering_id')
-          .in('mentee_offering_id', moIds)
-          .eq('status', 'completed')
+        for (const l of lessonsRes.data ?? []) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
 
         const completedCounts: Record<string, number> = {}
-        if (progressData) {
-          for (const p of progressData) {
-            completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
-          }
-        }
+        for (const p of progressRes.data ?? []) completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
 
         setCourses(courseOfferings.map(mo => ({
           ...mo,
+          offering: mo.offering ?? undefined,
           lesson_count: lessonCounts[mo.offering_id] ?? 0,
           completed_lessons: completedCounts[mo.id] ?? 0,
         })))
       } catch (err) {
-        console.error(err)
+        setError((err as Error).message || 'Failed to load')
+        console.error('[MenteeCoursesPage] loadData error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchData()
+    fetchRef.current = loadData
+    loadData()
   }, [menteeProfile?.id])
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (error) return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
 
   const activeCourses = courses.filter(c => c.status === 'active')
   const completedCourses = courses.filter(c => c.status === 'completed')

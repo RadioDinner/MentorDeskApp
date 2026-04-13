@@ -11,3 +11,5 @@
 6. While we're working on the schedule meeting feature, I want you to add an option to the engagement edit and create screen to set the meeting length time. So you could say, this engagement grants 4 meetings per cycle of 1 hour per piece. This also would be a change to the + Schedule a meeting system as well. When the mentee is trying to schedule a meeting, and selects a available day, say April 20, I would want "blocks" to appear to that they could select from, like "9:00 - 10:00","9:30 - 10:30" and "10:00 - 11:00"
 
 7. you're off with the migration numbers again. Add a reminder to the "new session instructions" to remember the numbering scheme we've decided to use. For now, I'll run what is in 977_scheduler_show_all_days but I want you to rename it to 964
+
+8. Ok. I've had it. THIS IS THE SESSION THAT WE GRAVEYARD THE LOADING BUG. I'm willing to dissaasemble this whole project to get to the bottom of it. I had it happen again where I clicked on the engagements module, it said "Loading..." for a while then gave me this "Failed to load engagements: Request timed out. Please refresh the page." You absolutely need to figure this out

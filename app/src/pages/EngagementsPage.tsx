@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import OfferingFolderManager from '../components/OfferingFolderManager'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, OfferingFolder } from '../types'
 
 type ViewMode = 'list' | 'grid'
@@ -27,36 +28,57 @@ export default function EngagementsPage() {
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  // Ref-held fetcher so the Retry button can invoke it without re-deriving deps.
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[EngagementsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
-    async function fetch() {
+    const orgId = profile.organization_id
+
+    async function loadAll() {
       setLoading(true)
+      setError(null)
       try {
+        // Run the two independent reads in parallel via raw REST fetch.
+        // This bypasses any SDK-level auth-lock or stale-connection hangs.
         const [offeringsRes, foldersRes] = await Promise.all([
-          supabase.from('offerings').select('*').eq('organization_id', profile!.organization_id).eq('type', 'engagement').order('name', { ascending: true }),
-          supabase.from('offering_folders').select('*').eq('organization_id', profile!.organization_id).eq('folder_type', 'engagement').order('order_index', { ascending: true }),
+          supabaseRestGet<Offering>(
+            'offerings',
+            `select=*&organization_id=eq.${orgId}&type=eq.engagement&order=name.asc`,
+            { label: 'engagements:offerings' },
+          ),
+          supabaseRestGet<OfferingFolder>(
+            'offering_folders',
+            `select=*&organization_id=eq.${orgId}&folder_type=eq.engagement&order=order_index.asc`,
+            { label: 'engagements:folders' },
+          ),
         ])
         if (offeringsRes.error) { setError(offeringsRes.error.message); return }
-        const data = offeringsRes.data
-        setFolders((foldersRes.data ?? []) as OfferingFolder[])
-        const engagements = (data ?? []) as Offering[]
+        setFolders(foldersRes.data ?? [])
+        const engagements = offeringsRes.data ?? []
         const engIds = engagements.map(eng => eng.id)
 
-        // Fetch enrollment counts in parallel (only waits for one extra query)
-        const { data: moData } = engIds.length > 0
-          ? await supabase.from('mentee_offerings').select('offering_id, status').in('offering_id', engIds).in('status', ['active', 'completed'])
-          : { data: [] }
+        // Fetch enrollment counts — also via raw REST. in.() uses parentheses.
+        let moData: { offering_id: string; status: string }[] = []
+        if (engIds.length > 0) {
+          const idList = engIds.join(',')
+          const countRes = await supabaseRestGet<{ offering_id: string; status: string }>(
+            'mentee_offerings',
+            `select=offering_id,status&offering_id=in.(${idList})&status=in.(active,completed)`,
+            { label: 'engagements:counts' },
+          )
+          if (countRes.error) { setError(countRes.error.message); return }
+          moData = countRes.data ?? []
+        }
 
         const activeCounts: Record<string, number> = {}
         const completedCounts: Record<string, number> = {}
-        if (moData) {
-          for (const mo of moData as { offering_id: string; status: string }[]) {
-            if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
-            else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
-          }
+        for (const mo of moData) {
+          if (mo.status === 'active') activeCounts[mo.offering_id] = (activeCounts[mo.offering_id] || 0) + 1
+          else if (mo.status === 'completed') completedCounts[mo.offering_id] = (completedCounts[mo.offering_id] || 0) + 1
         }
 
         setItems(engagements.map(eng => ({
@@ -66,12 +88,14 @@ export default function EngagementsPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[EngagementsPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }
     }
-    fetch()
+
+    fetchRef.current = loadAll
+    loadAll()
   }, [profile?.organization_id])
 
   function toggleView(mode: ViewMode) {
@@ -133,9 +157,7 @@ export default function EngagementsPage() {
       {loading ? (
         <div className="text-sm text-gray-500">Loading...</div>
       ) : error ? (
-        <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-          Failed to load engagements: {error}
-        </div>
+        <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : (
         <>
           {profile?.organization_id && (

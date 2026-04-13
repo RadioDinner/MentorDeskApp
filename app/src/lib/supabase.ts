@@ -95,16 +95,92 @@ export async function supabaseRestCall(
 }
 
 /**
+ * Raw REST GET against Supabase PostgREST, bypassing the JS SDK entirely.
+ *
+ * WHY THIS EXISTS:
+ *   The @supabase/supabase-js client wraps fetch but also owns a stateful
+ *   auth mutex and realtime subscription machinery. Under a few known
+ *   scenarios (auth lock contention, stale connections after tab sleep,
+ *   cold-start races) SDK queries hang indefinitely with no error. This
+ *   helper uses raw `fetch` with an AbortController timeout so page loads
+ *   always fail fast and can be retried cleanly.
+ *
+ * Usage:
+ *   const { data, error } = await supabaseRestGet<Offering>(
+ *     'offerings',
+ *     `organization_id=eq.${orgId}&type=eq.engagement&order=name.asc`
+ *   )
+ *
+ * Pass `Prefer: count=exact` via `countExact: true` to get a row count.
+ */
+export async function supabaseRestGet<T = unknown>(
+  table: string,
+  params: string = '',
+  opts: { timeoutMs?: number; label?: string } = {},
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  const { timeoutMs = 12000, label } = opts
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { data: null, error: { message: 'Supabase env vars not configured' } }
+  }
+  const logLabel = label ?? table
+  try {
+    const session = await supabase.auth.getSession()
+    const token = session.data.session?.access_token ?? supabaseAnonKey
+    const url = `${supabaseUrl}/rest/v1/${table}${params ? '?' + params : ''}`
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const start = performance.now()
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    const elapsed = Math.round(performance.now() - start)
+
+    if (!resp.ok) {
+      const body = await resp.text()
+      let msg = `HTTP ${resp.status}`
+      try { msg = JSON.parse(body).message || msg } catch { msg = body.slice(0, 200) || msg }
+      console.warn(`[supabaseRestGet] ${logLabel} failed (${elapsed}ms):`, msg)
+      return { data: null, error: { message: msg } }
+    }
+    const rows = (await resp.json()) as T[]
+    console.log(`[supabaseRestGet] ${logLabel} ok (${elapsed}ms, ${Array.isArray(rows) ? rows.length : 0} rows)`)
+    return { data: rows, error: null }
+  } catch (e) {
+    const msg = (e as Error).name === 'AbortError'
+      ? `Request timed out after ${timeoutMs / 1000}s. Supabase may be unreachable or your connection is unstable.`
+      : (e as Error).message || 'Network error'
+    console.warn(`[supabaseRestGet] ${logLabel} exception:`, msg)
+    return { data: null, error: { message: msg } }
+  }
+}
+
+/**
  * Lightweight warm-up ping to wake the Supabase project from cold start.
- * Call this early (e.g. on auth state change) so that subsequent queries
- * hit a warm connection. Fire-and-forget — don't await in the critical path.
+ * Uses the raw REST endpoint (bypassing the SDK) so it can't hang on the
+ * auth mutex. Fire-and-forget — don't await in the critical path.
  */
 export function warmUpSupabase() {
-  Promise.resolve(supabase.from('organizations').select('id').limit(1)).then(() => {
-    console.log('[Supabase] Warm-up ping completed')
-  }).catch(() => {
-    // Ignore errors — this is best-effort
+  if (!supabaseUrl || !supabaseAnonKey) return
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 8000)
+  fetch(`${supabaseUrl}/rest/v1/organizations?select=id&limit=1`, {
+    method: 'GET',
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
+    signal: controller.signal,
   })
+    .then(() => { clearTimeout(timer); console.log('[Supabase] Warm-up ping completed') })
+    .catch(() => { clearTimeout(timer) /* best effort */ })
 }
 
 /**

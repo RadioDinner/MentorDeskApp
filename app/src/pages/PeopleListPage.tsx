@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import ModuleAccessControl from '../components/ModuleAccessControl'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { StaffMember, StaffRole, RoleGroup } from '../types'
 
 interface PeopleListPageProps {
@@ -28,13 +29,16 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[PeopleListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    const orgId = profile.organization_id
 
-    async function fetchPeople() {
+    async function loadPeople() {
       setLoading(true)
       setError(null)
 
@@ -45,44 +49,49 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       }
 
       try {
-        let query = supabase
-          .from('staff')
-          .select('*')
-          .eq('organization_id', profile!.organization_id)
-          .order('first_name', { ascending: true })
-
-        if (roles.length === 1) {
-          query = query.eq('role', roles[0])
-        } else {
-          query = query.in('role', roles)
-        }
-
-        const [{ data, error: fetchError }, allStaffRes, orgRes] = await Promise.all([
-          query,
+        const roleFilter = roles.length === 1 ? `role=eq.${roles[0]}` : `role=in.(${roles.join(',')})`
+        const [peopleRes, allStaffRes, orgRes] = await Promise.all([
+          supabaseRestGet<StaffMember>(
+            'staff',
+            `select=*&organization_id=eq.${orgId}&${roleFilter}&order=first_name.asc`,
+            { label: 'people:list' },
+          ),
           showAccessGroups
-            ? supabase.from('staff').select('*').eq('organization_id', profile!.organization_id).order('first_name')
+            ? supabaseRestGet<StaffMember>(
+                'staff',
+                `select=*&organization_id=eq.${orgId}&order=first_name.asc`,
+                { label: 'people:allStaff' },
+              )
             : Promise.resolve({ data: [], error: null }),
           showAccessGroups
-            ? supabase.from('organizations').select('role_groups').eq('id', profile!.organization_id).single()
-            : Promise.resolve({ data: null, error: null }),
+            ? supabaseRestGet<{ role_groups: RoleGroup[] | null }>(
+                'organizations',
+                `select=role_groups&id=eq.${orgId}`,
+                { label: 'people:roleGroups' },
+              )
+            : Promise.resolve({ data: [], error: null }),
         ])
 
-        if (fetchError) { setError(fetchError.message); return }
+        if (peopleRes.error) { setError(peopleRes.error.message); return }
+        setPeople(peopleRes.data ?? [])
 
-        setPeople(data as StaffMember[])
         if (showAccessGroups) {
-          setAllStaff((allStaffRes.data ?? []) as StaffMember[])
-          setPermissionGroups((orgRes.data?.role_groups as RoleGroup[]) ?? [])
+          if (allStaffRes.error) { setError(allStaffRes.error.message); return }
+          if (orgRes.error) { setError(orgRes.error.message); return }
+          setAllStaff(allStaffRes.data ?? [])
+          const orgRow = (orgRes.data ?? [])[0] as { role_groups: RoleGroup[] | null } | undefined
+          setPermissionGroups(orgRow?.role_groups ?? [])
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[PeopleListPage] loadPeople error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchPeople()
+    fetchRef.current = loadPeople
+    loadPeople()
   }, [profile?.organization_id, roles, showAccessGroups])
 
   async function updateModules(personId: string, modules: string[]) {
@@ -131,11 +140,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 
   if (error) {
-    return (
-      <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-        Failed to load {title.toLowerCase()}: {error}
-      </div>
-    )
+    return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
   }
 
   const activePeople = people.filter(p => !p.archived_at)

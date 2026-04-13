@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabaseRestGet } from '../lib/supabase'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, MenteeOffering } from '../types'
 
 interface MenteeEngagement extends MenteeOffering {
@@ -13,33 +15,47 @@ export default function MenteeEngagementsPage() {
   const navigate = useNavigate()
   const [engagements, setEngagements] = useState<MenteeEngagement[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!menteeProfile) { setLoading(false); return }
+    const menteeId = menteeProfile.id
 
-    async function fetchData() {
+    async function loadData() {
       setLoading(true)
+      setError(null)
       try {
-        const { data: moData } = await supabase
-          .from('mentee_offerings')
-          .select('*, offering:offerings(*)')
-          .eq('mentee_id', menteeProfile!.id)
-          .in('status', ['active', 'completed'])
-          .order('assigned_at', { ascending: false })
-
-        const all = (moData ?? []) as (MenteeOffering & { offering: Offering })[]
-        setEngagements(all.filter(mo => mo.offering?.type === 'engagement'))
+        const res = await supabaseRestGet<MenteeOffering & { offering: Offering | null }>(
+          'mentee_offerings',
+          `select=*,offering:offerings(*)&mentee_id=eq.${menteeId}&status=in.(active,completed)&order=assigned_at.desc`,
+          { label: 'mentee:engagements' },
+        )
+        if (res.error) { setError(res.error.message); return }
+        const all = res.data ?? []
+        setEngagements(all
+          .filter(mo => mo.offering?.type === 'engagement')
+          .map(mo => ({ ...mo, offering: mo.offering ?? undefined })))
       } catch (err) {
-        console.error(err)
+        setError((err as Error).message || 'Failed to load')
+        console.error('[MenteeEngagementsPage] loadData error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchData()
+    fetchRef.current = loadData
+    loadData()
   }, [menteeProfile?.id])
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (error) return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
 
   const active = engagements.filter(e => e.status === 'active')
   const completed = engagements.filter(e => e.status === 'completed')

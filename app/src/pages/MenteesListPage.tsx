@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import MenteeManagePanel from '../components/MenteeManageSlideOver'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Mentee } from '../types'
 
 interface MenteeProgressSummary {
@@ -27,53 +28,64 @@ export default function MenteesListPage() {
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
 
   const isMentor = profile?.role === 'mentor' || profile?.role === 'assistant_mentor'
   const isCompact = !!selectedMenteeId
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[MenteesListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    const orgId = profile.organization_id
+    const profileId = profile.id
+    const mentorMode = isMentor
 
-    async function fetchMentees() {
+    async function loadMentees() {
       setLoading(true)
+      setError(null)
       try {
-        if (isMentor) {
-          const { data: pairingsData, error: pairErr } = await withTimeout(
-            supabase.from('pairings').select('mentee_id').eq('mentor_id', profile!.id).in('status', ['active', 'paused']),
-            10000, 'fetchPairings',
+        if (mentorMode) {
+          // Raw REST to avoid SDK auth-lock hangs
+          const pairingsRes = await supabaseRestGet<{ mentee_id: string }>(
+            'pairings',
+            `select=mentee_id&mentor_id=eq.${profileId}&status=in.(active,paused)`,
+            { label: 'mentees:pairings' },
           )
-          if (pairErr) { setError(pairErr.message); return }
-          const menteeIds = (pairingsData ?? []).map((a: { mentee_id: string }) => a.mentee_id)
+          if (pairingsRes.error) { setError(pairingsRes.error.message); return }
+          const menteeIds = (pairingsRes.data ?? []).map(p => p.mentee_id)
           if (menteeIds.length === 0) {
             setMentees([])
-          } else {
-            const { data, error: fetchError } = await withTimeout(
-              supabase.from('mentees').select('*').in('id', menteeIds).order('first_name', { ascending: true }),
-              10000, 'fetchAssignedMentees',
-            )
-            if (fetchError) { setError(fetchError.message); return }
-            setMentees(data as Mentee[])
+            return
           }
-        } else {
-          const { data, error: fetchError } = await withTimeout(
-            supabase.from('mentees').select('*').eq('organization_id', profile!.organization_id).order('first_name', { ascending: true }),
-            10000, 'fetchAllMentees',
+          const idList = menteeIds.join(',')
+          const menteesRes = await supabaseRestGet<Mentee>(
+            'mentees',
+            `select=*&id=in.(${idList})&order=first_name.asc`,
+            { label: 'mentees:assigned' },
           )
-          if (fetchError) { setError(fetchError.message); return }
-          setMentees(data as Mentee[])
+          if (menteesRes.error) { setError(menteesRes.error.message); return }
+          setMentees(menteesRes.data ?? [])
+        } else {
+          const menteesRes = await supabaseRestGet<Mentee>(
+            'mentees',
+            `select=*&organization_id=eq.${orgId}&order=first_name.asc`,
+            { label: 'mentees:all' },
+          )
+          if (menteesRes.error) { setError(menteesRes.error.message); return }
+          setMentees(menteesRes.data ?? [])
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[MenteesListPage] loadMentees error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchMentees()
-  }, [profile?.organization_id, profile?.id, profile?.role])
+    fetchRef.current = loadMentees
+    loadMentees()
+  }, [profile?.organization_id, profile?.id, profile?.role, isMentor])
 
   // Fetch course progress summaries for all mentees
   useEffect(() => {
@@ -183,11 +195,7 @@ export default function MenteesListPage() {
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 
   if (error) {
-    return (
-      <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-        Failed to load mentees: {error}
-      </div>
-    )
+    return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
   }
 
   const activeMentees = mentees.filter(m => !m.archived_at)
