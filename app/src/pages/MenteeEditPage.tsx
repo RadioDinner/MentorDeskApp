@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import type { Mentee, FlowStep } from '../types'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
 
@@ -139,7 +140,7 @@ export default function MenteeEditPage() {
     navigate('/mentees')
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={6} className="h-11 w-full" gap="gap-3" />
 
   if (fetchError || !mentee) {
     return (

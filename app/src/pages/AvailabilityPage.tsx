@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect, { getBrowserTimezone } from '../components/TimezoneSelect'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import type { AvailabilitySchedule, StaffMember } from '../types'
 
@@ -183,7 +184,7 @@ export default function AvailabilityPage() {
     return `${hour}:${String(m).padStart(2, '0')} ${ampm}`
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={6} className="h-12 w-full" gap="gap-2" />
 
   const effectiveTz = timezone ?? getBrowserTimezone()
 

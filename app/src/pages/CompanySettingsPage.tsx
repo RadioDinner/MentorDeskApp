@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { refreshTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
@@ -170,7 +171,7 @@ export default function CompanySettingsPage() {
     toast.success('Logo uploaded. Click Save to apply.')
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading…</div>
+  if (loading) return <Skeleton count={5} className="h-11 w-full" gap="gap-3" />
 
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 

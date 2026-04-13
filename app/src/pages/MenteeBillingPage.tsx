@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { formatMoney, formatDate, formatDateShort } from '../lib/format'
-import { Button, Badge, toneForStatus } from '../components/ui'
+import { Button, Badge, toneForStatus, Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 
 interface Invoice {
@@ -118,7 +118,7 @@ export default function MenteeBillingPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={4} className="h-16 w-full" gap="gap-3" />
 
   const unpaidInvoices = invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
   const totalOwed = unpaidInvoices.reduce((sum, i) => sum + i.amount_cents, 0)

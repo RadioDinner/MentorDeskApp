@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
@@ -21,6 +22,7 @@ interface PeopleListPageProps {
 
 export default function PeopleListPage({ title, roles, createLabel, createRoute, showAccessGroups }: PeopleListPageProps) {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
   const [allStaff, setAllStaff] = useState<StaffMember[]>([])
@@ -116,7 +118,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     if (!profile) return
     const now = new Date().toISOString()
     const { error: e } = await supabase.from('staff').update({ archived_at: now }).eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'staff', entity_id: personId })
@@ -125,7 +127,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   async function unarchivePerson(personId: string) {
     if (!profile) return
     const { error: e } = await supabase.from('staff').update({ archived_at: null }).eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'staff', entity_id: personId })
@@ -134,7 +136,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   async function deletePerson(personId: string) {
     if (!profile) return
     const { error: e } = await supabase.from('staff').delete().eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.filter(p => p.id !== personId))
     setAllStaff(ps => ps.filter(p => p.id !== personId))
     setConfirmDelete(null)

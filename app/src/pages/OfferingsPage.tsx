@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Offering, OfferingType } from '../types'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 
 const TABS: { label: string; value: OfferingType }[] = [
   { label: 'Courses', value: 'course' },
@@ -89,7 +90,7 @@ export default function OfferingsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={4} className="h-12 w-full" gap="gap-2" />
       ) : error ? (
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           Failed to load {tabLabel}: {error}

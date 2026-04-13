@@ -8,6 +8,7 @@ import { reportSupabaseError } from '../lib/errorReporter'
 import type { Offering, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { formatDate } from '../lib/format'
 
@@ -161,7 +162,7 @@ export default function OfferingEditPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={6} className="h-11 w-full" gap="gap-3" />
 
   if (fetchError || !offering) {
     return (

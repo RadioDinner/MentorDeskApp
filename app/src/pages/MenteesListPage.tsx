@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
@@ -21,6 +22,7 @@ interface MenteeProgressSummary {
 
 export default function MenteesListPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [mentees, setMentees] = useState<Mentee[]>([])
   const [loading, setLoading] = useState(true)
@@ -174,7 +176,7 @@ export default function MenteesListPage() {
     if (!profile) return
     const now = new Date().toISOString()
     const { error: e } = await supabase.from('mentees').update({ archived_at: now }).eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: now } : m))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'mentee', entity_id: id })
   }
@@ -182,7 +184,7 @@ export default function MenteesListPage() {
   async function unarchiveMentee(id: string) {
     if (!profile) return
     const { error: e } = await supabase.from('mentees').update({ archived_at: null }).eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: null } : m))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'mentee', entity_id: id })
   }
@@ -190,7 +192,7 @@ export default function MenteesListPage() {
   async function deleteMentee(id: string) {
     if (!profile) return
     const { error: e } = await supabase.from('mentees').delete().eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.filter(m => m.id !== id))
     setConfirmDelete(null)
     if (selectedMenteeId === id) setSelectedMenteeId(null)

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
+import { Skeleton } from '../components/ui'
 import type { Offering, MenteeOffering } from '../types'
 
 interface MenteeCourse extends MenteeOffering {
@@ -86,7 +87,7 @@ export default function MenteeCoursesPage() {
     loadData()
   }, [menteeProfile?.id])
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={5} className="h-20 w-full" gap="gap-3" />
   if (error) return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
 
   const activeCourses = courses.filter(c => c.status === 'active')

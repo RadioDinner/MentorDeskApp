@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import type { DynamicFieldContext } from '../lib/dynamicFields'
 import type {
@@ -183,7 +184,7 @@ export default function MenteeCourseViewerPage() {
     finally { setSaving(false) }
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={4} className="h-16 w-full" gap="gap-3" />
   if (error || !course || !menteeOffering) {
     return (
       <div className="max-w-3xl">
@@ -258,7 +259,7 @@ export default function MenteeCourseViewerPage() {
               <p className="text-sm text-gray-400">{lessons.length === 0 ? 'No lessons in this course yet.' : 'Select a lesson to begin.'}</p>
             </div>
           ) : contentLoading ? (
-            <div className="text-sm text-gray-400 text-center py-8">Loading lesson...</div>
+            <Skeleton count={3} className="h-8 w-full" gap="gap-2" />
           ) : (
             <div className="space-y-4">
               {/* Sticky lesson header */}

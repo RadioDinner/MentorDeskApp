@@ -9,6 +9,7 @@ import type { RichTextEditorHandle } from '../components/RichTextEditor'
 import { DYNAMIC_FIELDS } from '../lib/dynamicFields'
 import type { Offering, Lesson, LessonSection, LessonQuestion, QuizOption, SectionType } from '../types'
 import { useToast } from '../context/ToastContext'
+import { Skeleton } from '../components/ui'
 
 export default function CourseBuilderPage() {
   const { id } = useParams<{ id: string }>()
@@ -292,7 +293,7 @@ export default function CourseBuilderPage() {
   }
 
   // --- Render ---
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={5} className="h-12 w-full" gap="gap-2" />
   if (error || !course) {
     return (
       <div className="max-w-4xl">
@@ -393,7 +394,7 @@ export default function CourseBuilderPage() {
 
               {/* Sections */}
               {sectionsLoading ? (
-                <p className="text-xs text-gray-400 text-center py-4">Loading sections...</p>
+                <div className="py-2"><Skeleton count={3} className="h-8 w-full" gap="gap-2" /></div>
               ) : (
                 <>
                   {/* Add buttons before first section */}

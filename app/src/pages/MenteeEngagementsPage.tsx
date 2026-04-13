@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
+import { Skeleton } from '../components/ui'
 import type { Offering, MenteeOffering, Meeting } from '../types'
 
 type Tab = 'engagements' | 'upcoming' | 'past'
@@ -99,7 +100,7 @@ export default function MenteeEngagementsPage() {
     [meetings],
   )
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={5} className="h-16 w-full" gap="gap-3" />
   if (error) return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
 
   const active = engagements.filter(e => e.status === 'active')

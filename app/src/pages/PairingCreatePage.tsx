@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 
 interface PersonOption {
@@ -107,7 +108,7 @@ export default function PairingCreatePage() {
 
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         {loadingOptions ? (
-          <div className="text-sm text-gray-500">Loading...</div>
+          <Skeleton count={4} className="h-10 w-full" gap="gap-2" />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Mentor select */}

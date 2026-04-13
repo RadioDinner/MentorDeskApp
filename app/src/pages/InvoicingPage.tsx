@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
@@ -51,6 +52,7 @@ const STATUS_TONES: Record<InvoiceStatus | 'overdue', BadgeTone> = {
 
 export default function InvoicingPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +111,7 @@ export default function InvoicingPage() {
     const { error: err } = await supabase.from('invoices').update(updates).eq('id', inv.id)
     setActing(null)
     if (err) {
-      setError(err.message)
+      toast.error(err.message)
       return
     }
     setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, ...updates } as InvoiceRow : i))
@@ -156,7 +158,7 @@ export default function InvoicingPage() {
     const { error: err } = await supabase.from('invoices').delete().eq('id', inv.id)
     setActing(null)
     if (err) {
-      setError(err.message)
+      toast.error(err.message)
       return
     }
     setInvoices(prev => prev.filter(i => i.id !== inv.id))

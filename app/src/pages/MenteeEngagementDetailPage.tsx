@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { computeAllocations } from '../lib/credits'
 import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode } from '../types'
@@ -223,7 +224,7 @@ export default function MenteeEngagementDetailPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={5} className="h-16 w-full" gap="gap-3" />
 
   if (error || !mo) {
     return (
