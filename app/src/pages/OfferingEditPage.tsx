@@ -48,6 +48,7 @@ export default function OfferingEditPage() {
   const [completionDays, setCompletionDays] = useState('')
   const [previewMode, setPreviewMode] = useState<PreviewMode>('titles_only')
   const [meetingCount, setMeetingCount] = useState('')
+  const [meetingDuration, setMeetingDuration] = useState('60')
   const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
   const [useOrgDefault, setUseOrgDefault] = useState(true)
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
@@ -83,6 +84,7 @@ export default function OfferingEditPage() {
         setCompletionDays(o.expected_completion_days ? String(o.expected_completion_days) : '')
         setPreviewMode(o.preview_mode)
         setMeetingCount(o.meeting_count ? String(o.meeting_count) : '')
+        setMeetingDuration(String(o.default_meeting_duration_minutes ?? 60))
         setAllocationPeriod(o.allocation_period ?? 'monthly')
         setUseOrgDefault(o.use_org_default_cancellation ?? true)
         setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
@@ -126,6 +128,7 @@ export default function OfferingEditPage() {
       updates.recurring_price_cents = recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
       updates.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
       updates.meeting_count = meetingCount ? parseInt(meetingCount) : null
+      updates.default_meeting_duration_minutes = meetingDuration ? Math.max(5, parseInt(meetingDuration)) : 60
       updates.allocation_period = allocationPeriod
       updates.use_org_default_cancellation = useOrgDefault
       updates.cancellation_policy = useOrgDefault ? null : cancelPolicy
@@ -381,7 +384,7 @@ export default function OfferingEditPage() {
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Engagement Settings</h2>
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="editMeetingCount" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Meetings per cycle
@@ -389,8 +392,21 @@ export default function OfferingEditPage() {
                   <input id="editMeetingCount" type="number" min="1" value={meetingCount}
                     onChange={e => setMeetingCount(e.target.value)}
                     placeholder="e.g. 4"
-                    className={inputClass + ' max-w-32'} />
+                    className={inputClass} />
                   <p className="text-xs text-gray-400 mt-1">Credits allocated per payment cycle.</p>
+                </div>
+                <div>
+                  <label htmlFor="editMeetingDuration" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Meeting length
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input id="editMeetingDuration" type="number" min="5" step="5" value={meetingDuration}
+                      onChange={e => setMeetingDuration(e.target.value)}
+                      placeholder="60"
+                      className={inputClass} />
+                    <span className="text-sm text-gray-500">min</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Length of each scheduled meeting.</p>
                 </div>
                 <div>
                   <label htmlFor="editAllocPeriod" className="block text-sm font-medium text-gray-700 mb-1.5">

@@ -78,6 +78,35 @@ export function getAvailableSlots(
 }
 
 /**
+ * Generate fixed-length bookable blocks within a mentor's available slots
+ * on a given date. Blocks are stepped by `stepMinutes` (default 30), so a
+ * 60-minute block with a 30-minute step over a 9:00-11:00 window yields
+ * 9:00-10:00, 9:30-10:30, and 10:00-11:00.
+ */
+export function generateBookableBlocks(
+  date: string,
+  durationMinutes: number,
+  availability: AvailabilitySchedule[],
+  existingMeetings: Meeting[],
+  stepMinutes: number = 30,
+): TimeSlot[] {
+  if (!durationMinutes || durationMinutes <= 0) return []
+  const freeSlots = getAvailableSlots(date, availability, existingMeetings)
+  const blocks: TimeSlot[] = []
+  for (const slot of freeSlots) {
+    const slotStart = timeToMinutes(slot.start)
+    const slotEnd = timeToMinutes(slot.end)
+    for (let t = slotStart; t + durationMinutes <= slotEnd; t += stepMinutes) {
+      blocks.push({
+        start: minutesToTime(t),
+        end: minutesToTime(t + durationMinutes),
+      })
+    }
+  }
+  return blocks
+}
+
+/**
  * Check if a proposed meeting time conflicts with existing meetings.
  */
 export function hasConflict(

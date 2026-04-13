@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { computeCredits } from '../lib/credits'
-import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
+import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule } from '../types'
 
 interface MentorInfo { id: string; first_name: string; last_name: string }
@@ -134,20 +134,13 @@ export default function MenteeEngagementDetailPage() {
     setConflictError(null)
   }
 
-  // Validate time selection for conflicts
-  function handleTimeChange(start: string, end: string) {
+  // Pick a pre-computed time block
+  function pickBlock(start: string, end: string) {
     setSelectedStart(start)
     setSelectedEnd(end)
     setConflictError(null)
-
-    if (start && end && selectedDate) {
-      if (end <= start) {
-        setConflictError('End time must be after start time.')
-        return
-      }
-      if (hasConflict(selectedDate, start, end, mentorAllMeetings)) {
-        setConflictError('This time conflicts with another meeting on your mentor\'s schedule.')
-      }
+    if (selectedDate && hasConflict(selectedDate, start, end, mentorAllMeetings)) {
+      setConflictError('This time was just booked. Please choose another block.')
     }
   }
 
@@ -224,17 +217,23 @@ export default function MenteeEngagementDetailPage() {
   const pastMeetings = myMeetings.filter(m => new Date(m.ends_at) <= new Date() || m.status === 'cancelled')
   const canSchedule = !isCompleted && mentor && (credits.availableToBook === null || credits.availableToBook > 0 || totalCredits === 0)
 
-  // Available slots for selected date
-  const availableSlots = selectedDate ? getAvailableSlots(selectedDate, availability, mentorAllMeetings) : []
+  // Meeting duration from offering (defaults to 60 minutes).
+  const meetingDurationMinutes = offering?.default_meeting_duration_minutes ?? 60
+
+  // Bookable blocks for the selected date, stepped in 30-minute increments.
+  const bookableBlocks = selectedDate
+    ? generateBookableBlocks(selectedDate, meetingDurationMinutes, availability, mentorAllMeetings, 30)
+    : []
 
   // Date options: next 14 days. When showAllDays is off, filter to only
-  // dates where the assigned mentor actually has availability.
+  // dates where the mentor has at least one bookable block of the required
+  // length (not just any raw availability).
   const allDateOptions: string[] = []
   const now = new Date()
   for (let i = 1; i <= 14; i++) allDateOptions.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10))
   const dateOptions = showAllDays
     ? allDateOptions
-    : allDateOptions.filter(d => getAvailableSlots(d, availability, mentorAllMeetings).length > 0)
+    : allDateOptions.filter(d => generateBookableBlocks(d, meetingDurationMinutes, availability, mentorAllMeetings, 30).length > 0)
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -310,11 +309,11 @@ export default function MenteeEngagementDetailPage() {
                   <option value="">Select a date...</option>
                   {dateOptions.map(d => {
                     const date = new Date(d + 'T00:00:00')
-                    const daySlots = getAvailableSlots(d, availability, mentorAllMeetings)
+                    const dayBlocks = generateBookableBlocks(d, meetingDurationMinutes, availability, mentorAllMeetings, 30)
                     const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
                     return (
-                      <option key={d} value={d} disabled={showAllDays && daySlots.length === 0}>
-                        {dayName}{showAllDays && daySlots.length === 0 ? ' — no availability' : ''}
+                      <option key={d} value={d} disabled={showAllDays && dayBlocks.length === 0}>
+                        {dayName}{showAllDays && dayBlocks.length === 0 ? ' — no availability' : ''}
                       </option>
                     )
                   })}
@@ -324,35 +323,32 @@ export default function MenteeEngagementDetailPage() {
                 )}
               </div>
 
-              {/* Available time slots */}
+              {/* Bookable time blocks */}
               {selectedDate && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Available times</label>
-                  {availableSlots.length === 0 ? (
-                    <p className="text-sm text-gray-400">No availability on this date.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Available {meetingDurationMinutes}-minute blocks
+                  </label>
+                  {bookableBlocks.length === 0 ? (
+                    <p className="text-sm text-gray-400">No openings on this date.</p>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {availableSlots.map((slot, i) => (
-                          <div key={i} className="px-3 py-1.5 rounded-md bg-green-50 border border-green-200 text-sm text-green-700">
-                            {formatTimeDisplay(slot.start)} – {formatTimeDisplay(slot.end)}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Start time</label>
-                          <input type="time" value={selectedStart}
-                            onChange={e => handleTimeChange(e.target.value, selectedEnd)}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">End time</label>
-                          <input type="time" value={selectedEnd}
-                            onChange={e => handleTimeChange(selectedStart, e.target.value)}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
-                        </div>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {bookableBlocks.map((block, i) => {
+                        const isSelected = selectedStart === block.start && selectedEnd === block.end
+                        return (
+                          <button
+                            key={`${block.start}-${block.end}-${i}`}
+                            type="button"
+                            onClick={() => pickBlock(block.start, block.end)}
+                            className={`px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                              isSelected
+                                ? 'bg-brand border-brand text-white'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-brand hover:bg-brand-light/30'
+                            }`}>
+                            {formatTimeDisplay(block.start)} – {formatTimeDisplay(block.end)}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

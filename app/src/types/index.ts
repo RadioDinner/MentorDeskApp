@@ -89,6 +89,7 @@ export interface Offering {
   billing_mode: 'one_time' | 'recurring'
   recurring_price_cents: number
   meeting_count: number | null
+  default_meeting_duration_minutes: number
   allocation_period: AllocationPeriod
   use_org_default_cancellation: boolean
   cancellation_policy: CancellationPolicy | null

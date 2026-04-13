@@ -74,6 +74,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
   // Engagement
   const [meetingCount, setMeetingCount] = useState('')
+  const [meetingDuration, setMeetingDuration] = useState('60')
   const [allocationPeriod, setAllocationPeriod] = useState<AllocationPeriod>('monthly')
   const [useOrgDefault, setUseOrgDefault] = useState(true)
   const [cancelPolicy, setCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
@@ -120,6 +121,7 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         record.recurring_price_cents = recurringPrice ? Math.round(parseFloat(recurringPrice) * 100) : 0
         record.setup_fee_cents = setupFee ? Math.round(parseFloat(setupFee) * 100) : 0
         record.meeting_count = meetingCount ? parseInt(meetingCount) : null
+        record.default_meeting_duration_minutes = meetingDuration ? Math.max(5, parseInt(meetingDuration)) : 60
         record.allocation_period = allocationPeriod
         record.use_org_default_cancellation = useOrgDefault
         record.cancellation_policy = useOrgDefault ? null : cancelPolicy
@@ -354,10 +356,14 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
 
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-5">
           <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Engagement Settings</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label htmlFor="meetingCount" className="block text-xs font-medium text-gray-700 mb-1">Meetings per cycle</label>
-              <input id="meetingCount" type="number" min="1" value={meetingCount} onChange={e => setMeetingCount(e.target.value)} placeholder="e.g. 4" className={inputClass + ' max-w-28'} />
+              <input id="meetingCount" type="number" min="1" value={meetingCount} onChange={e => setMeetingCount(e.target.value)} placeholder="e.g. 4" className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="meetingDuration" className="block text-xs font-medium text-gray-700 mb-1">Meeting length (min)</label>
+              <input id="meetingDuration" type="number" min="5" step="5" value={meetingDuration} onChange={e => setMeetingDuration(e.target.value)} placeholder="60" className={inputClass} />
             </div>
             <div>
               <label htmlFor="allocPeriod" className="block text-xs font-medium text-gray-700 mb-1">Allocation period</label>
