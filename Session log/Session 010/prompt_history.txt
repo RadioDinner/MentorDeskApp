@@ -5,3 +5,5 @@
 3. All the migrations are run, and the stale branch is deleted. I'll check on that new engagement modal
 
 4. are you alive
+
+5. In the mentee login, when they're looking to try to schedule a meeting, in the dropdown right now, it gives them a list of all dates, regardless of availabilty. I want you to make a setting in company options to toggle whether or not the org wants their mentees schedule meeting button to function like that, or if they want only the available days to appear in that list. For example, if the option to show all days regardless of availability is turned on, keep the dropdown feature as is. If it is shut off, look at what mentor is assigned to them, and list only the available dates in the drop down. Make sense?

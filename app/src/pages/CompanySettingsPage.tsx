@@ -75,6 +75,7 @@ export default function CompanySettingsPage() {
   const [newGroupName, setNewGroupName] = useState('')
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
+  const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useLoadingGuard(loading, useCallback(() => {
@@ -98,6 +99,7 @@ export default function CompanySettingsPage() {
         setRoleGroups(o.role_groups ?? [])
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
         setAllowMultiEngagement(o.allow_multi_engagement ?? false)
+        setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       } catch (err) {
         setMsg({ type: 'error', text: 'Failed to load: ' + ((err as Error).message || 'Unknown error') })
@@ -121,6 +123,7 @@ export default function CompanySettingsPage() {
         role_groups: roleGroups,
         enable_lesson_due_dates: enableLessonDueDates,
         allow_multi_engagement: allowMultiEngagement,
+        show_all_days_in_scheduler: showAllDaysInScheduler,
         archive_settings: archiveSettings,
       }
       const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
@@ -259,6 +262,15 @@ export default function CompanySettingsPage() {
                 </div>
                 <button type="button" onClick={() => setAllowMultiEngagement(!allowMultiEngagement)} className={toggleClass(allowMultiEngagement)}>
                   <span className={dotClass(allowMultiEngagement)} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div className="pr-4">
+                  <p className="text-sm font-medium text-gray-900">Show all days in mentee scheduler</p>
+                  <p className="text-xs text-gray-500 mt-0.5">When on, the mentee "Schedule a Meeting" date dropdown lists all upcoming dates (days with no availability appear disabled). When off, only days that have availability on the assigned mentor's schedule are shown.</p>
+                </div>
+                <button type="button" onClick={() => setShowAllDaysInScheduler(!showAllDaysInScheduler)} className={toggleClass(showAllDaysInScheduler)}>
+                  <span className={dotClass(showAllDaysInScheduler)} />
                 </button>
               </div>
             </div>

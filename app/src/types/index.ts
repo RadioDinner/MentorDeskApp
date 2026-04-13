@@ -61,6 +61,7 @@ export interface Organization {
   role_groups: RoleGroup[]
   enable_lesson_due_dates: boolean
   allow_multi_engagement: boolean
+  show_all_days_in_scheduler: boolean
   archive_settings: ArchiveSettings
   created_at: string
 }

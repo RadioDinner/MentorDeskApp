@@ -18,6 +18,7 @@ export default function MenteeEngagementDetailPage() {
   const [myMeetings, setMyMeetings] = useState<Meeting[]>([])
   const [mentorAllMeetings, setMentorAllMeetings] = useState<Meeting[]>([])
   const [mentor, setMentor] = useState<MentorInfo | null>(null)
+  const [showAllDays, setShowAllDays] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +47,18 @@ export default function MenteeEngagementDetailPage() {
         const engagement = moData as MenteeOffering & { offering: Offering }
         if (engagement.offering?.type !== 'engagement') { setError('This is not an engagement.'); return }
         setMo(engagement)
+
+        // Load org setting: show all days vs. only available days in scheduler
+        if (engagement.organization_id) {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('show_all_days_in_scheduler')
+            .eq('id', engagement.organization_id)
+            .single()
+          if (orgData && typeof (orgData as { show_all_days_in_scheduler?: boolean }).show_all_days_in_scheduler === 'boolean') {
+            setShowAllDays((orgData as { show_all_days_in_scheduler: boolean }).show_all_days_in_scheduler)
+          }
+        }
 
         // Fetch sessions + meetings for this engagement
         const [sessionsRes, meetingsRes] = await Promise.all([
@@ -214,10 +227,14 @@ export default function MenteeEngagementDetailPage() {
   // Available slots for selected date
   const availableSlots = selectedDate ? getAvailableSlots(selectedDate, availability, mentorAllMeetings) : []
 
-  // Date options: next 14 days
-  const dateOptions: string[] = []
+  // Date options: next 14 days. When showAllDays is off, filter to only
+  // dates where the assigned mentor actually has availability.
+  const allDateOptions: string[] = []
   const now = new Date()
-  for (let i = 1; i <= 14; i++) dateOptions.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10))
+  for (let i = 1; i <= 14; i++) allDateOptions.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10))
+  const dateOptions = showAllDays
+    ? allDateOptions
+    : allDateOptions.filter(d => getAvailableSlots(d, availability, mentorAllMeetings).length > 0)
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -296,12 +313,15 @@ export default function MenteeEngagementDetailPage() {
                     const daySlots = getAvailableSlots(d, availability, mentorAllMeetings)
                     const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
                     return (
-                      <option key={d} value={d} disabled={daySlots.length === 0}>
-                        {dayName}{daySlots.length === 0 ? ' — no availability' : ''}
+                      <option key={d} value={d} disabled={showAllDays && daySlots.length === 0}>
+                        {dayName}{showAllDays && daySlots.length === 0 ? ' — no availability' : ''}
                       </option>
                     )
                   })}
                 </select>
+                {!showAllDays && dateOptions.length === 0 && (
+                  <p className="mt-1.5 text-xs text-gray-500">No availability in the next 14 days on your mentor's schedule.</p>
+                )}
               </div>
 
               {/* Available time slots */}
