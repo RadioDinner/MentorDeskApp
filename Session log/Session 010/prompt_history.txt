@@ -33,3 +33,5 @@
 17. Also, while we're editing the "Pairings" screen, I want to make a system wide change. Currently in that screen, it shows a "Status" column and a "Status step" column. I don't want that. I want one "Status" column that is updated when engagements are opened or courses are started. No "status Step" column
 
 18. I noticed something, that when using the "+ Schedule Meeting" button on the mentee login, if I selected 9:30-10:30 and confirmed the appointment, it showed up as something else like 5:30-6:30AM.
+
+19. Some of the staff don't have the permissions logos or drop downs. Why?
