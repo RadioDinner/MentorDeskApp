@@ -5,6 +5,7 @@ import { computeCredits } from '../lib/credits'
 import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 import Button from './ui/Button'
+import { Skeleton } from './ui'
 import { useToast } from '../context/ToastContext'
 
 interface Props {
@@ -249,16 +250,22 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-[92%] max-w-5xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose} aria-hidden="true">
+      <div
+        className="bg-white rounded-xl shadow-2xl w-[92%] max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="engagement-modal-title"
+      >
         {/* Header */}
         <div className="shrink-0 px-8 py-5 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg font-bold text-slate-600">
+            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg font-bold text-slate-600" aria-hidden="true">
               {mentee.first_name[0]}{mentee.last_name[0]}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{offering?.name ?? 'Engagement'}</h2>
+              <h2 id="engagement-modal-title" className="text-lg font-semibold text-gray-900">{offering?.name ?? 'Engagement'}</h2>
               <p className="text-sm text-gray-500">{mentee.first_name} {mentee.last_name} · {mentee.email}</p>
             </div>
           </div>
@@ -266,15 +273,15 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
             <span className={`text-xs font-medium px-3 py-1 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-rose-50 text-rose-700'}`}>
               {isCompleted ? 'Completed' : 'Active'}
             </span>
-            <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <button onClick={onClose} aria-label="Close dialog" className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+              <svg className="w-5 h-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
         </div>
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-8 py-6">
-          {loading ? <p className="text-sm text-gray-400 text-center py-8">Loading...</p> : (
+          {loading ? <div className="py-4"><Skeleton count={4} className="h-12 w-full" gap="gap-3" /></div> : (
             <div className="grid grid-cols-3 gap-6">
               {/* LEFT COLUMN: Credits + Meetings + Sessions */}
               <div className="col-span-2 space-y-6">
