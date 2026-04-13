@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
+import { formatMoney, formatDate, formatDateShort } from '../lib/format'
+import { Button, Badge, toneForStatus } from '../components/ui'
 
 interface Invoice {
   id: string
@@ -118,17 +120,6 @@ export default function MenteeBillingPage() {
 
   if (loading) return <div className="text-sm text-gray-500">Loading...</div>
 
-  const formatAmount = (cents: number, currency: string) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100)
-
-  const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-500',
-    sent: 'bg-blue-50 text-blue-600',
-    paid: 'bg-green-50 text-green-600',
-    overdue: 'bg-red-50 text-red-600',
-    cancelled: 'bg-gray-100 text-gray-400',
-  }
-
   const unpaidInvoices = invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
   const totalOwed = unpaidInvoices.reduce((sum, i) => sum + i.amount_cents, 0)
 
@@ -149,7 +140,7 @@ export default function MenteeBillingPage() {
               <p className="text-sm font-medium text-amber-800">Outstanding balance</p>
               <p className="text-xs text-amber-600 mt-0.5">{unpaidInvoices.length} unpaid invoice{unpaidInvoices.length !== 1 ? 's' : ''}</p>
             </div>
-            <p className="text-lg font-bold text-amber-800">{formatAmount(totalOwed, 'USD')}</p>
+            <p className="text-lg font-bold text-amber-800">{formatMoney(totalOwed, 'USD')}</p>
           </div>
         </div>
       )}
@@ -188,29 +179,29 @@ export default function MenteeBillingPage() {
                         <p className="text-sm font-medium text-gray-900">
                           {inv.invoice_number ?? 'Invoice'}
                         </p>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded capitalize ${statusColors[inv.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        <Badge tone={toneForStatus(inv.status)}>
                           {inv.status}
-                        </span>
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-xs text-gray-500">
-                          {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {formatDate(inv.created_at)}
                         </p>
                         {inv.due_date && (
                           <p className="text-xs text-gray-400">
-                            Due {new Date(inv.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            Due {formatDateShort(inv.due_date)}
                           </p>
                         )}
                         {inv.paid_at && (
                           <p className="text-xs text-green-600">
-                            Paid {new Date(inv.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            Paid {formatDateShort(inv.paid_at)}
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <p className={`text-sm font-semibold ${inv.status === 'paid' ? 'text-gray-400' : 'text-gray-900'}`}>
-                        {formatAmount(inv.amount_cents, inv.currency)}
+                        {formatMoney(inv.amount_cents, inv.currency)}
                       </p>
                       <a
                         href={`/invoices/${inv.id}/print`}
@@ -320,13 +311,9 @@ export default function MenteeBillingPage() {
             </div>
 
             <div className="mt-4">
-              <button
-                onClick={handleSavePayment}
-                disabled={savingPayment}
-                className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
-              >
+              <Button onClick={handleSavePayment} disabled={savingPayment}>
                 {savingPayment ? 'Saving...' : savedPayment ? 'Update Payment Method' : 'Save Payment Method'}
-              </button>
+              </Button>
             </div>
 
             <p className="text-[10px] text-gray-400 mt-3">

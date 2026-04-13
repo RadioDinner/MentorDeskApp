@@ -3,3 +3,5 @@
 2. merge to main and continue merging to main for the remainder of this session
 
 3. where have we spent the least amount of time refining systems? And what features, aside from new features and integrations, are underdeveloped? Comprehensively review the entire software and tell me what could be improved.
+
+4. ok, lets fix the 1. Extract shared UI primitives. Idk how that is done, but you seem to know what you're doing. Then, let's tackle 2. Kill

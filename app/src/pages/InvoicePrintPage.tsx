@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
+import { formatMoney, formatDateLong } from '../lib/format'
+import { Button } from '../components/ui'
 import type { Invoice, Organization, Mentee, Offering } from '../types'
 
 interface InvoiceWithRelations extends Invoice {
@@ -14,13 +16,10 @@ interface InvoiceWithRelations extends Invoice {
   } | null
 }
 
-function formatMoney(cents: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100)
-}
-
-function formatDate(s: string | null): string {
+/** Long date or em-dash. Only used in the invoice PDF header fields. */
+function formatDateOrDash(s: string | null): string {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return formatDateLong(s)
 }
 
 export default function InvoicePrintPage() {
@@ -129,15 +128,16 @@ export default function InvoicePrintPage() {
           &larr; Back
         </button>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             onClick={() => window.print()}
-            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover transition-colors inline-flex items-center gap-2"
+            leadingIcon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
             Print / Save as PDF
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -223,18 +223,18 @@ export default function InvoicePrintPage() {
             <div className="text-right">
               <div className="mb-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Issue Date</p>
-                <p className="text-sm text-gray-900 mt-1">{formatDate(invoice.created_at)}</p>
+                <p className="text-sm text-gray-900 mt-1">{formatDateOrDash(invoice.created_at)}</p>
               </div>
               <div className="mb-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Due Date</p>
                 <p className={`text-sm mt-1 ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'}`}>
-                  {formatDate(invoice.due_date)}
+                  {formatDateOrDash(invoice.due_date)}
                 </p>
               </div>
               {invoice.paid_at && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Paid On</p>
-                  <p className="text-sm text-green-700 font-medium mt-1">{formatDate(invoice.paid_at)}</p>
+                  <p className="text-sm text-green-700 font-medium mt-1">{formatDateOrDash(invoice.paid_at)}</p>
                 </div>
               )}
             </div>
