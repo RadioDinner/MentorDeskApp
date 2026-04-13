@@ -116,11 +116,18 @@ export async function supabaseRestCall(
 export async function supabaseRestGet<T = unknown>(
   table: string,
   params: string = '',
-  opts: { timeoutMs?: number; label?: string } = {},
-): Promise<{ data: T[] | null; error: { message: string } | null }> {
-  const { timeoutMs = 12000, label } = opts
+  opts: {
+    timeoutMs?: number
+    label?: string
+    /** Add a Range header for server-side pagination (0-indexed, inclusive). */
+    range?: { from: number; to: number }
+    /** Add Prefer: count=exact and return the total row count from Content-Range. */
+    countExact?: boolean
+  } = {},
+): Promise<{ data: T[] | null; error: { message: string } | null; count: number | null }> {
+  const { timeoutMs = 12000, label, range, countExact } = opts
   if (!supabaseUrl || !supabaseAnonKey) {
-    return { data: null, error: { message: 'Supabase env vars not configured' } }
+    return { data: null, error: { message: 'Supabase env vars not configured' }, count: null }
   }
   const logLabel = label ?? table
   try {
@@ -128,16 +135,25 @@ export async function supabaseRestGet<T = unknown>(
     const token = session.data.session?.access_token ?? supabaseAnonKey
     const url = `${supabaseUrl}/rest/v1/${table}${params ? '?' + params : ''}`
 
+    const headers: Record<string, string> = {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+    }
+    if (range) {
+      headers['Range-Unit'] = 'items'
+      headers['Range'] = `${range.from}-${range.to}`
+    }
+    if (countExact) {
+      headers['Prefer'] = 'count=exact'
+    }
+
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     const start = performance.now()
     const resp = await fetch(url, {
       method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
+      headers,
       signal: controller.signal,
     })
     clearTimeout(timer)
@@ -148,17 +164,31 @@ export async function supabaseRestGet<T = unknown>(
       let msg = `HTTP ${resp.status}`
       try { msg = JSON.parse(body).message || msg } catch { msg = body.slice(0, 200) || msg }
       console.warn(`[supabaseRestGet] ${logLabel} failed (${elapsed}ms):`, msg)
-      return { data: null, error: { message: msg } }
+      return { data: null, error: { message: msg }, count: null }
     }
+
+    // Parse total row count from Content-Range header (when countExact requested)
+    let count: number | null = null
+    if (countExact) {
+      const cr = resp.headers.get('Content-Range')
+      if (cr) {
+        const slash = cr.lastIndexOf('/')
+        if (slash >= 0 && cr.slice(slash + 1) !== '*') {
+          const n = parseInt(cr.slice(slash + 1), 10)
+          if (!isNaN(n)) count = n
+        }
+      }
+    }
+
     const rows = (await resp.json()) as T[]
-    console.log(`[supabaseRestGet] ${logLabel} ok (${elapsed}ms, ${Array.isArray(rows) ? rows.length : 0} rows)`)
-    return { data: rows, error: null }
+    console.log(`[supabaseRestGet] ${logLabel} ok (${elapsed}ms, ${Array.isArray(rows) ? rows.length : 0} rows${count !== null ? `, total=${count}` : ''})`)
+    return { data: rows, error: null, count }
   } catch (e) {
     const msg = (e as Error).name === 'AbortError'
       ? `Request timed out after ${timeoutMs / 1000}s. Supabase may be unreachable or your connection is unstable.`
       : (e as Error).message || 'Network error'
     console.warn(`[supabaseRestGet] ${logLabel} exception:`, msg)
-    return { data: null, error: { message: msg } }
+    return { data: null, error: { message: msg }, count: null }
   }
 }
 
