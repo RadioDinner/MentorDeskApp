@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import TimezoneSelect from '../components/TimezoneSelect'
 import type { StaffMember, PayType, PayTypeSettings, RoleCategory } from '../types'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
@@ -33,6 +34,7 @@ export default function PersonEditPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [timezone, setTimezone] = useState<string | null>(null)
   const [street, setStreet] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
@@ -80,6 +82,7 @@ export default function PersonEditPage() {
       setLastName(p.last_name)
       setEmail(p.email)
       setPhone(p.phone ?? '')
+      setTimezone(p.timezone ?? null)
       setStreet(p.street ?? '')
       setCity(p.city ?? '')
       setState(p.state ?? '')
@@ -126,6 +129,7 @@ export default function PersonEditPage() {
         state: state.trim() || null,
         zip: zip.trim() || null,
         country: country.trim() || null,
+        timezone: timezone,
       })
       .eq('id', person.id)
 
@@ -417,6 +421,15 @@ export default function PersonEditPage() {
                 </label>
                 <input id="editCountry" type="text" value={country}
                   onChange={e => setCountry(e.target.value)} className={inputClass} />
+              </div>
+
+              {/* Timezone */}
+              <div>
+                <label htmlFor="editTimezone" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Timezone
+                </label>
+                <TimezoneSelect id="editTimezone" value={timezone} onChange={setTimezone} />
+                <p className="text-[11px] text-gray-400 mt-1">Used to interpret their weekly availability and display meeting times.</p>
               </div>
 
               <div className="pt-2">

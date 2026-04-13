@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import TimezoneSelect from '../components/TimezoneSelect'
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [state, setState] = useState('')
   const [zip, setZip] = useState('')
   const [country, setCountry] = useState('')
+  const [timezone, setTimezone] = useState<string | null>(null)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -85,6 +87,7 @@ export default function ProfilePage() {
       setState(profile.state ?? '')
       setZip(profile.zip ?? '')
       setCountry(profile.country ?? '')
+      setTimezone(profile.timezone ?? null)
     }
   }, [profile?.organization_id])
 
@@ -106,6 +109,7 @@ export default function ProfilePage() {
         state: state.trim() || null,
         zip: zip.trim() || null,
         country: country.trim() || null,
+        timezone: timezone,
       })
       .eq('id', profile.id)
 
@@ -280,6 +284,15 @@ export default function ProfilePage() {
             </label>
             <input id="country" type="text" value={country}
               onChange={e => setCountry(e.target.value)} className={inputClass} />
+          </div>
+
+          {/* Timezone */}
+          <div>
+            <label htmlFor="profileTimezone" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Timezone
+            </label>
+            <TimezoneSelect id="profileTimezone" value={timezone} onChange={setTimezone} />
+            <p className="text-[11px] text-gray-400 mt-1">Used when showing your weekly availability and meeting times.</p>
           </div>
 
           <div className="pt-2">

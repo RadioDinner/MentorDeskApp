@@ -352,6 +352,7 @@ export interface StaffMember {
   access_groups: string[]
   allowed_modules: string[]
   max_active_mentees: number | null
+  timezone: string | null
   archived_at: string | null
   created_at: string
   updated_at: string
