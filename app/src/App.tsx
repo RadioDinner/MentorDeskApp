@@ -69,25 +69,65 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'operations', 'course_creator', 'staff']} createLabel="Create Staff Member" createRoute="/staff/new" showAccessGroups />} />
-            <Route path="/staff/new" element={<PersonCreatePage title="Create Staff Member" defaultRole="operations" backRoute="/staff" allowRoleSelection />} />
+            <Route path="/staff/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations']}>
+                <PersonCreatePage title="Create Staff Member" defaultRole="operations" backRoute="/staff" allowRoleSelection />
+              </ProtectedRoute>
+            } />
             <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} createLabel="Create Mentor" createRoute="/mentors/new" />} />
-            <Route path="/mentors/new" element={<PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />} />
+            <Route path="/mentors/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations']}>
+                <PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />
+              </ProtectedRoute>
+            } />
             <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={['assistant_mentor']} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />
-            <Route path="/assistant-mentors/new" element={<PersonCreatePage title="Create Assistant Mentor" defaultRole="assistant_mentor" backRoute="/assistant-mentors" />} />
+            <Route path="/assistant-mentors/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations']}>
+                <PersonCreatePage title="Create Assistant Mentor" defaultRole="assistant_mentor" backRoute="/assistant-mentors" />
+              </ProtectedRoute>
+            } />
             <Route path="/mentees" element={<MenteesListPage />} />
-            <Route path="/mentees/new" element={<MenteeCreatePage />} />
+            <Route path="/mentees/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations']}>
+                <MenteeCreatePage />
+              </ProtectedRoute>
+            } />
             <Route path="/mentees/:id/edit" element={<MenteeEditPage />} />
             <Route path="/pairings" element={<PairingsPage />} />
-            <Route path="/pairings/new" element={<PairingCreatePage />} />
+            <Route path="/pairings/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations']}>
+                <PairingCreatePage />
+              </ProtectedRoute>
+            } />
             <Route path="/pairings/:id/edit" element={<PairingEditPage />} />
             <Route path="/people/:id/edit" element={<PersonEditPage />} />
             <Route path="/courses" element={<CoursesPage />} />
-            <Route path="/courses/new" element={<OfferingCreatePage title="Create Course" offeringType="course" />} />
-            <Route path="/courses/:id/edit" element={<OfferingEditPage />} />
-            <Route path="/courses/:id/builder" element={<CourseBuilderPage />} />
+            <Route path="/courses/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <OfferingCreatePage title="Create Course" offeringType="course" />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:id/edit" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <OfferingEditPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:id/builder" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <CourseBuilderPage />
+              </ProtectedRoute>
+            } />
             <Route path="/engagements" element={<EngagementsPage />} />
-            <Route path="/engagements/new" element={<OfferingCreatePage title="Create Engagement" offeringType="engagement" />} />
-            <Route path="/engagements/:id/edit" element={<OfferingEditPage />} />
+            <Route path="/engagements/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <OfferingCreatePage title="Create Engagement" offeringType="engagement" />
+              </ProtectedRoute>
+            } />
+            <Route path="/engagements/:id/edit" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <OfferingEditPage />
+              </ProtectedRoute>
+            } />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />

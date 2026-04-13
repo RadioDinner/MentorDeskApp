@@ -296,6 +296,7 @@ export default function PayrollPage() {
         </div>
       ) : (
         <div className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
@@ -343,6 +344,7 @@ export default function PayrollPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

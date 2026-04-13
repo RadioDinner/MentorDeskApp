@@ -14,7 +14,11 @@ function getRoleStyle(role: string) {
   return ROLE_COLORS[role] ?? { bg: 'bg-gray-50', text: 'text-gray-700', dot: 'bg-gray-400' }
 }
 
-export default function Topbar() {
+interface TopbarProps {
+  onMenuClick?: () => void
+}
+
+export default function Topbar({ onMenuClick }: TopbarProps) {
   const { profile, signOut, allProfiles, activeProfileId, isMenteeMode, switchProfile } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -39,7 +43,17 @@ export default function Topbar() {
   const hasMultipleProfiles = allProfiles.length > 1
 
   return (
-    <header className="h-12 shrink-0 flex items-center justify-end px-6 bg-white border-b border-gray-200">
+    <header className="h-12 shrink-0 flex items-center justify-between px-4 lg:px-6 bg-white border-b border-gray-200">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+        aria-label="Open navigation"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setOpen(!open)}

@@ -22,7 +22,8 @@ interface PairingRow {
 type ViewTab = 'grid' | 'by_mentor' | 'by_offering' | 'by_status' | 'unpaired'
 
 export default function PairingsPage() {
-  const { profile } = useAuth()
+  const { profile, isMenteeMode } = useAuth()
+  const isAdminOrOps = !isMenteeMode && (profile?.role === 'admin' || profile?.role === 'operations')
   const toast = useToast()
   const [tab, setTab] = useState<ViewTab>('grid')
   const [mentors, setMentors] = useState<MentorOption[]>([])
@@ -201,6 +202,7 @@ export default function PairingsPage() {
           mentees={mentees}
           offerings={offerings}
           flowSteps={flowSteps}
+          canEdit={isAdminOrOps}
           onChangeMentor={changeMentor}
           onChangeStatus={changeStatus}
         />
@@ -265,17 +267,19 @@ export default function PairingsPage() {
                           ) : (
                             <span className="text-[11px] text-gray-300">No status</span>
                           )}
-                          <select
-                            value={p.mentor_id}
-                            onChange={e => changeMentor(p.id, e.target.value)}
-                            className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
-                          >
-                            {mentors.map(m => {
-                            const atCap = isMentorAtCapacity(m.id)
-                            const capLabel = getMentorCapacityLabel(m.id)
-                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
-                          })}
-                          </select>
+                          {isAdminOrOps && (
+                            <select
+                              value={p.mentor_id}
+                              onChange={e => changeMentor(p.id, e.target.value)}
+                              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
+                            >
+                              {mentors.map(m => {
+                              const atCap = isMentorAtCapacity(m.id)
+                              const capLabel = getMentorCapacityLabel(m.id)
+                              return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                            })}
+                            </select>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -374,18 +378,22 @@ export default function PairingsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-gray-400 hidden sm:inline">with</span>
-                          <select
-                            value={p.mentor_id}
-                            onChange={e => changeMentor(p.id, e.target.value)}
-                            className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
-                          >
-                            {mentors.map(m => {
-                              const atCap = isMentorAtCapacity(m.id)
-                              const capLabel = getMentorCapacityLabel(m.id)
-                              return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
-                            })}
-                          </select>
+                          {isAdminOrOps && <span className="text-xs text-gray-400 hidden sm:inline">with</span>}
+                          {isAdminOrOps ? (
+                            <select
+                              value={p.mentor_id}
+                              onChange={e => changeMentor(p.id, e.target.value)}
+                              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
+                            >
+                              {mentors.map(m => {
+                                const atCap = isMentorAtCapacity(m.id)
+                                const capLabel = getMentorCapacityLabel(m.id)
+                                return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                              })}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-gray-600">{p.mentor.first_name} {p.mentor.last_name}</span>
+                          )}
                           {flowStepName(p.mentee.flow_step_id) ? (
                             <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">{flowStepName(p.mentee.flow_step_id)}</span>
                           ) : (
@@ -441,30 +449,32 @@ export default function PairingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pairingMenteeId === mentee.id ? (
-                      <>
-                        <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
-                          <option value="">Select mentor...</option>
-                          {mentors.map(m => {
-                            const atCap = isMentorAtCapacity(m.id)
-                            const capLabel = getMentorCapacityLabel(m.id)
-                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
-                          })}
-                        </select>
-                        <Button size="sm" disabled={!selectedMentorId || pairing}
-                          onClick={() => quickPair(mentee.id, selectedMentorId)}>
-                          {pairing ? '...' : 'Pair'}
+                  {isAdminOrOps && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {pairingMenteeId === mentee.id ? (
+                        <>
+                          <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
+                            <option value="">Select mentor...</option>
+                            {mentors.map(m => {
+                              const atCap = isMentorAtCapacity(m.id)
+                              const capLabel = getMentorCapacityLabel(m.id)
+                              return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                            })}
+                          </select>
+                          <Button size="sm" disabled={!selectedMentorId || pairing}
+                            onClick={() => quickPair(mentee.id, selectedMentorId)}>
+                            {pairing ? '...' : 'Pair'}
+                          </Button>
+                          <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
+                            className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                        </>
+                      ) : (
+                        <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
+                          Pair with mentor
                         </Button>
-                        <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
-                          className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                      </>
-                    ) : (
-                      <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
-                        Pair with mentor
-                      </Button>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -556,40 +566,46 @@ export default function PairingsPage() {
                           {currentPairing ? (
                             <>
                               <span className="text-xs text-gray-400">Mentor:</span>
-                              <select
-                                value={currentPairing.mentor_id}
-                                onChange={e => changeMentor(currentPairing.id, e.target.value)}
-                                className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
-                              >
-                                {mentors.map(m => {
-                            const atCap = isMentorAtCapacity(m.id)
-                            const capLabel = getMentorCapacityLabel(m.id)
-                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
-                          })}
-                              </select>
+                              {isAdminOrOps ? (
+                                <select
+                                  value={currentPairing.mentor_id}
+                                  onChange={e => changeMentor(currentPairing.id, e.target.value)}
+                                  className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 bg-white"
+                                >
+                                  {mentors.map(m => {
+                                  const atCap = isMentorAtCapacity(m.id)
+                                  const capLabel = getMentorCapacityLabel(m.id)
+                                  return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                                })}
+                                </select>
+                              ) : (
+                                <span className="text-xs text-gray-600">{currentPairing.mentor.first_name} {currentPairing.mentor.last_name}</span>
+                              )}
                             </>
-                          ) : pairingMenteeId === mentee.id ? (
-                            <>
-                              <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
-                                <option value="">Select mentor...</option>
-                                {mentors.map(m => {
-                            const atCap = isMentorAtCapacity(m.id)
-                            const capLabel = getMentorCapacityLabel(m.id)
-                            return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
-                          })}
-                              </select>
-                              <Button size="sm" disabled={!selectedMentorId || pairing}
-                                onClick={() => quickPair(mentee.id, selectedMentorId)}>
-                                {pairing ? '...' : 'Pair'}
+                          ) : isAdminOrOps ? (
+                            pairingMenteeId === mentee.id ? (
+                              <>
+                                <select value={selectedMentorId} onChange={e => setSelectedMentorId(e.target.value)} className={selectClass}>
+                                  <option value="">Select mentor...</option>
+                                  {mentors.map(m => {
+                                  const atCap = isMentorAtCapacity(m.id)
+                                  const capLabel = getMentorCapacityLabel(m.id)
+                                  return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
+                                })}
+                                </select>
+                                <Button size="sm" disabled={!selectedMentorId || pairing}
+                                  onClick={() => quickPair(mentee.id, selectedMentorId)}>
+                                  {pairing ? '...' : 'Pair'}
+                                </Button>
+                                <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
+                                  className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                              </>
+                            ) : (
+                              <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
+                                Pair with mentor
                               </Button>
-                              <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
-                                className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                            </>
-                          ) : (
-                            <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
-                              Pair with mentor
-                            </Button>
-                          )}
+                            )
+                          ) : null}
                         </div>
                       </div>
                     )

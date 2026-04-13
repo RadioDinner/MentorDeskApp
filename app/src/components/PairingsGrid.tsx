@@ -17,6 +17,7 @@ interface Props {
   mentees: MenteeRow[]
   offerings: OfferingOption[]
   flowSteps: FlowStep[]
+  canEdit?: boolean
   onChangeMentor: (pairingId: string, newMentorId: string) => void
   onChangeStatus: (pairingId: string, newStatus: PairingStatus) => void
 }
@@ -34,6 +35,7 @@ interface ColumnDef {
 interface Helpers {
   flowStepName: (id: string | null) => string
   mentors: MentorOption[]
+  canEdit: boolean
   onChangeMentor: (pairingId: string, newMentorId: string) => void
   onChangeStatus: (pairingId: string, newStatus: PairingStatus) => void
 }
@@ -70,7 +72,7 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
     width: 200,
     minWidth: 140,
     getValue: (r) => `${r.mentor.first_name} ${r.mentor.last_name}`,
-    render: (r, h) => (
+    render: (r, h) => h.canEdit ? (
       <select
         value={r.mentor_id}
         onChange={e => h.onChangeMentor(r.id, e.target.value)}
@@ -80,6 +82,8 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
           <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>
         ))}
       </select>
+    ) : (
+      <span className="text-xs text-gray-700">{r.mentor.first_name} {r.mentor.last_name}</span>
     ),
     sortable: true,
   },
@@ -120,7 +124,7 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
 
 type SortDir = 'asc' | 'desc' | null
 
-export default function PairingsGrid({ pairings, mentors, mentees: _mentees, offerings: _offerings, flowSteps, onChangeMentor, onChangeStatus }: Props) {
+export default function PairingsGrid({ pairings, mentors, mentees: _mentees, offerings: _offerings, flowSteps, canEdit = false, onChangeMentor, onChangeStatus }: Props) {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
@@ -144,6 +148,7 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, off
       return flowSteps.find(s => s.id === id)?.name ?? ''
     },
     mentors,
+    canEdit,
     onChangeMentor,
     onChangeStatus,
   }
