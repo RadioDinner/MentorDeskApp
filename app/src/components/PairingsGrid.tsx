@@ -38,12 +38,6 @@ interface Helpers {
   onChangeStatus: (pairingId: string, newStatus: PairingStatus) => void
 }
 
-const STATUS_COLORS: Record<PairingStatus, { bg: string; text: string; dot: string }> = {
-  active: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },
-  paused: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400' },
-  ended:  { bg: 'bg-gray-100', text: 'text-gray-500',  dot: 'bg-gray-400' },
-}
-
 const DEFAULT_COLUMNS: ColumnDef[] = [
   {
     id: 'mentee_name',
@@ -92,36 +86,14 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
   {
     id: 'status',
     label: 'Status',
-    width: 120,
-    minWidth: 100,
-    getValue: (r) => r.status,
-    render: (r, h) => {
-      const s = STATUS_COLORS[r.status]
-      return (
-        <select
-          value={r.status}
-          onChange={e => h.onChangeStatus(r.id, e.target.value as PairingStatus)}
-          className={`text-[11px] font-semibold uppercase tracking-wide rounded-full px-2.5 py-0.5 border-0 outline-none cursor-pointer ${s.bg} ${s.text}`}
-        >
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="ended">Ended</option>
-        </select>
-      )
-    },
-    sortable: true,
-  },
-  {
-    id: 'flow_step',
-    label: 'Status Step',
-    width: 140,
-    minWidth: 100,
+    width: 160,
+    minWidth: 120,
     getValue: (r, h) => h.flowStepName(r.mentee.flow_step_id),
     render: (r, h) => {
       const name = h.flowStepName(r.mentee.flow_step_id)
       return name
         ? <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">{name}</span>
-        : <span className="text-gray-300">—</span>
+        : <span className="text-gray-300 text-xs">—</span>
     },
     sortable: true,
   },

@@ -18,12 +18,6 @@ interface PairingRow {
 
 type ViewTab = 'grid' | 'by_mentor' | 'by_offering' | 'by_status' | 'unpaired'
 
-const STATUS_STYLES: Record<PairingStatus, string> = {
-  active: 'bg-green-50 text-green-700',
-  paused: 'bg-yellow-50 text-yellow-700',
-  ended: 'bg-gray-100 text-gray-500',
-}
-
 export default function PairingsPage() {
   const { profile } = useAuth()
   const [tab, setTab] = useState<ViewTab>('grid')
@@ -263,10 +257,11 @@ export default function PairingsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {flowStepName(p.mentee.flow_step_id) && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{flowStepName(p.mentee.flow_step_id)}</span>
+                          {flowStepName(p.mentee.flow_step_id) ? (
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">{flowStepName(p.mentee.flow_step_id)}</span>
+                          ) : (
+                            <span className="text-[11px] text-gray-300">No status</span>
                           )}
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${STATUS_STYLES[p.status]}`}>{p.status}</span>
                           <select
                             value={p.mentor_id}
                             onChange={e => changeMentor(p.id, e.target.value)}
@@ -388,7 +383,11 @@ export default function PairingsPage() {
                               return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
                             })}
                           </select>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${STATUS_STYLES[p.status]}`}>{p.status}</span>
+                          {flowStepName(p.mentee.flow_step_id) ? (
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">{flowStepName(p.mentee.flow_step_id)}</span>
+                          ) : (
+                            <span className="text-[11px] text-gray-300">No status</span>
+                          )}
                         </div>
                       </div>
                     ))}
