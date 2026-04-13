@@ -6,6 +6,8 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import TimeCardModal from '../components/TimeCardModal'
 import type { TimeCardFormData } from '../components/TimeCardModal'
 import { logAudit } from '../lib/audit'
+import { formatDollars, parseDateOnly } from '../lib/format'
+import { Button, Badge } from '../components/ui'
 import { PAY_FREQUENCY_LABELS, STAFF_ROLE_LABELS } from '../types'
 import type { StaffMember, PayType, PayFrequency, TimeCard, Offering } from '../types'
 
@@ -15,10 +17,6 @@ interface PayrollRow {
   estimatedPay: number | null  // null means "can't compute — pending payroll engine"
   formula: string
   offering?: Offering | null
-}
-
-function money(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
 function monthBounds(ym: string): { start: string; end: string } {
@@ -147,11 +145,11 @@ export default function PayrollPage() {
         switch (s.pay_type) {
           case 'hourly':
             estimatedPay = hoursInPeriod * rate
-            formula = `${hoursInPeriod.toFixed(2)} h × ${money(rate)}/h`
+            formula = `${hoursInPeriod.toFixed(2)} h × ${formatDollars(rate)}/h`
             break
           case 'salary':
             estimatedPay = salaryForPeriod(rate, s.pay_frequency, period.start, period.end)
-            formula = `${money(rate)} ${PAY_FREQUENCY_LABELS[s.pay_frequency ?? 'monthly']}, prorated by period length`
+            formula = `${formatDollars(rate)} ${PAY_FREQUENCY_LABELS[s.pay_frequency ?? 'monthly']}, prorated by period length`
             break
           case 'pct_per_meeting':
             estimatedPay = null
@@ -258,12 +256,9 @@ export default function PayrollPage() {
               className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
             />
           </div>
-          <button
-            onClick={() => setShowTimeCardModal(true)}
-            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover transition-colors"
-          >
+          <Button onClick={() => setShowTimeCardModal(true)}>
             + Enter Time Card
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -272,13 +267,13 @@ export default function PayrollPage() {
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Period</p>
           <p className="text-base font-semibold text-gray-900 mt-2">
-            {new Date(period.start + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {parseDateOnly(period.start).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </p>
           <p className="text-[11px] text-gray-400 mt-0.5">{period.start} → {period.end}</p>
         </div>
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Computed total</p>
-          <p className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{money(totals.computed)}</p>
+          <p className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{formatDollars(totals.computed)}</p>
           <p className="text-[11px] text-gray-400 mt-0.5">Hourly + salary rows</p>
         </div>
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
@@ -321,9 +316,9 @@ export default function PayrollPage() {
                     <p className="text-[10px] text-gray-400">{row.staff.email}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                    <Badge tone="neutral">
                       {STAFF_ROLE_LABELS[row.staff.role] ?? row.staff.role}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-700">
                     {row.staff.pay_type ? PAY_TYPE_LABELS[row.staff.pay_type] : '—'}
@@ -337,7 +332,7 @@ export default function PayrollPage() {
                   <td className="px-4 py-3 text-right">
                     {row.estimatedPay != null ? (
                       <p className="text-sm font-semibold text-gray-900 tabular-nums">
-                        {money(row.estimatedPay)}
+                        {formatDollars(row.estimatedPay)}
                       </p>
                     ) : (
                       <span className="text-[11px] text-amber-600 font-medium">Pending</span>

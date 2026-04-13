@@ -7,6 +7,9 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import InvoiceEditModal from '../components/InvoiceEditModal'
 import type { InvoiceEditUpdates } from '../components/InvoiceEditModal'
 import { logAudit } from '../lib/audit'
+import { formatMoney, formatDate, formatDateShort } from '../lib/format'
+import { Badge, toneForStatus } from '../components/ui'
+import type { BadgeTone } from '../components/ui'
 import type { Invoice, InvoiceStatus } from '../types'
 
 type FilterTab = 'all' | 'draft' | 'sent' | 'overdue' | 'paid' | 'cancelled'
@@ -14,10 +17,6 @@ type FilterTab = 'all' | 'draft' | 'sent' | 'overdue' | 'paid' | 'cancelled'
 interface InvoiceRow extends Invoice {
   mentee: { id: string; first_name: string; last_name: string; email: string } | null
   mentee_offering: { id: string; offering: { id: string; name: string } | null } | null
-}
-
-function formatMoney(cents: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100)
 }
 
 function isOverdue(inv: InvoiceRow): boolean {
@@ -38,12 +37,14 @@ const STATUS_LABELS: Record<InvoiceStatus | 'overdue', string> = {
   cancelled: 'Cancelled',
 }
 
-const STATUS_COLORS: Record<InvoiceStatus | 'overdue', string> = {
-  draft:     'bg-gray-100 text-gray-600',
-  sent:      'bg-blue-50 text-blue-700',
-  paid:      'bg-green-50 text-green-700',
-  overdue:   'bg-red-50 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-400 line-through',
+// Override `cancelled` to the muted tone (shared `toneForStatus` maps
+// it there already, but we keep this explicit for strike-through).
+const STATUS_TONES: Record<InvoiceStatus | 'overdue', BadgeTone> = {
+  draft:     toneForStatus('draft'),
+  sent:      toneForStatus('sent'),
+  paid:      toneForStatus('paid'),
+  overdue:   toneForStatus('overdue'),
+  cancelled: toneForStatus('cancelled'),
 }
 
 export default function InvoicingPage() {
@@ -378,9 +379,7 @@ function InvoiceTableRow({
     ? `${invoice.mentee.first_name} ${invoice.mentee.last_name}`
     : 'Unknown mentee'
   const offeringName = invoice.mentee_offering?.offering?.name ?? invoice.line_description ?? '—'
-  const dueDate = invoice.due_date
-    ? new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—'
+  const dueDate = invoice.due_date ? formatDate(invoice.due_date) : '—'
   const invoiceId = invoice.invoice_number ?? `#${invoice.id.slice(0, 8)}`
 
   return (
@@ -388,7 +387,7 @@ function InvoiceTableRow({
       <td className="px-4 py-3">
         <p className="text-sm font-medium text-gray-900 tabular-nums">{invoiceId}</p>
         <p className="text-[10px] text-gray-400 mt-0.5">
-          Created {new Date(invoice.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          Created {formatDateShort(invoice.created_at)}
         </p>
       </td>
       <td className="px-4 py-3">
@@ -404,12 +403,12 @@ function InvoiceTableRow({
         </p>
       </td>
       <td className="px-4 py-3">
-        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded capitalize ${STATUS_COLORS[eff]}`}>
+        <Badge tone={STATUS_TONES[eff]} strike={eff === 'cancelled'}>
           {STATUS_LABELS[eff]}
-        </span>
+        </Badge>
         {invoice.status === 'paid' && invoice.paid_at && (
           <p className="text-[10px] text-gray-400 mt-0.5">
-            {new Date(invoice.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {formatDateShort(invoice.paid_at)}
           </p>
         )}
       </td>

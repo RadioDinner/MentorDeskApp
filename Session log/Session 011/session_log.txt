@@ -1,0 +1,235 @@
+SESSION 011 - HANDOFF LOG
+==========================
+Date: 2026-04-13
+Branch: claude/new-session-Ijl0K (initial), then main (direct push
+from prompt #2 onward per user instruction)
+
+
+SUMMARY
+--------
+Short, focused session. 5 prompts. Two halves:
+
+  1. A comprehensive code-quality audit of the whole codebase, looking
+     for where refinement has been thin and which features are
+     underdeveloped (excluding net-new features and 3rd-party
+     integrations).
+
+  2. Acted on the top two items from that audit: extracted the first
+     set of shared UI primitives (Button, Badge, Modal, a format
+     library) and deleted a dead leftover file.
+
+No database migrations this session. Build passes clean.
+
+
+CHANGES MADE
+-------------
+
+1. COMPREHENSIVE AUDIT (no code changes)
+   - Launched an Explore agent over the entire codebase against a
+     16-dimension rubric (thin modules, duplication, error UX, form
+     validation, a11y, mobile, type safety, consistency, search/
+     filter/pagination, permission gating, portal depth for each of
+     admin/mentor/mentee, tests, audit-log coverage, error-reporter
+     coverage, dead code).
+   - Findings: the three least-polished areas are tests (zero),
+     accessibility (zero aria-*), and mobile responsiveness.
+     Secondary weaknesses: inconsistent date/currency/button/badge
+     utilities, no pagination anywhere, form validation is HTML5
+     only, error UX is plain text with no toasts/skeletons, audit
+     logging coverage is ~partial.
+   - Produced an 11-item prioritized polish backlog, preserved in
+     `Session log/Session 011/polish_backlog.txt`.
+
+2. SHARED UI PRIMITIVES (commit bf137d5)
+   New files:
+     - app/src/lib/format.ts
+         formatMoney (cents), formatDollars (whole dollars),
+         formatDate, formatDateShort, formatDateLong, formatTime,
+         formatDateTime, formatWeekdayDate, parseDateOnly.
+         One place to tweak locale / currency / date style for
+         the entire app.
+     - app/src/components/ui/Button.tsx
+         Variants: primary / secondary / ghost / danger / dangerGhost.
+         Sizes: sm / md. Supports `block`, `leadingIcon`,
+         `trailingIcon`. Replaces the
+         `rounded bg-brand px-4 py-2 text-sm font-medium text-white ...`
+         pattern repeated across 30+ files.
+     - app/src/components/ui/Badge.tsx
+         Semantic tones: neutral, brand, success, warning, danger,
+         info, muted. Plus a shared `toneForStatus(status)` helper
+         so invoice/pairing/engagement status badges no longer each
+         redefine their own color map.
+     - app/src/components/ui/Modal.tsx
+         Accessible by default: role="dialog", aria-modal,
+         aria-labelledby, Escape to close, focus save on open /
+         restore on close, body scroll lock, overlay click close.
+         This is a meaningful a11y upgrade — the previous inline
+         modals had none of this.
+     - app/src/components/ui/index.ts
+         Barrel export so pages can
+         `import { Button, Badge, Modal, toneForStatus } from '../components/ui'`.
+
+   Migrations (all behavior-preserving):
+     - app/src/pages/InvoicingPage.tsx
+         Uses formatMoney / formatDate / formatDateShort. Replaced
+         local STATUS_COLORS map with `Badge` + `toneForStatus`.
+         Local `formatMoney` helper deleted.
+     - app/src/pages/PayrollPage.tsx
+         Uses formatDollars + parseDateOnly. `<Button>` replaces the
+         inline "+ Enter Time Card" button. `<Badge>` replaces the
+         inline role pill. Local `money()` helper deleted.
+     - app/src/pages/InvoicePrintPage.tsx
+         Uses formatMoney + formatDateLong. `<Button>` replaces the
+         inline Print button. Local `formatMoney` and `formatDate`
+         deleted (replaced with a small `formatDateOrDash` wrapper
+         for the em-dash fallback).
+     - app/src/components/InvoiceEditModal.tsx
+         Fully rewritten on top of `<Modal>` + `<Button>`. Gains
+         Escape-to-close, focus management, scroll lock. The form
+         now lives inside the Modal body with submit wired through
+         the footer's form attribute.
+     - app/src/components/TimeCardModal.tsx
+         Same rewrite on `<Modal>` + `<Button>` — same a11y upgrade.
+     - app/src/pages/MenteeBillingPage.tsx
+         Uses formatMoney / formatDate / formatDateShort, `<Button>`,
+         `<Badge>` + `toneForStatus`. Dropped local `formatAmount`
+         and `statusColors` map.
+
+   Diff stats: 13 files changed, 661 insertions(+), 624 deletions(-).
+   Net +37 LOC including *three* new primitives + a format library —
+   the migration already more than paid for the scaffolding cost on
+   the files touched.
+
+3. DEAD CODE REMOVED (same commit bf137d5)
+   - Deleted app/src/pages/CompanySettingsPage.optionB.tsx (339
+     lines). Confirmed zero references in the codebase before
+     deletion. This was an abandoned experiment sitting next to
+     the real 809-line CompanySettingsPage.tsx.
+
+4. BUILD VERIFICATION
+   - Had to run `npm ci` in app/ (fresh session, no node_modules).
+   - `cd app && npm run build` passes clean: tsc + vite with only
+     the pre-existing "chunk > 500 kB" advisory warning. No new
+     errors, no new warnings.
+
+
+GIT HISTORY THIS SESSION
+-------------------------
+- 1d4be86  Session 011: start prompt history        (claude/new-session-Ijl0K)
+- merge commit                                       (Session 011 start into main)
+- ec21ede  Session 011: log prompt 2                 (main)
+- 41b51be  Session 011: log prompt 3                 (main)
+- bf137d5  Extract shared UI primitives and kill
+            dead optionB file                         (main)
+- (session wrap commit will land after this file
+   is written)
+
+All pushes went to `main` after prompt #2 ("merge to main and
+continue merging to main for the remainder of this session").
+
+
+DIRECTIONAL DECISIONS
+----------------------
+- First shared primitives live under `app/src/components/ui/`.
+  Future primitives (Skeleton, Toast, Drawer, PageBar, Input,
+  Select, TextArea) should go in the same directory and be
+  re-exported from `components/ui/index.ts`.
+- Formatters live in `app/src/lib/format.ts` rather than
+  `components/ui/` because they're pure functions, not JSX.
+- The Modal primitive is intentionally simple — not a full focus
+  trap, but role=dialog + aria-modal + Escape + focus restore +
+  body scroll lock. A real focus trap is a follow-up if we find
+  it matters.
+- Not migrating all 30+ pages in one commit — too much review
+  surface, too much regression risk. Plan is incremental migration
+  as surrounding work touches each page.
+- Kept the tiny `ActionButton` sub-component inside InvoicingPage
+  (5 lines) because its sizing (px-2.5 py-1 text-[11px]) is
+  smaller than the standard Button.sm. Didn't want to contort
+  the primitive to fit.
+- The InvoicePrintPage status pills (uppercase, border, print-
+  specific) were left as inline styling. They're print design,
+  not a repeating list-UI pattern, so Badge migration would be
+  a lossy fit.
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+The full prioritized polish backlog now lives in
+
+   Session log/Session 011/polish_backlog.txt
+
+That file is the canonical reference for items 1b through 11
+below. Summary only here:
+
+  1.  [DONE]    Extract shared UI primitives
+  1b. [PARTIAL] Finish migrating remaining ~24 pages and the two
+               big modals (EngagementManageModal 565 LOC,
+               MenteeManageSlideOver 941 LOC) to the primitives.
+               Purely mechanical, estimate 1-2 hours.
+  2.  [DONE]    Kill CompanySettingsPage.optionB.tsx
+  3.  [OPEN]    Pagination + server-side filtering on list pages.
+               AuditLogPage's .limit(200) is the ticking bug.
+  4.  [OPEN]    Unify error UX — ToastProvider, Skeleton primitive,
+               replace plain "Loading..." text, wire errorReporter
+               into every mutation (currently only 3 create pages).
+  5.  [OPEN]    Form validation pass — Zod + React Hook Form,
+               schemas per entity in lib/schemas.ts.
+  6.  [OPEN]    Mobile responsiveness pass — overflow-x wrappers,
+               sidebar collapse, modal viewport checks.
+  7.  [OPEN]    Accessibility pass — migrate EngagementManageModal
+               and MenteeManageSlideOver to the Modal primitive
+               (they still have raw div wrappers), aria-label on
+               icon buttons, role=status on error banners.
+  8.  [OPEN]    Audit logging coverage — fill the gaps (payment
+               method save, CompanySettings mutations, edit-page
+               field edits).
+  9.  [OPEN]    Permission gating audit — <RoleGate> helper, audit
+               DashboardPage admin sections.
+  10. [OPEN]    Test scaffolding — vitest + lib/ pure-logic tests
+               first (scheduling, credits, dynamicFields, modules,
+               format, salaryForPeriod).
+  11. [OPEN]    Dashboard upgrade — KPIs, trends, widgets. Lowest
+               priority; comes after the above.
+
+Still outstanding from earlier sessions (tracked in Session 010
+handoff, not in this backlog because they're new features, not
+polish):
+  - Google Meet / Teams integration on meetings
+  - Google Calendar OAuth + availability sync
+  - Stripe integration for MenteeBillingPage
+  - Reports module build (placeholder currently)
+  - Signup / invite flow
+  - Messaging between mentee and mentor
+  - Payroll v2 (self-serve time tracking in mentor/staff portals)
+
+And the standing warning from Session 010:
+  - Loading bug fix in 16949d9 bypasses SDK auth lock for page
+    reads. Any new module built with the SDK directly for reads
+    under load may reintroduce the "Request timed out" symptom.
+    Prefer supabaseRestCall / supabaseRestGet for list pages.
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- app/ (React 19 / TypeScript / Vite / Tailwind CSS 4)
+- Supabase (Postgres + Auth + RLS); migrations down to 955
+- Vercel auto-deploy from main
+- Three portals: Admin, Mentor, Mentee
+- Admin: Courses, Engagements, Mentees, Pairings, Invoicing
+  (edit/delete/PDF), Payroll (v1), Company Settings, Reports
+  (placeholder), Audit Log
+- Mentor: Meetings module (list-by-day + calendar), Availability
+  editor, Profile
+- Mentee: My Engagements w/ Upcoming/Past tabs, block-based
+  scheduler, Courses, Billing (v1 — no Stripe), Profile
+- NEW (Session 011):
+    - app/src/lib/format.ts (shared formatters)
+    - app/src/components/ui/{Button,Badge,Modal,index}.tsx
+      (first shared primitives; accessible Modal)
+- Invoicing, Payroll, InvoicePrint, Mentee Billing, and the two
+  existing modals (InvoiceEditModal, TimeCardModal) now consume
+  the new primitives.
+- Build passes clean (tsc + vite) as of commit bf137d5.
+
+See you next session.

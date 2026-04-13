@@ -7,6 +7,7 @@ import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import type { StaffRole } from '../types'
 import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES } from '../types'
+import Button from '../components/ui/Button'
 
 interface PersonCreatePageProps {
   title: string
@@ -226,14 +227,8 @@ export default function PersonCreatePage({ title, defaultRole, backRoute, allowR
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button type="submit" disabled={saving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {saving ? 'Creating…' : title}
-            </button>
-            <button type="button" onClick={() => navigate(backRoute)}
-              className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-              Cancel
-            </button>
+            <Button type="submit" disabled={saving}>{saving ? 'Creating…' : title}</Button>
+            <Button variant="secondary" type="button" onClick={() => navigate(backRoute)}>Cancel</Button>
           </div>
         </form>
       </div>

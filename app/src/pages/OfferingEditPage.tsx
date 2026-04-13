@@ -7,6 +7,8 @@ import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import type { Offering, DispenseMode, PreviewMode, AllocationPeriod, CancellationPolicy } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
+import Button from '../components/ui/Button'
+import { formatDate } from '../lib/format'
 
 const ALLOCATION_PERIODS: { value: AllocationPeriod; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
@@ -258,10 +260,9 @@ export default function OfferingEditPage() {
                       Upload image
                     </button>
                     {iconUrl && (
-                      <button type="button" onClick={() => setIconUrl('')}
-                        className="px-2.5 py-1 text-[11px] font-medium rounded border border-red-200 bg-white text-red-500 hover:bg-red-50 transition-colors">
+                      <Button variant="dangerGhost" size="sm" type="button" onClick={() => setIconUrl('')}>
                         Remove
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -477,18 +478,15 @@ export default function OfferingEditPage() {
             <div className="space-y-1 text-xs text-gray-500">
               <span>Type: <span className="font-medium text-gray-700">{typeLabel}</span></span>
               <span className="mx-3">·</span>
-              <span>Created: <span className="font-medium text-gray-700">{new Date(offering.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></span>
+              <span>Created: <span className="font-medium text-gray-700">{formatDate(offering.created_at)}</span></span>
               <span className="mx-3">·</span>
-              <span>Updated: <span className="font-medium text-gray-700">{new Date(offering.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></span>
+              <span>Updated: <span className="font-medium text-gray-700">{formatDate(offering.updated_at)}</span></span>
             </div>
           </div>
         </div>
 
         <div>
-          <button type="submit" disabled={saving}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
         </div>
       </form>
     </div>

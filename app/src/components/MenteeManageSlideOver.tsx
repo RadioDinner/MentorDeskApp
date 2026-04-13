@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import Button from './ui/Button'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
@@ -459,18 +460,8 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                 This mentee already has {activeEngagements.length} active engagement{activeEngagements.length !== 1 ? 's' : ''}. Are you sure you want to open an additional engagement?
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setConfirmMultiEngagement(false)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => { setConfirmMultiEngagement(false); setShowEngagementSelect(true); setShowCourseSelect(false) }}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition-colors"
-                >
-                  Yes, open engagement
-                </button>
+                <Button size="sm" variant="secondary" onClick={() => setConfirmMultiEngagement(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => { setConfirmMultiEngagement(false); setShowEngagementSelect(true); setShowCourseSelect(false) }}>Yes, open engagement</Button>
               </div>
             </div>
           </div>

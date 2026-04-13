@@ -6,6 +6,7 @@ import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import OfferingFolderManager from '../components/OfferingFolderManager'
 import LoadingErrorState from '../components/LoadingErrorState'
 import type { Offering, OfferingFolder } from '../types'
+import Button from '../components/ui/Button'
 
 type ViewMode = 'list' | 'grid'
 
@@ -162,12 +163,7 @@ export default function CoursesPage() {
               </svg>
             </button>
           </div>
-          <button
-            onClick={() => navigate('/courses/new')}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + Create Course
-          </button>
+          <Button onClick={() => navigate('/courses/new')}>+ Create Course</Button>
         </div>
       </div>
 
@@ -347,18 +343,14 @@ function CourseGridCard({ course, price, navigate }: { course: CourseWithStats; 
 
       {/* Actions footer */}
       <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-end gap-2">
-        <button
-          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/edit`) }}
-          className="px-3.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-        >
+        <Button variant="secondary" size="sm"
+          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/edit`) }}>
           Settings
-        </button>
-        <button
-          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/builder`) }}
-          className="px-3.5 py-1.5 text-xs font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"
-        >
+        </Button>
+        <Button size="sm"
+          onClick={e => { e.stopPropagation(); navigate(`/courses/${course.id}/builder`) }}>
           Builder
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -393,18 +385,8 @@ function CourseListRow({ course, price, navigate }: { course: CourseWithStats; p
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => navigate(`/courses/${course.id}/builder`)}
-          className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition-colors"
-        >
-          Builder
-        </button>
-        <button
-          onClick={() => navigate(`/courses/${course.id}/edit`)}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-        >
-          Settings
-        </button>
+        <Button size="sm" onClick={() => navigate(`/courses/${course.id}/builder`)}>Builder</Button>
+        <Button variant="secondary" size="sm" onClick={() => navigate(`/courses/${course.id}/edit`)}>Settings</Button>
       </div>
     </div>
   )

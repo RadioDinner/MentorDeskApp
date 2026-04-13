@@ -5,6 +5,7 @@ import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
+import Button from '../components/ui/Button'
 
 interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
 interface MenteeRow { id: string; first_name: string; last_name: string; email: string; flow_step_id: string | null }
@@ -171,10 +172,9 @@ export default function PairingsPage() {
           </p>
         </div>
         {unpairedMentees.length > 0 && tab !== 'unpaired' && (
-          <button onClick={() => setTab('unpaired')}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover transition">
+          <Button onClick={() => setTab('unpaired')}>
             Assign Mentors ({unpairedMentees.length})
-          </button>
+          </Button>
         )}
       </div>
 
@@ -449,19 +449,17 @@ export default function PairingsPage() {
                             return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
                           })}
                         </select>
-                        <button disabled={!selectedMentorId || pairing}
-                          onClick={() => quickPair(mentee.id, selectedMentorId)}
-                          className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50 transition">
+                        <Button size="sm" disabled={!selectedMentorId || pairing}
+                          onClick={() => quickPair(mentee.id, selectedMentorId)}>
                           {pairing ? '...' : 'Pair'}
-                        </button>
+                        </Button>
                         <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
                           className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
                       </>
                     ) : (
-                      <button onClick={() => setPairingMenteeId(mentee.id)}
-                        className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover transition">
+                      <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
                         Pair with mentor
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -577,19 +575,17 @@ export default function PairingsPage() {
                             return <option key={m.id} value={m.id} disabled={atCap}>{m.first_name} {m.last_name}{capLabel ? ` (${capLabel})` : ''}{atCap ? ' — at capacity' : ''}</option>
                           })}
                               </select>
-                              <button disabled={!selectedMentorId || pairing}
-                                onClick={() => quickPair(mentee.id, selectedMentorId)}
-                                className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50 transition">
+                              <Button size="sm" disabled={!selectedMentorId || pairing}
+                                onClick={() => quickPair(mentee.id, selectedMentorId)}>
                                 {pairing ? '...' : 'Pair'}
-                              </button>
+                              </Button>
                               <button onClick={() => { setPairingMenteeId(null); setSelectedMentorId('') }}
                                 className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
                             </>
                           ) : (
-                            <button onClick={() => setPairingMenteeId(mentee.id)}
-                              className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover transition">
+                            <Button size="sm" onClick={() => setPairingMenteeId(mentee.id)}>
                               Pair with mentor
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>

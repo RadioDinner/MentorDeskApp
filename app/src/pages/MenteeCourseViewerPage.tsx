@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
+import Button from '../components/ui/Button'
 import type { DynamicFieldContext } from '../lib/dynamicFields'
 import type {
   Offering, Lesson, LessonSection, LessonQuestion, MenteeOffering,
@@ -337,10 +338,9 @@ export default function MenteeCourseViewerPage() {
               {/* Complete lesson */}
               {!isLessonCompleted && (
                 <div className="flex items-center gap-3">
-                  <button onClick={completeLesson} disabled={saving}
-                    className="rounded bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 transition">
+                  <Button onClick={completeLesson} disabled={saving}>
                     {saving ? 'Saving...' : 'Complete Lesson'}
-                  </button>
+                  </Button>
                   {questions.length > 0 && Object.keys(responses).length < questions.length && (
                     <p className="text-xs text-amber-600">{questions.length - Object.keys(responses).length} question{questions.length - Object.keys(responses).length !== 1 ? 's' : ''} unanswered</p>
                   )}
@@ -477,10 +477,9 @@ function MenteeQuestionCard({ question, index, response, onSave, disabled }: {
             )
           })}
           {!submitted && !disabled && (
-            <button onClick={handleQuizSubmit} disabled={selectedOption === null}
-              className="mt-2 px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
+            <Button size="sm" onClick={handleQuizSubmit} disabled={selectedOption === null} className="mt-2">
               Submit Answer
-            </button>
+            </Button>
           )}
         </div>
       ) : (

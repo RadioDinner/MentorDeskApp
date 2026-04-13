@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import TimezoneSelect, { getBrowserTimezone } from '../components/TimezoneSelect'
+import Button from '../components/ui/Button'
 import type { AvailabilitySchedule, StaffMember } from '../types'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -272,18 +273,8 @@ export default function AvailabilityPage() {
                       <TimePicker value={newStart} onChange={setNewStart} label="Start" />
                       <span className="text-xs text-gray-400">to</span>
                       <TimePicker value={newEnd} onChange={setNewEnd} label="End" />
-                      <button
-                        onClick={() => addBlock(dayIdx)}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand-hover transition-colors"
-                      >
-                        Add
-                      </button>
-                      <button
-                        onClick={() => setAddingDay(null)}
-                        className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                      >
-                        Cancel
-                      </button>
+                      <Button size="sm" onClick={() => addBlock(dayIdx)}>Add</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setAddingDay(null)}>Cancel</Button>
                     </div>
                   )}
 

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
+import Button from '../components/ui/Button'
+import { useToast } from '../context/ToastContext'
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
@@ -21,6 +23,7 @@ const CREATABLE_ROLES: { role: string; label: string; desc: string; table: 'staf
 
 export default function ProfilePage() {
   const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile } = useAuth()
+  const toast = useToast()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -34,16 +37,13 @@ export default function ProfilePage() {
   const [country, setCountry] = useState('')
   const [timezone, setTimezone] = useState<string | null>(null)
   const [profileSaving, setProfileSaving] = useState(false)
-  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Account creation
   const [creatingRole, setCreatingRole] = useState<string | null>(null)
-  const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   async function createRoleAccount(role: string, table: 'staff' | 'mentees') {
     if (!profile || !session?.user) return
     setCreatingRole(role)
-    setAccountMsg(null)
 
     try {
       const record: Record<string, unknown> = {
@@ -59,12 +59,12 @@ export default function ProfilePage() {
       }
 
       const { error } = await supabase.from(table).insert(record)
-      if (error) { setAccountMsg({ type: 'error', text: error.message }); return }
+      if (error) { toast.error(error.message); return }
 
       await refreshProfile()
-      setAccountMsg({ type: 'success', text: `${ROLE_STYLES[role]?.label ?? role} account created. You can now switch to it from the top bar.` })
+      toast.success(`${ROLE_STYLES[role]?.label ?? role} account created. You can now switch to it from the top bar.`)
     } catch (err) {
-      setAccountMsg({ type: 'error', text: (err as Error).message || 'Failed to create account' })
+      toast.error((err as Error).message || 'Failed to create account')
     } finally {
       setCreatingRole(null)
     }
@@ -74,7 +74,6 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordSaving, setPasswordSaving] = useState(false)
-  const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (profile) {
@@ -94,7 +93,6 @@ export default function ProfilePage() {
   async function handleProfileSubmit(e: FormEvent) {
     e.preventDefault()
     if (!profile) return
-    setProfileMsg(null)
     setProfileSaving(true)
 
     const { error } = await supabase
@@ -115,35 +113,22 @@ export default function ProfilePage() {
 
     setProfileSaving(false)
 
-    if (error) {
-      setProfileMsg({ type: 'error', text: error.message })
-      return
-    }
+    if (error) { toast.error(error.message); return }
 
     await refreshProfile()
     if (profile) await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: profile.id, details: { fields: 'personal_info', self: true } })
-    setProfileMsg({ type: 'success', text: 'Your profile has been updated successfully.' })
+    toast.success('Your profile has been updated successfully.')
   }
 
   async function handlePasswordSubmit(e: FormEvent) {
     e.preventDefault()
-    setPasswordMsg(null)
 
-    if (newPassword.length < 6) {
-      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters.' })
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordMsg({ type: 'error', text: 'Passwords do not match.' })
-      return
-    }
+    if (newPassword.length < 6) { toast.error('Password must be at least 6 characters.'); return }
+    if (newPassword !== confirmPassword) { toast.error('Passwords do not match.'); return }
 
     setPasswordSaving(true)
     try {
-      if (!session) {
-        setPasswordMsg({ type: 'error', text: 'No active session. Please sign in again.' })
-        return
-      }
+      if (!session) { toast.error('No active session. Please sign in again.'); return }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const controller = new AbortController()
@@ -164,20 +149,19 @@ export default function ProfilePage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
-        setPasswordMsg({ type: 'error', text: msg })
+        toast.error(body.msg || body.message || body.error_description || `Error ${response.status}`)
         return
       }
 
       setNewPassword('')
       setConfirmPassword('')
-      setPasswordMsg({ type: 'success', text: 'Your password has been updated successfully. Use your new password next time you sign in.' })
+      toast.success('Password updated. Use your new password next time you sign in.')
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out after 15 seconds' : err.message)
         : 'Unknown error'
       console.error('[ProfilePage] Password update failed:', message)
-      setPasswordMsg({ type: 'error', text: message })
+      toast.error(message)
     } finally {
       setPasswordSaving(false)
     }
@@ -196,17 +180,6 @@ export default function ProfilePage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
 
         <form onSubmit={handleProfileSubmit} className="space-y-5">
-          {profileMsg && (
-            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-              profileMsg.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <span className="mt-0.5">{profileMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-              {profileMsg.text}
-            </div>
-          )}
-
           {/* Name row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -296,10 +269,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={profileSaving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {profileSaving ? 'Saving…' : 'Save changes'}
-            </button>
+            <Button type="submit" disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save changes'}</Button>
           </div>
         </form>
       </div>
@@ -308,15 +278,6 @@ export default function ProfilePage() {
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-2">My Accounts</h2>
         <p className="text-sm text-gray-500 mb-6">Switch between roles or create additional accounts to test different user experiences.</p>
-
-        {accountMsg && (
-          <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
-            accountMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-          }`}>
-            <span className="mt-0.5">{accountMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {accountMsg.text}
-          </div>
-        )}
 
         {/* Existing accounts */}
         <div className="space-y-2 mb-6">
@@ -361,14 +322,11 @@ export default function ProfilePage() {
                       <p className="text-sm font-medium text-gray-700">{label}</p>
                       <p className="text-xs text-gray-400">{desc}</p>
                     </div>
-                    <button
-                      type="button"
+                    <Button variant="secondary" size="sm" type="button"
                       disabled={isCreating}
-                      onClick={() => createRoleAccount(role, table)}
-                      className="shrink-0 px-3 py-1.5 text-xs font-medium rounded border border-brand text-brand bg-white hover:bg-brand-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
+                      onClick={() => createRoleAccount(role, table)}>
                       {isCreating ? 'Creating…' : '+ Create'}
-                    </button>
+                    </Button>
                   </div>
                 )
               })}
@@ -385,17 +343,6 @@ export default function ProfilePage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Change Password</h2>
 
         <form onSubmit={handlePasswordSubmit} className="space-y-5">
-          {passwordMsg && (
-            <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-              passwordMsg.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <span className="mt-0.5">{passwordMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-              {passwordMsg.text}
-            </div>
-          )}
-
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               New password
@@ -417,10 +364,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={passwordSaving}
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-              {passwordSaving ? 'Updating…' : 'Update password'}
-            </button>
+            <Button type="submit" disabled={passwordSaving}>{passwordSaving ? 'Updating…' : 'Update password'}</Button>
           </div>
         </form>
       </div>

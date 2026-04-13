@@ -3,6 +3,9 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit, revertAuditEntry } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
+import Badge from '../components/ui/Badge'
+import type { BadgeTone } from '../components/ui/Badge'
+import { formatDateShort, formatTime } from '../lib/format'
 
 interface AuditRow {
   id: string
@@ -30,15 +33,26 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   organization: 'Organization',
 }
 
-const ACTION_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  created: { bg: 'bg-green-50', text: 'text-green-700', label: 'Created' },
-  updated: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Updated' },
-  deleted: { bg: 'bg-red-50', text: 'text-red-700', label: 'Deleted' },
-  archived: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Archived' },
-  unarchived: { bg: 'bg-teal-50', text: 'text-teal-700', label: 'Restored' },
-  deactivated: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'De-activated' },
-  reactivated: { bg: 'bg-teal-50', text: 'text-teal-700', label: 'Re-activated' },
-  reverted: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'Reverted' },
+const ACTION_LABELS: Record<string, string> = {
+  created: 'Created',
+  updated: 'Updated',
+  deleted: 'Deleted',
+  archived: 'Archived',
+  unarchived: 'Restored',
+  deactivated: 'De-activated',
+  reactivated: 'Re-activated',
+  reverted: 'Reverted',
+}
+
+const ACTION_TONES: Record<string, BadgeTone> = {
+  created: 'success',
+  updated: 'info',
+  deleted: 'danger',
+  archived: 'warning',
+  unarchived: 'success',
+  deactivated: 'warning',
+  reactivated: 'success',
+  reverted: 'brand',
 }
 
 function formatFieldName(key: string): string {
@@ -230,7 +244,8 @@ export default function AuditLogPage() {
       ) : (
         <div className="space-y-1">
           {entries.map(entry => {
-            const style = ACTION_STYLES[entry.action] ?? { bg: 'bg-gray-50', text: 'text-gray-700', label: entry.action }
+            const actionLabel = ACTION_LABELS[entry.action] ?? entry.action
+            const actionTone = ACTION_TONES[entry.action] ?? 'neutral'
             const isExpanded = expandedId === entry.id
             const hasChanges = entry.old_values || entry.new_values
             const canRevert = isAdmin && entry.action === 'updated' && entry.old_values && entry.entity_id
@@ -245,9 +260,7 @@ export default function AuditLogPage() {
                 >
                   {/* Timestamp */}
                   <div className="text-xs text-gray-400 w-28 shrink-0">
-                    {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    {' '}
-                    {new Date(entry.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    {formatDateShort(entry.created_at)} {formatTime(entry.created_at)}
                   </div>
 
                   {/* Actor */}
@@ -256,9 +269,9 @@ export default function AuditLogPage() {
                   </div>
 
                   {/* Action badge */}
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${style.bg} ${style.text} shrink-0`}>
-                    {style.label}
-                  </span>
+                  <Badge tone={actionTone} pill={false} className="shrink-0">
+                    {actionLabel}
+                  </Badge>
 
                   {/* Entity type */}
                   <span className="text-sm text-gray-600 w-24 shrink-0">
@@ -332,7 +345,7 @@ export default function AuditLogPage() {
                         type="button"
                         disabled={reverting === entry.id}
                         onClick={e => { e.stopPropagation(); handleRevert(entry) }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {reverting === entry.id ? 'Reverting…' : '↩ Undo this change'}
                       </button>

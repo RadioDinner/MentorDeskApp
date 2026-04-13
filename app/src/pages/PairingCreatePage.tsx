@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
+import Button from '../components/ui/Button'
 
 interface PersonOption {
   id: string
@@ -175,14 +176,10 @@ export default function PairingCreatePage() {
             </div>
 
             <div className="flex items-center gap-3 pt-2">
-              <button type="submit" disabled={saving || mentors.length === 0 || mentees.length === 0}
-                className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
+              <Button type="submit" disabled={saving || mentors.length === 0 || mentees.length === 0}>
                 {saving ? 'Pairing…' : 'Create Pairing'}
-              </button>
-              <button type="button" onClick={() => navigate('/pairings')}
-                className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-                Cancel
-              </button>
+              </Button>
+              <Button variant="secondary" type="button" onClick={() => navigate('/pairings')}>Cancel</Button>
             </div>
           </form>
         )}

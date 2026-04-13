@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { computeCredits } from '../lib/credits'
 import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
+import Button from './ui/Button'
 
 interface Props {
   assignment: MenteeOffering & { offering?: Offering }
@@ -347,10 +348,9 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                         <p className="text-xs text-amber-600">All available time on this date is booked.</p>
                       )}
                       <input type="text" value={schedTitle} onChange={e => setSchedTitle(e.target.value)} placeholder="Meeting title (optional)" className={inputClass} />
-                      <button onClick={scheduleMeeting} disabled={scheduling || !schedDate || !schedStart || !schedEnd}
-                        className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover disabled:opacity-50 transition-colors">
+                      <Button onClick={scheduleMeeting} disabled={scheduling || !schedDate || !schedStart || !schedEnd}>
                         {scheduling ? 'Scheduling...' : 'Book Meeting'}
-                      </button>
+                      </Button>
                     </div>
                   )}
 
@@ -387,9 +387,9 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                   <div className="flex items-end gap-3 mb-3">
                     <div className="flex-1"><label className="block text-xs text-gray-500 mb-1">Date</label><input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} className={inputClass} /></div>
                     <div className="flex-[2]"><label className="block text-xs text-gray-500 mb-1">Notes</label><input type="text" value={logNotes} onChange={e => setLogNotes(e.target.value)} placeholder="Session notes..." className={inputClass} /></div>
-                    <button onClick={logSession} disabled={logging || !logDate} className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover disabled:opacity-50 transition-colors shrink-0">
+                    <Button onClick={logSession} disabled={logging || !logDate} className="shrink-0">
                       {logging ? '...' : '+ Log'}
-                    </button>
+                    </Button>
                   </div>
                   {sessions.length > 0 && (
                     <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -450,8 +450,8 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                         <textarea rows={2} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Internal notes..." className={inputClass + ' resize-none'} />
                       </div>
                       <div className="flex items-center gap-2 pt-1">
-                        <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover disabled:opacity-50 transition-colors">{saving ? 'Saving...' : 'Save'}</button>
-                        <button onClick={() => setEditing(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+                        <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+                        <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
                       </div>
                     </div>
                   ) : (
@@ -487,10 +487,9 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                         <div><label className="block text-xs text-gray-600 mb-1">Due date</label><input type="date" value={newInvoiceDue} onChange={e => setNewInvoiceDue(e.target.value)} className={inputClass} /></div>
                       </div>
                       <div><label className="block text-xs text-gray-600 mb-1">Description</label><input type="text" value={newInvoiceDesc} onChange={e => setNewInvoiceDesc(e.target.value)} placeholder={offering?.name ?? 'Engagement'} className={inputClass} /></div>
-                      <button onClick={createInvoice} disabled={creatingInvoice || !newInvoiceAmount}
-                        className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover disabled:opacity-50 transition-colors">
+                      <Button onClick={createInvoice} disabled={creatingInvoice || !newInvoiceAmount}>
                         {creatingInvoice ? 'Creating...' : 'Create Draft'}
-                      </button>
+                      </Button>
                     </div>
                   )}
 
