@@ -27,6 +27,7 @@ import MenteeCoursesPage from './pages/MenteeCoursesPage'
 import MenteeCourseViewerPage from './pages/MenteeCourseViewerPage'
 import MenteeBillingPage from './pages/MenteeBillingPage'
 import AvailabilityPage from './pages/AvailabilityPage'
+import MentorMeetingsPage from './pages/MentorMeetingsPage'
 import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />
+            <Route path="/meetings" element={<MentorMeetingsPage />} />
             {/* Mentee-specific routes */}
             <Route path="/my-engagements" element={<MenteeEngagementsPage />} />
             <Route path="/my-engagements/:id" element={<MenteeEngagementDetailPage />} />

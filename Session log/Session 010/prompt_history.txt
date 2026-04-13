@@ -13,3 +13,7 @@
 7. you're off with the migration numbers again. Add a reminder to the "new session instructions" to remember the numbering scheme we've decided to use. For now, I'll run what is in 977_scheduler_show_all_days but I want you to rename it to 964
 
 8. Ok. I've had it. THIS IS THE SESSION THAT WE GRAVEYARD THE LOADING BUG. I'm willing to dissaasemble this whole project to get to the bottom of it. I had it happen again where I clicked on the engagements module, it said "Loading..." for a while then gave me this "Failed to load engagements: Request timed out. Please refresh the page." You absolutely need to figure this out
+
+9. It's the loading path for all modules. This error happens on any module, from admin and mentee logins
+
+10. I'll test these as we build out features. Next, I want you to add a "Meetings" module to the Mentor login. I want this module to show the upcoming meetings scheduled with their mentees. Eventually, we'll have a "Join meeting" button that works with the integrations that we put in place. For now, just list the meetings and give the mentor the option to view the upcoming meetings as a list grouped by day or as a calendar view.

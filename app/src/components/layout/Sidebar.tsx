@@ -60,6 +60,7 @@ export default function Sidebar() {
     const mentorModules = [
       { key: 'home',         label: 'Home',         letter: 'H', path: '/dashboard',     gradient: 'from-slate-500 to-slate-700' },
       { key: 'my-mentees',   label: 'My Mentees',   letter: 'M', path: '/mentees',       gradient: 'from-green-400 to-green-600' },
+      { key: 'meetings',     label: 'Meetings',     letter: 'T', path: '/meetings',      gradient: 'from-rose-400 to-rose-600' },
       { key: 'availability', label: 'Availability', letter: 'A', path: '/availability',  gradient: 'from-violet-400 to-violet-600' },
       { key: 'reports',      label: 'Reports',      letter: 'R', path: '/reports',       gradient: 'from-cyan-400 to-cyan-600' },
     ]
