@@ -30,6 +30,7 @@ import AvailabilityPage from './pages/AvailabilityPage'
 import MentorMeetingsPage from './pages/MentorMeetingsPage'
 import InvoicingPage from './pages/InvoicingPage'
 import InvoicePrintPage from './pages/InvoicePrintPage'
+import PayrollPage from './pages/PayrollPage'
 import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -102,7 +103,11 @@ export default function App() {
                 <InvoicingPage />
               </ProtectedRoute>
             } />
-            <Route path="/payroll" element={<ComingSoonPage title="Payroll" />} />
+            <Route path="/payroll" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <PayrollPage />
+              </ProtectedRoute>
+            } />
             <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['admin']}>

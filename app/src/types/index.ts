@@ -251,6 +251,20 @@ export interface Invoice {
   updated_at: string
 }
 
+export interface TimeCard {
+  id: string
+  organization_id: string
+  staff_id: string
+  period_start: string         // YYYY-MM-DD
+  period_end: string           // YYYY-MM-DD
+  hours_worked: number
+  notes: string | null
+  document_data_url: string | null
+  document_name: string | null
+  entered_by: string | null
+  created_at: string
+}
+
 export interface AvailabilitySchedule {
   id: string
   organization_id: string
