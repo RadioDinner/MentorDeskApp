@@ -7,6 +7,7 @@ import PairingsGrid from '../components/PairingsGrid'
 import type { PairingStatus, FlowStep } from '../types'
 import Button from '../components/ui/Button'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 import { Skeleton } from '../components/ui'
 
 interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
@@ -96,7 +97,7 @@ export default function PairingsPage() {
       mentee_id: menteeId,
     }).select('id').single()
     setPairing(false)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PairingsPage', action: 'quickPair' }); toast.error(error.message); return }
     const mentor = mentors.find(m => m.id === mentorId)
     const mentee = mentees.find(m => m.id === menteeId)
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
@@ -108,7 +109,7 @@ export default function PairingsPage() {
   async function changeMentor(pairingId: string, newMentorId: string) {
     if (!profile) return
     const { error } = await supabase.from('pairings').update({ mentor_id: newMentorId }).eq('id', pairingId)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PairingsPage', action: 'changeMentor' }); toast.error(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'mentor_changed' } })
     fetchAll()
   }
@@ -118,7 +119,7 @@ export default function PairingsPage() {
     const updates: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'ended') updates.ended_at = new Date().toISOString()
     const { error } = await supabase.from('pairings').update(updates).eq('id', pairingId)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PairingsPage', action: 'changeStatus' }); toast.error(error.message); return }
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'pairing', entity_id: pairingId, details: { fields: 'status', status: newStatus } })
     fetchAll()
   }

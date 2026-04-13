@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -159,7 +160,7 @@ export default function PersonEditPage() {
 
     setSaving(false)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveProfile' }); toast.error(error.message); return }
 
     const oldVals = { first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, street: person.street, city: person.city, state: person.state, zip: person.zip, country: person.country }
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
@@ -196,7 +197,7 @@ export default function PersonEditPage() {
 
     setCompensationSaving(false)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveCompensation' }); toast.error(error.message); return }
 
     const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, pay_frequency: person.pay_frequency, max_active_mentees: person.max_active_mentees }
     const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, pay_frequency: frequencyToSave, max_active_mentees: maxMentees }
@@ -228,7 +229,9 @@ export default function PersonEditPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        toast.error(body.msg || body.message || body.error_description || `Error ${response.status}`)
+        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
+        reportSupabaseError({ message: msg }, { component: 'PersonEditPage', action: 'passwordReset' })
+        toast.error(msg)
         return
       }
 
@@ -237,6 +240,7 @@ export default function PersonEditPage() {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
+      reportSupabaseError({ message }, { component: 'PersonEditPage', action: 'passwordReset' })
       toast.error(message)
     } finally {
       setSendingReset(false)
@@ -267,7 +271,9 @@ export default function PersonEditPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        toast.error(body.msg || body.message || body.error_description || `Error ${response.status}`)
+        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
+        reportSupabaseError({ message: msg }, { component: 'PersonEditPage', action: 'sendInvite' })
+        toast.error(msg)
         return
       }
 
@@ -276,6 +282,7 @@ export default function PersonEditPage() {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
+      reportSupabaseError({ message }, { component: 'PersonEditPage', action: 'sendInvite' })
       toast.error(message)
     } finally {
       setSendingInvite(false)
@@ -287,7 +294,7 @@ export default function PersonEditPage() {
     const isArchived = !!person.archived_at
     const now = isArchived ? null : new Date().toISOString()
     const { error } = await supabase.from('staff').update({ archived_at: now }).eq('id', person.id)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'archive' }); toast.error(error.message); return }
     setPerson({ ...person, archived_at: now } as StaffMember)
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
     toast.success(isArchived ? 'Record restored.' : 'Record archived.')
@@ -298,7 +305,7 @@ export default function PersonEditPage() {
     setDeleting(true)
     const { error } = await supabase.from('staff').delete().eq('id', person.id)
     setDeleting(false)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'delete' }); toast.error(error.message); return }
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
     navigate(-1)
   }

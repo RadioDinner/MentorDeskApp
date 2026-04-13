@@ -7,6 +7,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit, AllocationGrantMode, AllocationRefreshMode } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
@@ -144,7 +145,7 @@ export default function CompanySettingsPage() {
         archive_settings: archiveSettings,
       }
       const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
-      if (error) { toast.error(error.message); return }
+      if (error) { reportSupabaseError(error, { component: 'CompanySettingsPage', action: 'save' }); toast.error(error.message); return }
       const updatedOrg = { ...org, ...updates }
       setOrg(updatedOrg)
       refreshTheme(updatedOrg)
@@ -152,6 +153,7 @@ export default function CompanySettingsPage() {
       await logAudit({ organization_id: org.id, actor_id: profile!.id, action: 'updated', entity_type: 'organization', entity_id: org.id, details: { section: 'settings' }, old_values: oldVals, new_values: { name: updates.name, slug: updates.slug, logo_url: updates.logo_url, primary_color: updates.primary_color, secondary_color: updates.secondary_color, tertiary_color: updates.tertiary_color } })
       toast.success('Settings saved.')
     } catch (err) {
+      reportSupabaseError({ message: (err as Error).message || 'Failed to save settings' }, { component: 'CompanySettingsPage', action: 'save' })
       toast.error((err as Error).message || 'Failed to save settings')
       console.error(err)
     } finally {
@@ -165,7 +167,7 @@ export default function CompanySettingsPage() {
     const fileExt = file.name.split('.').pop()
     const filePath = `${org.id}/logo.${fileExt}`
     const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file, { upsert: true })
-    if (uploadError) { toast.error('Upload failed: ' + uploadError.message); setUploading(false); return }
+    if (uploadError) { reportSupabaseError(uploadError, { component: 'CompanySettingsPage', action: 'logoUpload' }); toast.error('Upload failed: ' + uploadError.message); setUploading(false); return }
     const { data: urlData } = supabase.storage.from('logos').getPublicUrl(filePath)
     setLogoUrl(urlData.publicUrl); setUploading(false)
     toast.success('Logo uploaded. Click Save to apply.')

@@ -7,6 +7,7 @@ import { logAudit } from '../lib/audit'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 interface PersonOption {
   id: string
@@ -76,13 +77,14 @@ export default function PairingCreatePage() {
         .select('id')
         .single()
 
-      if (error) { toast.error(error.message); return }
+      if (error) { reportSupabaseError(error, { component: 'PairingCreatePage', action: 'create' }); toast.error(error.message); return }
 
       const mentor = mentors.find(m => m.id === mentorId)
       const mentee = mentees.find(m => m.id === menteeId)
       await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'pairing', entity_id: inserted?.id, details: { mentor: mentor ? `${mentor.first_name} ${mentor.last_name}` : mentorId, mentee: mentee ? `${mentee.first_name} ${mentee.last_name}` : menteeId } })
       navigate('/pairings')
     } catch (err) {
+      reportSupabaseError({ message: (err as Error).message || 'Failed to create pairing' }, { component: 'PairingCreatePage', action: 'create' })
       toast.error((err as Error).message || 'Failed to create pairing')
       console.error(err)
     } finally {

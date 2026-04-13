@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 interface PairingDetail {
   id: string
@@ -99,7 +100,7 @@ export default function PairingEditPage() {
 
     setSaving(false)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'PairingEditPage', action: 'save' }); toast.error(error.message); return }
 
     if (currentUser && pairing) await logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
     toast.success('Pairing updated.')

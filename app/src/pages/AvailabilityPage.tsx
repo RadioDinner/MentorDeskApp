@@ -7,6 +7,7 @@ import TimezoneSelect, { getBrowserTimezone } from '../components/TimezoneSelect
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 import type { AvailabilitySchedule, StaffMember } from '../types'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -71,7 +72,7 @@ export default function AvailabilityPage() {
     setSavingTz(true)
     const { error } = await supabase.from('staff').update({ timezone: tz }).eq('id', targetStaffId)
     setSavingTz(false)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'AvailabilityPage', action: 'saveTimezone' }); toast.error(error.message); return }
     setTimezone(tz)
     toast.success(tz ? `Timezone set to ${tz}.` : 'Timezone cleared (using browser default).')
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId, details: { section: 'availability', timezone: tz ?? 'browser_default' } })
@@ -104,7 +105,7 @@ export default function AvailabilityPage() {
       .select()
       .single()
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'AvailabilityPage', action: 'addBlock' }); toast.error(error.message); return }
     setSchedules(prev => [...prev, data as AvailabilitySchedule].sort((a, b) =>
       a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time)
     ))
@@ -116,7 +117,7 @@ export default function AvailabilityPage() {
   async function removeBlock(id: string) {
     const block = schedules.find(s => s.id === id)
     const { error } = await supabase.from('availability_schedules').delete().eq('id', id)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'AvailabilityPage', action: 'removeBlock' }); toast.error(error.message); return }
     setSchedules(prev => prev.filter(s => s.id !== id))
     if (profile && block) {
       await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId!, details: { section: 'availability', removed: { day: DAYS[block.day_of_week], start: block.start_time, end: block.end_time } } })
@@ -156,7 +157,7 @@ export default function AvailabilityPage() {
       .insert(rows)
       .select()
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'AvailabilityPage', action: 'copyDay' }); toast.error(error.message); return }
     setSchedules(prev => [...prev, ...(data as AvailabilitySchedule[])].sort((a, b) =>
       a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time)
     ))

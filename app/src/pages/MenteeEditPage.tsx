@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 export default function MenteeEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -110,7 +111,7 @@ export default function MenteeEditPage() {
 
     setSaving(false)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'MenteeEditPage', action: 'saveProfile' }); toast.error(error.message); return }
 
     const oldVals = { first_name: mentee.first_name, last_name: mentee.last_name, email: mentee.email, phone: mentee.phone, street: mentee.street, city: mentee.city, state: mentee.state, zip: mentee.zip, country: mentee.country }
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
@@ -124,7 +125,7 @@ export default function MenteeEditPage() {
     const isDeactivated = !!mentee.archived_at
     const now = isDeactivated ? null : new Date().toISOString()
     const { error } = await supabase.from('mentees').update({ archived_at: now }).eq('id', mentee.id)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'MenteeEditPage', action: 'deactivate' }); toast.error(error.message); return }
     setMentee({ ...mentee, archived_at: now } as Mentee)
     await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: isDeactivated ? 'reactivated' : 'deactivated', entity_type: 'mentee', entity_id: mentee.id })
     toast.success(isDeactivated ? 'Mentee re-activated.' : 'Mentee de-activated.')
@@ -135,7 +136,7 @@ export default function MenteeEditPage() {
     setDeleting(true)
     const { error } = await supabase.from('mentees').delete().eq('id', mentee.id)
     setDeleting(false)
-    if (error) { toast.error(error.message); return }
+    if (error) { reportSupabaseError(error, { component: 'MenteeEditPage', action: 'delete' }); toast.error(error.message); return }
     await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'mentee', entity_id: mentee.id })
     navigate('/mentees')
   }
@@ -289,7 +290,7 @@ export default function MenteeEditPage() {
                     .update({ flow_step_id: flowStepId || null })
                     .eq('id', mentee.id)
                   setStatusSaving(false)
-                  if (error) { toast.error(error.message); return }
+                  if (error) { reportSupabaseError(error, { component: 'MenteeEditPage', action: 'saveStatus' }); toast.error(error.message); return }
                   if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
                   toast.success('Status updated.')
                 }}>

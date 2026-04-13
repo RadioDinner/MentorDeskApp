@@ -8,6 +8,7 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import InvoiceEditModal from '../components/InvoiceEditModal'
 import type { InvoiceEditUpdates } from '../components/InvoiceEditModal'
 import { logAudit } from '../lib/audit'
+import { reportSupabaseError } from '../lib/errorReporter'
 import { formatMoney, formatDate, formatDateShort } from '../lib/format'
 import { Badge, toneForStatus, Skeleton, PageBar } from '../components/ui'
 import type { BadgeTone } from '../components/ui'
@@ -111,6 +112,7 @@ export default function InvoicingPage() {
     const { error: err } = await supabase.from('invoices').update(updates).eq('id', inv.id)
     setActing(null)
     if (err) {
+      reportSupabaseError(err, { component: 'InvoicingPage', action: 'transition' })
       toast.error(err.message)
       return
     }
@@ -158,6 +160,7 @@ export default function InvoicingPage() {
     const { error: err } = await supabase.from('invoices').delete().eq('id', inv.id)
     setActing(null)
     if (err) {
+      reportSupabaseError(err, { component: 'InvoicingPage', action: 'deleteInvoice' })
       toast.error(err.message)
       return
     }
