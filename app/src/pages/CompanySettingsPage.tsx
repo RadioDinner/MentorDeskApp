@@ -78,6 +78,7 @@ export default function CompanySettingsPage() {
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
   const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
+  const [schedulerMaxDaysAhead, setSchedulerMaxDaysAhead] = useState(14)
   const [allocationGrantMode, setAllocationGrantMode] = useState<AllocationGrantMode>('on_open')
   const [allocationRefreshMode, setAllocationRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
   const [payForUncredited, setPayForUncredited] = useState(false)
@@ -105,6 +106,7 @@ export default function CompanySettingsPage() {
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
         setAllowMultiEngagement(o.allow_multi_engagement ?? false)
         setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
+        setSchedulerMaxDaysAhead(o.scheduler_max_days_ahead ?? 14)
         setAllocationGrantMode(o.allocation_grant_mode ?? 'on_open')
         setAllocationRefreshMode(o.allocation_refresh_mode ?? 'by_cycle')
         setPayForUncredited(o.pay_mentors_for_uncredited_meetings ?? false)
@@ -132,6 +134,7 @@ export default function CompanySettingsPage() {
         enable_lesson_due_dates: enableLessonDueDates,
         allow_multi_engagement: allowMultiEngagement,
         show_all_days_in_scheduler: showAllDaysInScheduler,
+        scheduler_max_days_ahead: schedulerMaxDaysAhead,
         allocation_grant_mode: allocationGrantMode,
         allocation_refresh_mode: allocationRefreshMode,
         pay_mentors_for_uncredited_meetings: payForUncredited,
@@ -283,6 +286,31 @@ export default function CompanySettingsPage() {
                 <button type="button" onClick={() => setShowAllDaysInScheduler(!showAllDaysInScheduler)} className={toggleClass(showAllDaysInScheduler)}>
                   <span className={dotClass(showAllDaysInScheduler)} />
                 </button>
+              </div>
+
+              {/* Scheduler max days ahead */}
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div className="pr-4">
+                  <p className="text-sm font-medium text-gray-900">Max scheduling window</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    How many days in the future a mentee can schedule meetings from their engagement detail page.
+                    Increase this if you want mentees to be able to book months of meetings at once (up to 365).
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={schedulerMaxDaysAhead}
+                    onChange={e => {
+                      const n = parseInt(e.target.value)
+                      if (!isNaN(n)) setSchedulerMaxDaysAhead(Math.max(1, Math.min(365, n)))
+                    }}
+                    className="w-20 rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 text-right outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                  />
+                  <span className="text-xs text-gray-500">days</span>
+                </div>
               </div>
 
               {/* Allocation grant mode */}

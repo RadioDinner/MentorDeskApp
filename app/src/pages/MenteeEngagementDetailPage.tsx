@@ -19,6 +19,7 @@ export default function MenteeEngagementDetailPage() {
   const [mentorAllMeetings, setMentorAllMeetings] = useState<Meeting[]>([])
   const [mentor, setMentor] = useState<MentorInfo | null>(null)
   const [showAllDays, setShowAllDays] = useState(true)
+  const [maxDaysAhead, setMaxDaysAhead] = useState(14)
   const [grantMode, setGrantMode] = useState<AllocationGrantMode>('on_open')
   const [refreshMode, setRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
   const [paidInvoiceDates, setPaidInvoiceDates] = useState<string[]>([])
@@ -31,7 +32,6 @@ export default function MenteeEngagementDetailPage() {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedStart, setSelectedStart] = useState('')
   const [selectedEnd, setSelectedEnd] = useState('')
-  const [meetingTitle, setMeetingTitle] = useState('')
   const [scheduling, setScheduling] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [conflictError, setConflictError] = useState<string | null>(null)
@@ -51,11 +51,11 @@ export default function MenteeEngagementDetailPage() {
         if (engagement.offering?.type !== 'engagement') { setError('This is not an engagement.'); return }
         setMo(engagement)
 
-        // Load org settings: scheduler visibility + allocation modes
+        // Load org settings: scheduler visibility + allocation modes + max days ahead
         if (engagement.organization_id) {
           const { data: orgData } = await supabase
             .from('organizations')
-            .select('show_all_days_in_scheduler, allocation_grant_mode, allocation_refresh_mode')
+            .select('show_all_days_in_scheduler, allocation_grant_mode, allocation_refresh_mode, scheduler_max_days_ahead')
             .eq('id', engagement.organization_id)
             .single()
           if (orgData) {
@@ -63,10 +63,14 @@ export default function MenteeEngagementDetailPage() {
               show_all_days_in_scheduler?: boolean
               allocation_grant_mode?: AllocationGrantMode
               allocation_refresh_mode?: AllocationRefreshMode
+              scheduler_max_days_ahead?: number
             }
             if (typeof o.show_all_days_in_scheduler === 'boolean') setShowAllDays(o.show_all_days_in_scheduler)
             if (o.allocation_grant_mode) setGrantMode(o.allocation_grant_mode)
             if (o.allocation_refresh_mode) setRefreshMode(o.allocation_refresh_mode)
+            if (typeof o.scheduler_max_days_ahead === 'number' && o.scheduler_max_days_ahead > 0) {
+              setMaxDaysAhead(o.scheduler_max_days_ahead)
+            }
           }
         }
 
@@ -192,7 +196,7 @@ export default function MenteeEngagementDetailPage() {
           mentee_offering_id: mo.id,
           mentee_id: menteeId,
           mentor_id: mentor.id,
-          title: meetingTitle.trim() || `Session with ${mentor.first_name}`,
+          title: `Session with ${mentor.first_name}`,
           starts_at: startsAt,
           ends_at: endsAt,
           duration_minutes: durationMinutes,
@@ -210,7 +214,6 @@ export default function MenteeEngagementDetailPage() {
       setSelectedDate('')
       setSelectedStart('')
       setSelectedEnd('')
-      setMeetingTitle('')
       setMsg({ type: 'success', text: 'Meeting scheduled!' })
     } catch (err) {
       setMsg({ type: 'error', text: (err as Error).message || 'Failed to schedule' })
@@ -246,7 +249,10 @@ export default function MenteeEngagementDetailPage() {
     paidInvoiceDates,
   })
 
-  const upcomingMeetings = allocation.upcomingMeetings
+  // Sort chronologically (soonest first) for the Upcoming Meetings section.
+  const upcomingMeetings = [...allocation.upcomingMeetings].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+  )
   const pastMeetings = myMeetings.filter(m => new Date(m.ends_at) <= new Date() || m.status === 'cancelled')
   const canSchedule = !isCompleted && mentor && (allocation.unlimited || (allocation.availableToBook ?? 0) > 0)
 
@@ -258,12 +264,15 @@ export default function MenteeEngagementDetailPage() {
     ? generateBookableBlocks(selectedDate, meetingDurationMinutes, availability, mentorAllMeetings, 30)
     : []
 
-  // Date options: next 14 days. When showAllDays is off, filter to only
-  // dates where the mentor has at least one bookable block of the required
-  // length (not just any raw availability).
+  // Date options: next N days where N is the org setting scheduler_max_days_ahead.
+  // When showAllDays is off, filter to only dates where the mentor has at
+  // least one bookable block of the required length (not just any raw
+  // availability).
   const allDateOptions: string[] = []
   const now = new Date()
-  for (let i = 1; i <= 14; i++) allDateOptions.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10))
+  for (let i = 1; i <= maxDaysAhead; i++) {
+    allDateOptions.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10))
+  }
   const dateOptions = showAllDays
     ? allDateOptions
     : allDateOptions.filter(d => generateBookableBlocks(d, meetingDurationMinutes, availability, mentorAllMeetings, 30).length > 0)
@@ -428,16 +437,6 @@ export default function MenteeEngagementDetailPage() {
               {conflictError && (
                 <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
                   {conflictError}
-                </div>
-              )}
-
-              {/* Title */}
-              {selectedStart && selectedEnd && !conflictError && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Meeting title (optional)</label>
-                  <input type="text" value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)}
-                    placeholder={`Session with ${mentor?.first_name ?? 'your mentor'}`}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
                 </div>
               )}
 

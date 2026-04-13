@@ -47,3 +47,5 @@
 24. In the mentor pay type screen, if they select salary, I want an additional field to set the frequency. like monthly, weekly, bi weekly, etc
 
 25. Also, make the staff edit pages a single screen. Right now it I need to scroll down to see the account archive and delete options. also, separate the "Max active mentees" field from the Compensation box.
+
+26. In the Mentee "My Engagements" screen, I don't want them to be able to set a meeting title. Also, I want add a company option to set the setting of how far in advance mentees can schedule appointments. If one org says mentees can schedule out 60 days in advance, they could set that in company options, that way a mentee could log in and schedule all his appointments for hte next 2 motnhs of his allocations allow. Also, in the Upcoming Meetings section, the meetings are sorted by the time they were created, I want them to be scheduled in chroniclogical order of occurrance.

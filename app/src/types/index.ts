@@ -111,6 +111,7 @@ export interface Organization {
   enable_lesson_due_dates: boolean
   allow_multi_engagement: boolean
   show_all_days_in_scheduler: boolean
+  scheduler_max_days_ahead: number
   allocation_grant_mode: AllocationGrantMode
   allocation_refresh_mode: AllocationRefreshMode
   pay_mentors_for_uncredited_meetings: boolean
