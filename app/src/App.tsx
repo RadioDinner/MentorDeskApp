@@ -54,8 +54,8 @@ export default function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'staff']} createLabel="Create Staff Member" createRoute="/staff/new" showAccessGroups />} />
-            <Route path="/staff/new" element={<PersonCreatePage title="Create Staff Member" defaultRole="staff" backRoute="/staff" />} />
+            <Route path="/staff" element={<PeopleListPage title="Staff" roles={['admin', 'operations', 'course_creator', 'staff']} createLabel="Create Staff Member" createRoute="/staff/new" showAccessGroups />} />
+            <Route path="/staff/new" element={<PersonCreatePage title="Create Staff Member" defaultRole="operations" backRoute="/staff" allowRoleSelection />} />
             <Route path="/mentors" element={<PeopleListPage title="Mentors" roles={['mentor']} createLabel="Create Mentor" createRoute="/mentors/new" />} />
             <Route path="/mentors/new" element={<PersonCreatePage title="Create Mentor" defaultRole="mentor" backRoute="/mentors" />} />
             <Route path="/assistant-mentors" element={<PeopleListPage title="Assistant Mentors" roles={['assistant_mentor']} createLabel="Create Assistant Mentor" createRoute="/assistant-mentors/new" />} />

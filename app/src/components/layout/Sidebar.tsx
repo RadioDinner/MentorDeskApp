@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../../lib/modules'
+import { STAFF_ROLE_LABELS } from '../../types'
 
 export default function Sidebar() {
   const { profile, isMenteeMode } = useAuth()
@@ -94,8 +95,8 @@ export default function Sidebar() {
           <p className="text-xs font-medium text-slate-200 truncate">
             {profile.first_name} {profile.last_name}
           </p>
-          <p className="text-xs text-slate-400 capitalize">
-            {profile.role.replace('_', ' ')}
+          <p className="text-xs text-slate-400">
+            {STAFF_ROLE_LABELS[profile.role] ?? profile.role}
           </p>
         </div>
       </aside>
@@ -162,8 +163,8 @@ export default function Sidebar() {
         <p className="text-xs font-medium text-slate-200 truncate">
           {profile.first_name} {profile.last_name}
         </p>
-        <p className="text-xs text-slate-400 capitalize">
-          {isMenteeMode ? 'Mentee' : profile.role.replace('_', ' ')}
+        <p className="text-xs text-slate-400">
+          {isMenteeMode ? 'Mentee' : (STAFF_ROLE_LABELS[profile.role] ?? profile.role)}
         </p>
       </div>
 

@@ -6,14 +6,20 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import type { StaffRole } from '../types'
+import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES } from '../types'
 
 interface PersonCreatePageProps {
   title: string
   defaultRole: StaffRole
   backRoute: string
+  /** When true, render a Role dropdown so the creator can choose admin /
+   *  operations / course_creator at creation time. Used on the Staff create
+   *  page; Mentors and Asst. Mentor create pages omit it since they pin the
+   *  role implicitly. */
+  allowRoleSelection?: boolean
 }
 
-export default function PersonCreatePage({ title, defaultRole, backRoute }: PersonCreatePageProps) {
+export default function PersonCreatePage({ title, defaultRole, backRoute, allowRoleSelection }: PersonCreatePageProps) {
   const { profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
 
@@ -21,6 +27,7 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [role, setRole] = useState<StaffRole>(defaultRole)
   const [street, setStreet] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
@@ -57,7 +64,7 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
-        role: defaultRole,
+        role,
         phone: phone.trim() || null,
         street: street.trim() || null,
         city: city.trim() || null,
@@ -70,16 +77,16 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
     setSaving(false)
 
     if (error) {
-      reportSupabaseError(error, { component: 'PersonCreatePage', action: 'create', metadata: { role: defaultRole, email: email.trim() } })
+      reportSupabaseError(error, { component: 'PersonCreatePage', action: 'create', metadata: { role: role, email: email.trim() } })
       const friendly = error.message.includes('staff_organization_id_email_role_key')
-        ? `A ${defaultRole} account with the email "${email.trim()}" already exists in your organization.`
+        ? `A ${role} account with the email "${email.trim()}" already exists in your organization.`
         : error.message
       setMsg({ type: 'error', text: friendly })
       return
     }
 
     if (data && data.length > 0) {
-      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'staff', entity_id: data[0].id, details: { role: defaultRole, name: `${firstName.trim()} ${lastName.trim()}` } })
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'staff', entity_id: data[0].id, details: { role: role, name: `${firstName.trim()} ${lastName.trim()}` } })
       // If we linked the new record to the current user, refresh the profile
       // switcher so the new role appears in the Topbar dropdown immediately
       if (linkedUserId) {
@@ -155,6 +162,25 @@ export default function PersonCreatePage({ title, defaultRole, backRoute }: Pers
                 onChange={e => setPhone(e.target.value)} placeholder="Optional" className={inputClass} />
             </div>
           </div>
+
+          {/* Role — staff umbrella only */}
+          {allowRoleSelection && (
+            <div>
+              <label htmlFor="createRole" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Role
+              </label>
+              <select id="createRole" value={role}
+                onChange={e => setRole(e.target.value as StaffRole)}
+                className={inputClass + ' bg-white'}>
+                {STAFF_UMBRELLA_ROLES.filter(r => r !== 'staff').map(r => (
+                  <option key={r} value={r}>{STAFF_ROLE_LABELS[r]}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Admin has full access. Operations and Course Creator are specialized roles you can tailor further with per-module permissions after creation.
+              </p>
+            </div>
+          )}
 
           {/* Street */}
           <div>

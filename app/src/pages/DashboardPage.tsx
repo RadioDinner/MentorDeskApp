@@ -83,7 +83,12 @@ export default function DashboardPage() {
       if (staffData) {
         setStats({
           mentors: staffData.filter(s => s.role === 'mentor').length,
-          staff: staffData.filter(s => s.role === 'staff' || s.role === 'admin').length,
+          staff: staffData.filter(s =>
+            s.role === 'admin' ||
+            s.role === 'operations' ||
+            s.role === 'course_creator' ||
+            s.role === 'staff'
+          ).length,
         })
       }
     }

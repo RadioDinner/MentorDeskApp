@@ -1,4 +1,19 @@
-export type StaffRole = 'admin' | 'mentor' | 'assistant_mentor' | 'staff'
+export type StaffRole = 'admin' | 'operations' | 'course_creator' | 'mentor' | 'assistant_mentor' | 'staff'
+
+// Roles that fall under the "/staff" (non-mentor) umbrella. The legacy 'staff'
+// value is kept for backwards compatibility with existing rows.
+export const STAFF_UMBRELLA_ROLES: StaffRole[] = ['admin', 'operations', 'course_creator', 'staff']
+
+// Human-readable labels for every staff role — use this when rendering role
+// in the UI so the wording stays consistent everywhere.
+export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
+  admin: 'Admin',
+  operations: 'Operations',
+  course_creator: 'Course Creator',
+  staff: 'Staff',
+  mentor: 'Mentor',
+  assistant_mentor: 'Asst. Mentor',
+}
 
 export interface RoleGroup {
   id: string

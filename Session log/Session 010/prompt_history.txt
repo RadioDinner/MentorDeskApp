@@ -35,3 +35,5 @@
 18. I noticed something, that when using the "+ Schedule Meeting" button on the mentee login, if I selected 9:30-10:30 and confirmed the appointment, it showed up as something else like 5:30-6:30AM.
 
 19. Some of the staff don't have the permissions logos or drop downs. Why?
+
+20. Ah ok, I'm fine with it missing on admins but I want a way to set a staff account as an admin. And I want to setup staff roles. "Admin","Operations", or "Course Creator"

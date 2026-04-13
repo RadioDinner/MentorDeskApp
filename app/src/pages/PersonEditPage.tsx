@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
-import type { StaffMember, PayType, PayTypeSettings, RoleCategory } from '../types'
+import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole } from '../types'
+import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES } from '../types'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -17,6 +18,8 @@ const PAY_TYPE_LABELS: Record<PayType, string> = {
 function getRoleCategory(role: string): RoleCategory {
   if (role === 'mentor') return 'mentor'
   if (role === 'assistant_mentor') return 'assistant_mentor'
+  // admin, operations, course_creator, and legacy 'staff' all fall under the
+  // staff pay category.
   return 'staff'
 }
 
@@ -34,6 +37,7 @@ export default function PersonEditPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [role, setRole] = useState<StaffRole>('staff')
   const [timezone, setTimezone] = useState<string | null>(null)
   const [street, setStreet] = useState('')
   const [city, setCity] = useState('')
@@ -82,6 +86,7 @@ export default function PersonEditPage() {
       setLastName(p.last_name)
       setEmail(p.email)
       setPhone(p.phone ?? '')
+      setRole(p.role)
       setTimezone(p.timezone ?? null)
       setStreet(p.street ?? '')
       setCity(p.city ?? '')
@@ -130,6 +135,7 @@ export default function PersonEditPage() {
         zip: zip.trim() || null,
         country: country.trim() || null,
         timezone: timezone,
+        role: role,
       })
       .eq('id', person.id)
 
@@ -431,6 +437,30 @@ export default function PersonEditPage() {
                 <TimezoneSelect id="editTimezone" value={timezone} onChange={setTimezone} />
                 <p className="text-[11px] text-gray-400 mt-1">Used to interpret their weekly availability and display meeting times.</p>
               </div>
+
+              {/* Role — only editable for staff-umbrella roles. Mentors and
+                   Assistant Mentors have their role pinned by the page they
+                   were created from. */}
+              {STAFF_UMBRELLA_ROLES.includes(person.role) && (
+                <div>
+                  <label htmlFor="editRole" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Role
+                  </label>
+                  <select id="editRole" value={role}
+                    onChange={e => setRole(e.target.value as StaffRole)}
+                    className={inputClass + ' bg-white'}>
+                    {STAFF_UMBRELLA_ROLES.map(r => (
+                      <option key={r} value={r}>
+                        {STAFF_ROLE_LABELS[r]}
+                        {r === 'staff' ? ' (legacy)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Admin grants full access. Operations and Course Creator are starting templates — fine-tune individual module access below.
+                  </p>
+                </div>
+              )}
 
               <div className="pt-2">
                 <button type="submit" disabled={saving}
