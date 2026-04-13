@@ -333,9 +333,9 @@ export default function PersonEditPage() {
   const hasAuthAccount = person.user_id !== null
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-7xl">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-4">
         <button
           onClick={() => navigate(-1)}
           className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
@@ -355,13 +355,13 @@ export default function PersonEditPage() {
         </div>
       </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Row 1 — Personal info + right sidebar (compensation / max mentees / availability) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Left column — Personal Information (2/3 width) */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
-            <h2 className="text-base font-semibold text-gray-900 mb-6">Personal Information</h2>
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Personal Information</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
               {profileMsg && (
@@ -497,13 +497,13 @@ export default function PersonEditPage() {
           </div>
         </div>
 
-        {/* Right column — System Actions (1/3 width) */}
-        <div className="space-y-6">
+        {/* Right column — Compensation / Max Mentees / Availability */}
+        <div className="space-y-4">
 
           {/* Compensation */}
           {person.role !== 'admin' && availablePayTypes.length > 0 && (
-            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Compensation</h2>
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">Compensation</h2>
 
               <form onSubmit={handleCompensationSave} className="space-y-4">
                 {compensationMsg && (
@@ -610,26 +610,31 @@ export default function PersonEditPage() {
                   )
                 })()}
 
-                {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
-                  <div>
-                    <label htmlFor="maxMentees" className="block text-xs font-medium text-gray-700 mb-1">
-                      Max active mentees
-                    </label>
-                    <input
-                      id="maxMentees"
-                      type="number"
-                      min="1"
-                      value={maxActiveMentees}
-                      onChange={e => setMaxActiveMentees(e.target.value)}
-                      placeholder="No limit"
-                      className={inputClass + ' max-w-32'}
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
-                    </p>
-                  </div>
-                )}
+                <button type="submit" disabled={compensationSaving}
+                  className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  {compensationSaving ? 'Saving…' : 'Save'}
+                </button>
+              </form>
+            </div>
+          )}
 
+          {/* Max active mentees — standalone card for mentors / assistant mentors */}
+          {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">Max Active Mentees</h2>
+              <form onSubmit={handleCompensationSave} className="space-y-3">
+                <input
+                  id="maxMentees"
+                  type="number"
+                  min="1"
+                  value={maxActiveMentees}
+                  onChange={e => setMaxActiveMentees(e.target.value)}
+                  placeholder="No limit"
+                  className={inputClass}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
+                </p>
                 <button type="submit" disabled={compensationSaving}
                   className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {compensationSaving ? 'Saving…' : 'Save'}
@@ -640,9 +645,9 @@ export default function PersonEditPage() {
 
           {/* Availability — mentors and assistant mentors only */}
           {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
-            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-3">Availability Schedule</h2>
-              <p className="text-xs text-gray-500 mb-4">Manage when {person.first_name} is available for mentee sessions.</p>
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-2">Availability Schedule</h2>
+              <p className="text-xs text-gray-500 mb-3">Manage when {person.first_name} is available for mentee sessions.</p>
               <button
                 type="button"
                 onClick={() => navigate(`/people/${person.id}/availability`)}
@@ -654,8 +659,14 @@ export default function PersonEditPage() {
             </div>
           )}
 
+        </div>
+      </div>
+
+      {/* Row 2 — utility cards (Account / System Emails / Danger Zone) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
           {/* Account status */}
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
 
             <div className="flex items-center gap-2 mb-4">
@@ -674,8 +685,8 @@ export default function PersonEditPage() {
           </div>
 
           {/* System emails */}
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">System Emails</h2>
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">System Emails</h2>
 
             {actionMsg && (
               <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
@@ -724,8 +735,8 @@ export default function PersonEditPage() {
           </div>
 
           {/* Danger Zone */}
-          <div className="bg-white rounded-md border border-red-200 px-6 py-6">
-            <h2 className="text-base font-semibold text-red-600 mb-4">Danger Zone</h2>
+          <div className="bg-white rounded-md border border-red-200 px-6 py-5">
+            <h2 className="text-base font-semibold text-red-600 mb-3">Danger Zone</h2>
             <div className="space-y-3">
               {/* Archive / Restore */}
               <div>
@@ -773,7 +784,6 @@ export default function PersonEditPage() {
             </div>
           </div>
 
-        </div>
       </div>
     </div>
   )

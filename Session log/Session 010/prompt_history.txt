@@ -45,3 +45,5 @@
 23. Also, while we're making changes here, let's go ahead and add a company option to toggle a setting for whether people get paid for meetings that not actually completed. I'll give you an example. If Mentor A has mentee 1 that is on an engagement where he pays for 4 meetings a month and no-shows or cancels a meeting where the policy is set that he doesn't get credited, I want the option to be able to be set to decide whether that person still gets paid for the cancelled meeting or if it would just go back to the org.
 
 24. In the mentor pay type screen, if they select salary, I want an additional field to set the frequency. like monthly, weekly, bi weekly, etc
+
+25. Also, make the staff edit pages a single screen. Right now it I need to scroll down to see the account archive and delete options. also, separate the "Max active mentees" field from the Compensation box.
