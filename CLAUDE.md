@@ -75,6 +75,19 @@ At the beginning of each new session, follow these instructions:
    - Always merge and push to main in this session unless told to create a branch.
    - Always commit and push session logs before ending a session.
 
-6. GENERAL
+6. SUPABASE MIGRATION NUMBERING (IMPORTANT)
+   - Migration files in supabase/migrations/ count DOWN from 999, NOT up.
+   - 999 is the OLDEST foundational migration. Newer migrations get LOWER
+     numbers.
+   - Before creating a new migration, run `ls supabase/migrations/` and find
+     the LOWEST existing number. The new migration gets that number minus 1.
+   - Example: if the lowest existing migration is 965_foo.sql, the next new
+     migration is 964_<your_name>.sql.
+   - Do NOT reach for "one higher than the highest" — that collides with
+     existing files and is wrong.
+   - When creating multiple migrations in a single session, keep decrementing
+     (964, then 963, then 962, ...).
+
+7. GENERAL
    - Keep prompt_history.txt updated throughout the session, not just at the end.
    - These instructions may be updated by the user at any time.
