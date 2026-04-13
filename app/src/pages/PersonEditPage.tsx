@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
-import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Offering } from '../types'
-import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES } from '../types'
+import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Offering, PayFrequency } from '../types'
+import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES, PAY_FREQUENCY_LABELS } from '../types'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -62,6 +62,7 @@ export default function PersonEditPage() {
   const [payType, setPayType] = useState<PayType | ''>('')
   const [payRate, setPayRate] = useState('')
   const [payOfferingId, setPayOfferingId] = useState<string | null>(null)
+  const [payFrequency, setPayFrequency] = useState<PayFrequency | ''>('')
   const [orgOfferings, setOrgOfferings] = useState<Offering[]>([])
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
   const [maxActiveMentees, setMaxActiveMentees] = useState('')
@@ -109,6 +110,7 @@ export default function PersonEditPage() {
       setPayType(p.pay_type ?? '')
       setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
       setPayOfferingId(p.pay_offering_id ?? null)
+      setPayFrequency(p.pay_frequency ?? '')
       setMaxActiveMentees(p.max_active_mentees != null ? String(p.max_active_mentees) : '')
 
       // Fetch org pay settings + offerings (for pay_offering_id dropdown) in parallel
@@ -181,6 +183,8 @@ export default function PersonEditPage() {
     const offeringIdToSave = payType && OFFERING_LINKED_PAY_TYPES.includes(payType as PayType)
       ? (payOfferingId || null)
       : null
+    // Only persist pay_frequency when the pay type is salary.
+    const frequencyToSave: PayFrequency | null = payType === 'salary' ? (payFrequency || null) : null
 
     const { error } = await supabase
       .from('staff')
@@ -188,6 +192,7 @@ export default function PersonEditPage() {
         pay_type: payType || null,
         pay_rate: rateNum,
         pay_offering_id: offeringIdToSave,
+        pay_frequency: frequencyToSave,
         max_active_mentees: maxMentees,
       })
       .eq('id', person.id)
@@ -199,8 +204,8 @@ export default function PersonEditPage() {
       return
     }
 
-    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, max_active_mentees: person.max_active_mentees }
-    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, max_active_mentees: maxMentees }
+    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, pay_frequency: person.pay_frequency, max_active_mentees: person.max_active_mentees }
+    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, pay_frequency: frequencyToSave, max_active_mentees: maxMentees }
     setPerson({ ...person, ...newComp })
     if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
     setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
@@ -553,6 +558,27 @@ export default function PersonEditPage() {
                       </div>
                     </div>
                   </>
+                )}
+
+                {/* Salary frequency — only for salary */}
+                {payType === 'salary' && (
+                  <div>
+                    <label htmlFor="payFrequency" className="block text-xs font-medium text-gray-700 mb-1">
+                      Pay frequency
+                    </label>
+                    <select
+                      id="payFrequency"
+                      value={payFrequency}
+                      onChange={e => setPayFrequency(e.target.value as PayFrequency | '')}
+                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                    >
+                      <option value="">Select frequency...</option>
+                      {(Object.keys(PAY_FREQUENCY_LABELS) as PayFrequency[]).map(f => (
+                        <option key={f} value={f}>{PAY_FREQUENCY_LABELS[f]}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-1">How often the salary amount is paid out.</p>
+                  </div>
                 )}
 
                 {/* Linked offering — only for pct_engagement_profit / pct_course_profit */}

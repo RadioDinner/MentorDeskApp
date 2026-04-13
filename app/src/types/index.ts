@@ -37,6 +37,17 @@ export const PERCENTAGE_PAY_TYPES: PayType[] = [
   'pct_per_meeting',
 ]
 
+// How often a salaried staff member is paid.
+export type PayFrequency = 'weekly' | 'bi_weekly' | 'semi_monthly' | 'monthly' | 'annually'
+
+export const PAY_FREQUENCY_LABELS: Record<PayFrequency, string> = {
+  weekly: 'Weekly',
+  bi_weekly: 'Bi-weekly (every 2 weeks)',
+  semi_monthly: 'Semi-monthly (twice a month)',
+  monthly: 'Monthly',
+  annually: 'Annually',
+}
+
 // Pay types that require the admin to pick a specific offering the staff
 // member is paid from (pay_offering_id on the staff record).
 export const OFFERING_LINKED_PAY_TYPES: PayType[] = [
@@ -386,6 +397,7 @@ export interface StaffMember {
   country: string | null
   pay_type: PayType | null
   pay_offering_id: string | null
+  pay_frequency: PayFrequency | null
   pay_rate: number | null
   access_groups: string[]
   allowed_modules: string[]
