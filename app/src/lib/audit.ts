@@ -7,6 +7,7 @@ export type EntityType =
   | 'pairing'
   | 'organization'
   | 'mentee_offering'
+  | 'invoice'
 
 export interface AuditEntry {
   organization_id: string

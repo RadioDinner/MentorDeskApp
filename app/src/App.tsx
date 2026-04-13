@@ -28,6 +28,7 @@ import MenteeCourseViewerPage from './pages/MenteeCourseViewerPage'
 import MenteeBillingPage from './pages/MenteeBillingPage'
 import AvailabilityPage from './pages/AvailabilityPage'
 import MentorMeetingsPage from './pages/MentorMeetingsPage'
+import InvoicingPage from './pages/InvoicingPage'
 import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -85,7 +86,11 @@ export default function App() {
             <Route path="/my-billing" element={<MenteeBillingPage />} />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
-            <Route path="/invoicing" element={<ComingSoonPage title="Invoicing" />} />
+            <Route path="/invoicing" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <InvoicingPage />
+              </ProtectedRoute>
+            } />
             <Route path="/payroll" element={<ComingSoonPage title="Payroll" />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/settings" element={
