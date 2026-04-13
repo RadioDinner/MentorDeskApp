@@ -1,0 +1,221 @@
+SESSION 010 - HANDOFF LOG
+==========================
+Date: 2026-04-13
+Branch: main (direct push) + claude/wrap-session-10-ffAM6 for wrap-up
+
+
+SUMMARY
+--------
+Huge feature + bugfix session. 28 prompts processed. Headline items:
+the "Loading..." bug that plagued prior sessions was finally root-caused
+and fixed; block-based mentee scheduling w/ org configurability; new
+Mentor Meetings module; admin Invoicing module with edit/delete/PDF;
+Pairings overhaul; availability editing overhaul (incl. RLS fix);
+staff roles + permissions; pay type rework w/ % per meeting; Payroll
+module v1; plus many smaller UX fixes.
+
+
+CHANGES MADE
+-------------
+
+1. LOADING BUG — FINALLY FIXED (commit 16949d9)
+   - Root cause: Supabase JS SDK auth-lock deadlock across modules.
+     Any module using the SDK client could hang waiting on the auth
+     lock under certain cold-start/race conditions, producing the
+     "Request timed out. Please refresh the page." error on
+     engagements, courses, mentees, etc.
+   - Fix: page loads now go through raw REST calls via
+     supabaseRestCall, bypassing the SDK auth lock for reads. SDK is
+     still used where auth state is required.
+   - This affects all modules from admin and mentee logins.
+
+2. SCHEDULER — ORG TOGGLE FOR DATE DROPDOWN (commit 7028c1f + 964)
+   - Company option: "Show all dates in scheduler dropdown" vs.
+     "Show only dates the assigned mentor is available".
+   - Migration 964_scheduler_show_all_days.sql (user caught a
+     numbering error — originally written as 977, renamed to 964).
+
+3. SCHEDULER — MEETING LENGTH + BLOCK PICKER (commit 975acef + 963)
+   - Engagements gain a meeting duration setting (e.g. 4 meetings
+     of 1 hour each).
+   - Mentee scheduler now shows time blocks (9:00–10:00, 9:30–10:30,
+     10:00–11:00, ...) for the selected available day.
+   - Migration 963_offering_meeting_duration.sql.
+
+4. MIGRATION NUMBERING REMINDER (commit 2bfa89d)
+   - Added rule #6 to CLAUDE.md new session instructions documenting
+     the count-DOWN-from-999 numbering scheme so future sessions stop
+     getting it wrong.
+
+5. MENTOR MEETINGS MODULE (commit eede0d3)
+   - New "Meetings" module in the mentor portal.
+   - Lists upcoming meetings with mentees.
+   - Toggle between list-grouped-by-day view and calendar view.
+   - Placeholder Join Meeting button (awaits Google/Teams integration).
+
+6. ALLOCATION MODEL — ORG CONFIGURABLE (commit ff01167 + 962)
+   - Mentee scheduler now shows remaining allocation count.
+   - Org option: "Allocate meetings when engagement is opened" vs.
+     "Allocate when invoice is paid".
+   - Org option: additional allocations "By cycle" vs.
+     "By invoice payment".
+   - Migration 962_allocation_modes.sql.
+
+7. ADMIN INVOICING MODULE v1 (commit bf72423)
+   - New Invoicing tab in admin dashboard.
+   - View and process invoices.
+
+8. MENTEE MY ENGAGEMENTS — UPCOMING/PAST TABS (commit 823a010)
+   - Added Upcoming Meetings / Past Meetings tabs.
+   - Placeholder Join Meeting button (same integration wait as above).
+
+9. PAIRINGS MODULE REDESIGN (commit cc7b3bf + c3c49f4)
+   - Main grid becomes filterable/orderable.
+   - Tabs: By Mentor, By Offering, By Status, Unpaired/Waiting List.
+   - Waiting-list ordering.
+   - Collapsed "Status" + "Status Step" into a single auto-updating
+     Status column, system-wide.
+
+10. AVAILABILITY EDITING — RLS FIX + UX OVERHAUL (commit 1c85017 + 961)
+    - Fix: "new row violates row-level security policy for
+      availability_schedules" when creating a time slot.
+    - Time nudger arrows on time inputs.
+    - Copy-day helper to clone slots across days.
+    - Timezone dropdown (editable by admin in mentor edit page and
+      by the mentor in their own settings).
+    - Migration 961_availability_rls_and_timezone.sql.
+
+11. SCHEDULER TIMEZONE FIX (commit 774c5f2)
+    - Fix: mentee confirming a 9:30–10:30 block was being stored
+      as 5:30–6:30 AM due to timezone shift.
+
+12. STAFF ROLES + PERMISSIONS (commit a498533 + 960)
+    - Some staff accounts were missing permission logos/dropdowns.
+    - New Role dropdown: Admin, Operations, Course Creator.
+    - Admin role is allowed to have no permissions UI (by design).
+    - Migration 960_staff_roles.sql.
+
+13. INVOICING — EDIT / DELETE / PDF (commit a668a85)
+    - Delete invoice from Invoicing module.
+    - Edit invoice fields.
+    - Printable + downloadable professional PDF view across the board.
+
+14. PAY TYPES REWORK (commit 638f8d1 + 959)
+    - Kept hourly, salary, % of engagement profit, % of monthly profit.
+    - Added % of course profit.
+    - Added % per meeting (pays per completed meeting for the mentor's
+      assigned mentees, based on their allocations/completions).
+    - When choosing % of engagement or % of course profit, user picks
+      the linked engagement/course.
+    - Migration 959_pay_types_and_offering_link.sql.
+
+15. ORG TOGGLE: PAY FOR UNCREDITED CANCELLED MEETINGS (commit 0a9983d
+    + 958)
+    - Company option: whether mentors get paid when a meeting is
+      cancelled/no-showed under a policy that does not credit the
+      mentee.
+    - Migration 958_pay_uncredited_meetings.sql.
+
+16. SALARY FREQUENCY (commit 3af58c2 + 957)
+    - When pay type is salary, added a frequency field
+      (weekly, bi-weekly, monthly, ...).
+    - Migration 957_salary_frequency.sql.
+
+17. PERSON EDIT PAGE — SINGLE SCREEN (commit a1dcd63)
+    - Staff edit pages no longer require scrolling to reach archive /
+      delete.
+    - "Max Active Mentees" pulled out into its own card, separated
+      from Compensation.
+
+18. MENTEE SCHEDULER POLISH (commit 94cb931 + 956)
+    - Removed the meeting title field in "My Engagements" scheduler.
+    - Company option: how far in advance mentees can schedule
+      (e.g. 60 days).
+    - Upcoming Meetings list now sorts chronologically by start time,
+      not by creation time.
+    - Migration 956_scheduler_max_days_ahead.sql.
+
+19. PAYROLL MODULE v1 (commit 2b623f7 + 955)
+    - New admin Payroll module.
+    - Computes who to pay based on pay type settings.
+    - "Enter Time Card" button to log manual hours for staff/mentors.
+    - Optional document upload (excel etc.) attached to a time card.
+    - Migration 955_time_cards.sql.
+
+20. PEOPLE LIST — ARCHIVE CONFIRM (commit f3347aa)
+    - Archive control on mentor / assistant mentor / staff lists now
+      shows a labeled "Archive" button instead of a bare box.
+    - Confirmation modal: "Are you sure you want to archive this
+      person?"
+
+
+DATABASE MIGRATIONS ADDED THIS SESSION (newest first)
+------------------------------------------------------
+- 955_time_cards.sql
+- 956_scheduler_max_days_ahead.sql
+- 957_salary_frequency.sql
+- 958_pay_uncredited_meetings.sql
+- 959_pay_types_and_offering_link.sql
+- 960_staff_roles.sql
+- 961_availability_rls_and_timezone.sql
+- 962_allocation_modes.sql
+- 963_offering_meeting_duration.sql
+- 964_scheduler_show_all_days.sql
+
+
+OPEN ITEMS / NEXT SESSION
+---------------------------
+
+1. INTEGRATIONS STILL PENDING:
+   - Google Meet / MS Teams "Join Meeting" wiring on both mentor
+     Meetings module and mentee My Engagements.
+   - Google Calendar OAuth + event sync + real-time availability
+     merge.
+
+2. PAYROLL v2:
+   - Payroll module is v1 (manual time cards). Time tracking in
+     mentor/staff portals is still TBD.
+   - % per meeting calculation pipeline should be validated against
+     real meeting/allocation data.
+
+3. INVOICING:
+   - Stripe integration still outstanding.
+   - PDF styling likely wants another pass once branding decisions
+     settle.
+
+4. LOADING BUG — WATCH FOR REGRESSIONS:
+   - Fix in 16949d9 bypasses SDK auth lock for page reads. If any
+     new module is built with the SDK directly for reads under load,
+     the symptom can return. Prefer supabaseRestCall for list pages.
+
+5. CARRYOVERS FROM SESSION 009 NOT YET TOUCHED:
+   - Reports module (still placeholder).
+   - Signup/invite flows.
+   - Messaging between mentee and mentor.
+   - Stale remote branch
+     remotes/origin/claude/fix-course-builder-questions-YxXbH
+     (user indicated it was cleaned up this session).
+
+
+CURRENT STATE OF THE PROJECT
+------------------------------
+- app/ (React 19 / TypeScript / Vite / Tailwind CSS 4)
+- Supabase (Postgres + Auth + RLS); migrations down to 955
+- Vercel auto-deploy from main
+- Three portals: Admin, Mentor, Mentee
+- Admin: Courses, Engagements, Mentees, Pairings (redesigned),
+  Invoicing (edit/delete/PDF), Payroll (v1), Company Settings,
+  Reports (placeholder)
+- Mentor: adds Meetings module (list-by-day + calendar views)
+- Mentee: My Engagements w/ Upcoming/Past tabs, block-based
+  scheduler showing remaining allocations
+- Scheduling: meeting length per engagement, block picker,
+  org-configurable date filter, 60-day (etc.) advance window,
+  timezone-safe storage
+- Allocations: org-configurable when/how meetings unlock
+- Pay types: hourly, salary (with frequency), % engagement profit,
+  % course profit, % monthly profit, % per meeting
+- Staff roles: Admin / Operations / Course Creator
+- Loading system: REST-based reads bypass SDK auth lock; parallel
+  queries + guards from Session 009 still in place
+- Build passes clean (tsc + vite) as of final commit f3347aa
