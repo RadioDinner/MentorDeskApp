@@ -5,14 +5,25 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
-import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole } from '../types'
-import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES } from '../types'
+import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Offering } from '../types'
+import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES } from '../types'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
   salary: 'Salary',
   pct_monthly_profit: '% of monthly profit',
-  pct_engagement_profit: '% of engagement profit',
+  pct_engagement_profit: '% of a specific engagement',
+  pct_course_profit: '% of a specific course',
+  pct_per_meeting: '% of each completed meeting',
+}
+
+const PAY_TYPE_HINTS: Record<PayType, string> = {
+  hourly: 'Paid per hour worked.',
+  salary: 'Fixed recurring amount.',
+  pct_monthly_profit: 'A share of total monthly profit across all courses and engagements.',
+  pct_engagement_profit: 'A share of the profit from one specific engagement. Select which engagement below.',
+  pct_course_profit: 'A share of the profit from one specific course. Select which course below.',
+  pct_per_meeting: 'A share of the per-meeting value (engagement price ÷ meetings per cycle) paid for every meeting the staff member completes with their paired mentees.',
 }
 
 function getRoleCategory(role: string): RoleCategory {
@@ -50,6 +61,8 @@ export default function PersonEditPage() {
   // Compensation
   const [payType, setPayType] = useState<PayType | ''>('')
   const [payRate, setPayRate] = useState('')
+  const [payOfferingId, setPayOfferingId] = useState<string | null>(null)
+  const [orgOfferings, setOrgOfferings] = useState<Offering[]>([])
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
   const [maxActiveMentees, setMaxActiveMentees] = useState('')
   const [compensationSaving, setCompensationSaving] = useState(false)
@@ -95,15 +108,17 @@ export default function PersonEditPage() {
       setCountry(p.country ?? '')
       setPayType(p.pay_type ?? '')
       setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
+      setPayOfferingId(p.pay_offering_id ?? null)
       setMaxActiveMentees(p.max_active_mentees != null ? String(p.max_active_mentees) : '')
 
-      // Fetch org pay settings to determine available types
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('pay_type_settings')
-        .eq('id', p.organization_id)
-        .single()
+      // Fetch org pay settings + offerings (for pay_offering_id dropdown) in parallel
+      const [orgRes, offeringsRes] = await Promise.all([
+        supabase.from('organizations').select('pay_type_settings').eq('id', p.organization_id).single(),
+        supabase.from('offerings').select('*').eq('organization_id', p.organization_id).order('name'),
+      ])
+      setOrgOfferings((offeringsRes.data ?? []) as Offering[])
 
+      const orgData = orgRes.data
       if (orgData?.pay_type_settings) {
         const settings = orgData.pay_type_settings as PayTypeSettings
         const category = getRoleCategory(p.role)
@@ -162,12 +177,17 @@ export default function PersonEditPage() {
 
     const rateNum = payRate ? parseFloat(payRate) : null
     const maxMentees = maxActiveMentees ? parseInt(maxActiveMentees) : null
+    // Only persist pay_offering_id when the selected pay type actually uses it.
+    const offeringIdToSave = payType && OFFERING_LINKED_PAY_TYPES.includes(payType as PayType)
+      ? (payOfferingId || null)
+      : null
 
     const { error } = await supabase
       .from('staff')
       .update({
         pay_type: payType || null,
         pay_rate: rateNum,
+        pay_offering_id: offeringIdToSave,
         max_active_mentees: maxMentees,
       })
       .eq('id', person.id)
@@ -179,8 +199,8 @@ export default function PersonEditPage() {
       return
     }
 
-    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, max_active_mentees: person.max_active_mentees }
-    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, max_active_mentees: maxMentees }
+    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, max_active_mentees: person.max_active_mentees }
+    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, max_active_mentees: maxMentees }
     setPerson({ ...person, ...newComp })
     if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
     setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
@@ -510,29 +530,59 @@ export default function PersonEditPage() {
                 </div>
 
                 {payType && (
-                  <div>
-                    <label htmlFor="payRate" className="block text-xs font-medium text-gray-700 mb-1">
-                      {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit'
-                        ? 'Percentage (%)'
-                        : 'Rate ($)'}
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                        {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit' ? '%' : '$'}
-                      </span>
-                      <input
-                        id="payRate"
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={payRate}
-                        onChange={e => setPayRate(e.target.value)}
-                        placeholder="0"
-                        className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
-                      />
+                  <>
+                    <p className="text-[11px] text-gray-400 -mt-2">{PAY_TYPE_HINTS[payType as PayType]}</p>
+                    <div>
+                      <label htmlFor="payRate" className="block text-xs font-medium text-gray-700 mb-1">
+                        {PERCENTAGE_PAY_TYPES.includes(payType as PayType) ? 'Percentage (%)' : 'Rate ($)'}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                          {PERCENTAGE_PAY_TYPES.includes(payType as PayType) ? '%' : '$'}
+                        </span>
+                        <input
+                          id="payRate"
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={payRate}
+                          onChange={e => setPayRate(e.target.value)}
+                          placeholder="0"
+                          className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
+
+                {/* Linked offering — only for pct_engagement_profit / pct_course_profit */}
+                {payType && OFFERING_LINKED_PAY_TYPES.includes(payType as PayType) && (() => {
+                  const wantedType = payType === 'pct_engagement_profit' ? 'engagement' : 'course'
+                  const filtered = orgOfferings.filter(o => o.type === wantedType)
+                  return (
+                    <div>
+                      <label htmlFor="payOffering" className="block text-xs font-medium text-gray-700 mb-1">
+                        Paid from
+                      </label>
+                      <select
+                        id="payOffering"
+                        value={payOfferingId ?? ''}
+                        onChange={e => setPayOfferingId(e.target.value || null)}
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                      >
+                        <option value="">Select {wantedType}...</option>
+                        {filtered.map(o => (
+                          <option key={o.id} value={o.id}>{o.name}</option>
+                        ))}
+                      </select>
+                      {filtered.length === 0 && (
+                        <p className="text-[11px] text-amber-600 mt-1">
+                          No {wantedType}s exist yet. Create one before assigning this pay type.
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
                   <div>

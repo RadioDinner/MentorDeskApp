@@ -21,7 +21,28 @@ export interface RoleGroup {
   module_groups: string[]
 }
 
-export type PayType = 'hourly' | 'salary' | 'pct_monthly_profit' | 'pct_engagement_profit'
+export type PayType =
+  | 'hourly'
+  | 'salary'
+  | 'pct_monthly_profit'
+  | 'pct_engagement_profit'
+  | 'pct_course_profit'
+  | 'pct_per_meeting'
+
+// Pay types where pay_rate is a percentage (not a dollar amount).
+export const PERCENTAGE_PAY_TYPES: PayType[] = [
+  'pct_monthly_profit',
+  'pct_engagement_profit',
+  'pct_course_profit',
+  'pct_per_meeting',
+]
+
+// Pay types that require the admin to pick a specific offering the staff
+// member is paid from (pay_offering_id on the staff record).
+export const OFFERING_LINKED_PAY_TYPES: PayType[] = [
+  'pct_engagement_profit',
+  'pct_course_profit',
+]
 
 export type RoleCategory = 'staff' | 'mentor' | 'assistant_mentor'
 
@@ -363,6 +384,7 @@ export interface StaffMember {
   zip: string | null
   country: string | null
   pay_type: PayType | null
+  pay_offering_id: string | null
   pay_rate: number | null
   access_groups: string[]
   allowed_modules: string[]

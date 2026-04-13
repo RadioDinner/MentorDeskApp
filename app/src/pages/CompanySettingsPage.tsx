@@ -13,7 +13,9 @@ const PAY_TYPES: { value: PayType; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
   { value: 'salary', label: 'Salary' },
   { value: 'pct_monthly_profit', label: '% of monthly profit' },
-  { value: 'pct_engagement_profit', label: '% of engagement profit' },
+  { value: 'pct_engagement_profit', label: '% of a specific engagement' },
+  { value: 'pct_course_profit', label: '% of a specific course' },
+  { value: 'pct_per_meeting', label: '% of each completed meeting' },
 ]
 
 const ROLE_CATEGORIES: { value: RoleCategory; label: string }[] = [
