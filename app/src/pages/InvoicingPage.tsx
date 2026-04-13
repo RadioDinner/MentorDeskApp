@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
+import InvoiceEditModal from '../components/InvoiceEditModal'
+import type { InvoiceEditUpdates } from '../components/InvoiceEditModal'
 import { logAudit } from '../lib/audit'
 import type { Invoice, InvoiceStatus } from '../types'
 
@@ -52,6 +54,8 @@ export default function InvoicingPage() {
   const [filter, setFilter] = useState<FilterTab>('all')
   const [search, setSearch] = useState('')
   const [acting, setActing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<InvoiceRow | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -112,6 +116,58 @@ export default function InvoicingPage() {
       entity_type: 'invoice',
       entity_id: inv.id,
       details: { from: inv.status, to: next, amount_cents: inv.amount_cents },
+    })
+  }
+
+  async function saveEdit(updates: InvoiceEditUpdates) {
+    if (!profile || !editing) return
+    const oldVals = {
+      invoice_number: editing.invoice_number,
+      line_description: editing.line_description,
+      amount_cents: editing.amount_cents,
+      due_date: editing.due_date,
+      notes: editing.notes,
+    }
+    const { error: err } = await supabase.from('invoices').update(updates).eq('id', editing.id)
+    if (err) {
+      throw new Error(err.message)
+    }
+    setInvoices(prev => prev.map(i => i.id === editing.id ? { ...i, ...updates } as InvoiceRow : i))
+    await logAudit({
+      organization_id: profile.organization_id,
+      actor_id: profile.id,
+      action: 'updated',
+      entity_type: 'invoice',
+      entity_id: editing.id,
+      details: { fields: 'content' },
+      old_values: oldVals,
+      new_values: updates as unknown as Record<string, unknown>,
+    })
+    setEditing(null)
+  }
+
+  async function deleteInvoice(inv: InvoiceRow) {
+    if (!profile) return
+    setActing(inv.id)
+    const { error: err } = await supabase.from('invoices').delete().eq('id', inv.id)
+    setActing(null)
+    if (err) {
+      setError(err.message)
+      return
+    }
+    setInvoices(prev => prev.filter(i => i.id !== inv.id))
+    setConfirmDelete(null)
+    await logAudit({
+      organization_id: profile.organization_id,
+      actor_id: profile.id,
+      action: 'deleted',
+      entity_type: 'invoice',
+      entity_id: inv.id,
+      details: {
+        invoice_number: inv.invoice_number,
+        amount_cents: inv.amount_cents,
+        status: inv.status,
+      },
     })
   }
 
@@ -254,12 +310,25 @@ export default function InvoicingPage() {
                   key={inv.id}
                   invoice={inv}
                   onTransition={transition}
+                  onEdit={() => setEditing(inv)}
+                  onDelete={() => deleteInvoice(inv)}
+                  confirmDelete={confirmDelete === inv.id}
+                  onToggleConfirmDelete={() => setConfirmDelete(confirmDelete === inv.id ? null : inv.id)}
                   busy={acting === inv.id}
                 />
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Edit modal */}
+      {editing && (
+        <InvoiceEditModal
+          invoice={editing}
+          onSave={saveEdit}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   )
@@ -290,10 +359,18 @@ function SummaryCard({ label, value, caption, color }: { label: string; value: s
 function InvoiceTableRow({
   invoice,
   onTransition,
+  onEdit,
+  onDelete,
+  confirmDelete,
+  onToggleConfirmDelete,
   busy,
 }: {
   invoice: InvoiceRow
   onTransition: (inv: InvoiceRow, next: InvoiceStatus) => void
+  onEdit: () => void
+  onDelete: () => void
+  confirmDelete: boolean
+  onToggleConfirmDelete: () => void
   busy: boolean
 }) {
   const eff = effectiveStatus(invoice)
@@ -342,7 +419,8 @@ function InvoiceTableRow({
         </p>
       </td>
       <td className="px-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+          {/* Status transitions */}
           {invoice.status === 'draft' && (
             <ActionButton busy={busy} onClick={() => onTransition(invoice, 'sent')}>Mark Sent</ActionButton>
           )}
@@ -357,6 +435,49 @@ function InvoiceTableRow({
           )}
           {invoice.status === 'cancelled' && (
             <ActionButton busy={busy} onClick={() => onTransition(invoice, 'draft')}>Restore</ActionButton>
+          )}
+
+          {/* View / PDF — opens print page in new tab */}
+          <a
+            href={`/invoices/${invoice.id}/print`}
+            target="_blank"
+            rel="noreferrer"
+            className="px-2.5 py-1 text-[11px] font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+            title="View / Print / Save as PDF"
+          >
+            View
+          </a>
+
+          {/* Edit */}
+          <ActionButton busy={busy} onClick={onEdit}>Edit</ActionButton>
+
+          {/* Delete with confirm */}
+          {confirmDelete ? (
+            <>
+              <button
+                onClick={onDelete}
+                disabled={busy}
+                className="px-2.5 py-1 text-[11px] font-medium rounded border border-red-500 bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={onToggleConfirmDelete}
+                disabled={busy}
+                className="px-2.5 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onToggleConfirmDelete}
+              disabled={busy}
+              className="px-2.5 py-1 text-[11px] font-medium rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              title="Delete invoice"
+            >
+              Delete
+            </button>
           )}
         </div>
       </td>

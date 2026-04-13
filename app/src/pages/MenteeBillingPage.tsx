@@ -208,9 +208,20 @@ export default function MenteeBillingPage() {
                         )}
                       </div>
                     </div>
-                    <p className={`text-sm font-semibold ${inv.status === 'paid' ? 'text-gray-400' : 'text-gray-900'}`}>
-                      {formatAmount(inv.amount_cents, inv.currency)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className={`text-sm font-semibold ${inv.status === 'paid' ? 'text-gray-400' : 'text-gray-900'}`}>
+                        {formatAmount(inv.amount_cents, inv.currency)}
+                      </p>
+                      <a
+                        href={`/invoices/${inv.id}/print`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                        title="View / Print / Save as PDF"
+                      >
+                        View PDF
+                      </a>
+                    </div>
                   </div>
                   {inv.notes && (
                     <p className="text-xs text-gray-400 mt-2">{inv.notes}</p>

@@ -37,3 +37,5 @@
 19. Some of the staff don't have the permissions logos or drop downs. Why?
 
 20. Ah ok, I'm fine with it missing on admins but I want a way to set a staff account as an admin. And I want to setup staff roles. "Admin","Operations", or "Course Creator"
+
+21. I want to be able to delete an invoice from the "Invoicing" module, as well as edit if I need to. Also, I want invoices, across the board to be printable and viewable as beautiful, professional, downloaded PDFS

@@ -29,6 +29,7 @@ import MenteeBillingPage from './pages/MenteeBillingPage'
 import AvailabilityPage from './pages/AvailabilityPage'
 import MentorMeetingsPage from './pages/MentorMeetingsPage'
 import InvoicingPage from './pages/InvoicingPage'
+import InvoicePrintPage from './pages/InvoicePrintPage'
 import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
@@ -43,6 +44,16 @@ export default function App() {
 
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Standalone printable invoice (no sidebar chrome) */}
+          <Route
+            path="/invoices/:id/print"
+            element={
+              <ProtectedRoute>
+                <InvoicePrintPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected — requires auth */}
           <Route
