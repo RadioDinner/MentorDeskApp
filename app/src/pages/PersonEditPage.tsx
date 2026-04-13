@@ -9,6 +9,7 @@ import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Of
 import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES, PAY_FREQUENCY_LABELS } from '../types'
 import Button from '../components/ui/Button'
 import { formatDate } from '../lib/format'
+import { useToast } from '../context/ToastContext'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -40,6 +41,7 @@ export default function PersonEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [person, setPerson] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
@@ -58,7 +60,6 @@ export default function PersonEditPage() {
   const [zip, setZip] = useState('')
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
-  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Compensation
   const [payType, setPayType] = useState<PayType | ''>('')
@@ -69,10 +70,8 @@ export default function PersonEditPage() {
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
   const [maxActiveMentees, setMaxActiveMentees] = useState('')
   const [compensationSaving, setCompensationSaving] = useState(false)
-  const [compensationMsg, setCompensationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // System actions
-  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [sendingReset, setSendingReset] = useState(false)
   const [sendingInvite, setSendingInvite] = useState(false)
 
@@ -138,7 +137,6 @@ export default function PersonEditPage() {
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!person) return
-    setProfileMsg(null)
     setSaving(true)
 
     const { error } = await supabase
@@ -160,23 +158,19 @@ export default function PersonEditPage() {
 
     setSaving(false)
 
-    if (error) {
-      setProfileMsg({ type: 'error', text: error.message })
-      return
-    }
+    if (error) { toast.error(error.message); return }
 
     const oldVals = { first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, street: person.street, city: person.city, state: person.state, zip: person.zip, country: person.country }
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
 
     setPerson({ ...person, ...newVals })
     if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' }, old_values: oldVals, new_values: newVals })
-    setProfileMsg({ type: 'success', text: 'Personal information has been updated.' })
+    toast.success('Personal information has been updated.')
   }
 
   async function handleCompensationSave(e: FormEvent) {
     e.preventDefault()
     if (!person) return
-    setCompensationMsg(null)
     setCompensationSaving(true)
 
     const rateNum = payRate ? parseFloat(payRate) : null
@@ -201,21 +195,17 @@ export default function PersonEditPage() {
 
     setCompensationSaving(false)
 
-    if (error) {
-      setCompensationMsg({ type: 'error', text: error.message })
-      return
-    }
+    if (error) { toast.error(error.message); return }
 
     const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, pay_frequency: person.pay_frequency, max_active_mentees: person.max_active_mentees }
     const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, pay_frequency: frequencyToSave, max_active_mentees: maxMentees }
     setPerson({ ...person, ...newComp })
     if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
-    setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
+    toast.success('Compensation has been updated.')
   }
 
   async function handlePasswordReset() {
     if (!person) return
-    setActionMsg(null)
     setSendingReset(true)
 
     try {
@@ -237,17 +227,16 @@ export default function PersonEditPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
-        setActionMsg({ type: 'error', text: msg })
+        toast.error(body.msg || body.message || body.error_description || `Error ${response.status}`)
         return
       }
 
-      setActionMsg({ type: 'success', text: `Password reset email sent to ${person.email}.` })
+      toast.success(`Password reset email sent to ${person.email}.`)
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
-      setActionMsg({ type: 'error', text: message })
+      toast.error(message)
     } finally {
       setSendingReset(false)
     }
@@ -255,7 +244,6 @@ export default function PersonEditPage() {
 
   async function handleInvite() {
     if (!person) return
-    setActionMsg(null)
     setSendingInvite(true)
 
     try {
@@ -278,17 +266,16 @@ export default function PersonEditPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
-        const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
-        setActionMsg({ type: 'error', text: msg })
+        toast.error(body.msg || body.message || body.error_description || `Error ${response.status}`)
         return
       }
 
-      setActionMsg({ type: 'success', text: `Invitation sent to ${person.email}.` })
+      toast.success(`Invitation sent to ${person.email}.`)
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
-      setActionMsg({ type: 'error', text: message })
+      toast.error(message)
     } finally {
       setSendingInvite(false)
     }
@@ -299,10 +286,10 @@ export default function PersonEditPage() {
     const isArchived = !!person.archived_at
     const now = isArchived ? null : new Date().toISOString()
     const { error } = await supabase.from('staff').update({ archived_at: now }).eq('id', person.id)
-    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setPerson({ ...person, archived_at: now } as StaffMember)
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
-    setActionMsg({ type: 'success', text: isArchived ? 'Record restored.' : 'Record archived.' })
+    toast.success(isArchived ? 'Record restored.' : 'Record archived.')
   }
 
   async function handleDelete() {
@@ -310,7 +297,7 @@ export default function PersonEditPage() {
     setDeleting(true)
     const { error } = await supabase.from('staff').delete().eq('id', person.id)
     setDeleting(false)
-    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
     navigate(-1)
   }
@@ -366,17 +353,6 @@ export default function PersonEditPage() {
             <h2 className="text-base font-semibold text-gray-900 mb-4">Personal Information</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
-              {profileMsg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                  profileMsg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{profileMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {profileMsg.text}
-                </div>
-              )}
-
               {/* Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -507,17 +483,6 @@ export default function PersonEditPage() {
               <h2 className="text-base font-semibold text-gray-900 mb-3">Compensation</h2>
 
               <form onSubmit={handleCompensationSave} className="space-y-4">
-                {compensationMsg && (
-                  <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs ${
-                    compensationMsg.type === 'success'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
-                    <span>{compensationMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                    {compensationMsg.text}
-                  </div>
-                )}
-
                 <div>
                   <label htmlFor="payType" className="block text-xs font-medium text-gray-700 mb-1">
                     Pay type
@@ -686,17 +651,6 @@ export default function PersonEditPage() {
           {/* System emails */}
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
             <h2 className="text-base font-semibold text-gray-900 mb-3">System Emails</h2>
-
-            {actionMsg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
-                actionMsg.type === 'success'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span className="mt-0.5">{actionMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {actionMsg.text}
-              </div>
-            )}
 
             <div className="space-y-3">
               {/* Password reset */}

@@ -11,3 +11,6 @@ export type { BadgeProps, BadgeTone } from './Badge'
 
 export { default as Modal } from './Modal'
 export type { ModalProps, ModalSize } from './Modal'
+
+export { default as Skeleton } from './Skeleton'
+export type {} from './Skeleton'

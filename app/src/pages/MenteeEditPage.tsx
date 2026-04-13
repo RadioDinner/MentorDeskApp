@@ -7,11 +7,13 @@ import { logAudit } from '../lib/audit'
 import type { Mentee, FlowStep } from '../types'
 import Button from '../components/ui/Button'
 import { formatDate } from '../lib/format'
+import { useToast } from '../context/ToastContext'
 
 export default function MenteeEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [mentee, setMentee] = useState<Mentee | null>(null)
   const [loading, setLoading] = useState(true)
@@ -27,16 +29,13 @@ export default function MenteeEditPage() {
   const [zip, setZip] = useState('')
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [flowStepId, setFlowStepId] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
-  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // De-activate / Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [dangerMsg, setDangerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -91,7 +90,6 @@ export default function MenteeEditPage() {
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!mentee) return
-    setMsg(null)
     setSaving(true)
 
     const { error } = await supabase
@@ -111,16 +109,13 @@ export default function MenteeEditPage() {
 
     setSaving(false)
 
-    if (error) {
-      setMsg({ type: 'error', text: error.message })
-      return
-    }
+    if (error) { toast.error(error.message); return }
 
     const oldVals = { first_name: mentee.first_name, last_name: mentee.last_name, email: mentee.email, phone: mentee.phone, street: mentee.street, city: mentee.city, state: mentee.state, zip: mentee.zip, country: mentee.country }
     const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
     setMentee({ ...mentee, ...newVals })
     if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { name: `${firstName.trim()} ${lastName.trim()}` }, old_values: oldVals, new_values: newVals })
-    setMsg({ type: 'success', text: 'Mentee information has been updated.' })
+    toast.success('Mentee information has been updated.')
   }
 
   async function handleDeactivate() {
@@ -128,10 +123,10 @@ export default function MenteeEditPage() {
     const isDeactivated = !!mentee.archived_at
     const now = isDeactivated ? null : new Date().toISOString()
     const { error } = await supabase.from('mentees').update({ archived_at: now }).eq('id', mentee.id)
-    if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     setMentee({ ...mentee, archived_at: now } as Mentee)
     await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: isDeactivated ? 'reactivated' : 'deactivated', entity_type: 'mentee', entity_id: mentee.id })
-    setDangerMsg({ type: 'success', text: isDeactivated ? 'Mentee re-activated.' : 'Mentee de-activated.' })
+    toast.success(isDeactivated ? 'Mentee re-activated.' : 'Mentee de-activated.')
   }
 
   async function handleDeleteMentee() {
@@ -139,7 +134,7 @@ export default function MenteeEditPage() {
     setDeleting(true)
     const { error } = await supabase.from('mentees').delete().eq('id', mentee.id)
     setDeleting(false)
-    if (error) { setDangerMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); return }
     await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'mentee', entity_id: mentee.id })
     navigate('/mentees')
   }
@@ -188,17 +183,6 @@ export default function MenteeEditPage() {
             <h2 className="text-base font-semibold text-gray-900 mb-6">Personal Information</h2>
 
             <form onSubmit={handleSave} className="space-y-5">
-              {msg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                  msg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {msg.text}
-                </div>
-              )}
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="mFirstName" className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
@@ -260,17 +244,6 @@ export default function MenteeEditPage() {
             <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
               <h2 className="text-base font-semibold text-gray-900 mb-4">Program Status</h2>
 
-              {statusMsg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs mb-3 ${
-                  statusMsg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span>{statusMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {statusMsg.text}
-                </div>
-              )}
-
               {/* Current status display */}
               {flowStepId && (
                 <div className="mb-3">
@@ -309,19 +282,15 @@ export default function MenteeEditPage() {
               <Button type="button" disabled={statusSaving} block className="mt-3"
                 onClick={async () => {
                   if (!mentee) return
-                  setStatusMsg(null)
                   setStatusSaving(true)
                   const { error } = await supabase
                     .from('mentees')
                     .update({ flow_step_id: flowStepId || null })
                     .eq('id', mentee.id)
                   setStatusSaving(false)
-                  if (error) {
-                    setStatusMsg({ type: 'error', text: error.message })
-                    return
-                  }
+                  if (error) { toast.error(error.message); return }
                   if (currentUser) await logAudit({ organization_id: mentee.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'mentee', entity_id: mentee.id, details: { fields: 'status', status: flowSteps.find(s => s.id === flowStepId)?.name ?? 'cleared' } })
-                  setStatusMsg({ type: 'success', text: 'Status updated.' })
+                  toast.success('Status updated.')
                 }}>
                 {statusSaving ? 'Saving…' : 'Save status'}
               </Button>
@@ -345,15 +314,6 @@ export default function MenteeEditPage() {
           {/* Danger Zone */}
           <div className="bg-white rounded-md border border-red-200 px-6 py-6">
             <h2 className="text-base font-semibold text-red-600 mb-4">Danger Zone</h2>
-
-            {dangerMsg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs mb-3 ${
-                dangerMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span>{dangerMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {dangerMsg.text}
-              </div>
-            )}
 
             <div className="space-y-3">
               {/* De-activate / Re-activate */}
