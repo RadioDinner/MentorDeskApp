@@ -122,6 +122,7 @@ export default function CourseBuilderPage() {
 
   async function deleteLesson(lessonId: string) {
     if (!profile || !id) return
+    const deletedTitle = lessons.find(l => l.id === lessonId)?.title
     try {
       const { error: e } = await supabaseRestCall('lessons', 'DELETE', {}, `id=eq.${lessonId}`)
       if (e) { toast.error('Failed to delete: ' + e.message); return }
@@ -134,6 +135,7 @@ export default function CourseBuilderPage() {
           .map(l => supabaseRestCall('lessons', 'PATCH', { order_index: l.order_index }, `id=eq.${l.id}`))
       )
       if (selectedLessonId === lessonId) setSelectedLessonId(reindexed[0]?.id ?? null)
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: id, details: { sub: 'lesson_deleted', lesson_id: lessonId, lesson_title: deletedTitle } })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to delete')
     }
@@ -152,6 +154,7 @@ export default function CourseBuilderPage() {
       if (e) { toast.error('Save failed: ' + e.message); return }
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, ...updates } as Lesson : l))
       toast.success('Saved.')
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'offering', entity_id: id!, details: { sub: 'lesson_updated', lesson_id: selectedLesson.id, lesson_title: updates.title } })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to save')
     } finally {

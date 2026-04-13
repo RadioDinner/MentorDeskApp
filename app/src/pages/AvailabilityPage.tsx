@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import TimezoneSelect, { getBrowserTimezone } from '../components/TimezoneSelect'
 import Button from '../components/ui/Button'
 import { useToast } from '../context/ToastContext'
@@ -65,13 +66,14 @@ export default function AvailabilityPage() {
   }, [targetStaffId, profile?.id])
 
   async function saveTimezone(tz: string | null) {
-    if (!targetStaffId) return
+    if (!targetStaffId || !profile) return
     setSavingTz(true)
     const { error } = await supabase.from('staff').update({ timezone: tz }).eq('id', targetStaffId)
     setSavingTz(false)
     if (error) { toast.error(error.message); return }
     setTimezone(tz)
     toast.success(tz ? `Timezone set to ${tz}.` : 'Timezone cleared (using browser default).')
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId, details: { section: 'availability', timezone: tz ?? 'browser_default' } })
   }
 
   async function addBlock(dayOfWeek: number) {
@@ -107,12 +109,17 @@ export default function AvailabilityPage() {
     ))
     setAddingDay(null)
     toast.success('Availability block added.')
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId!, details: { section: 'availability', added: { day: DAYS[dayOfWeek], start: newStart, end: newEnd } } })
   }
 
   async function removeBlock(id: string) {
+    const block = schedules.find(s => s.id === id)
     const { error } = await supabase.from('availability_schedules').delete().eq('id', id)
     if (error) { toast.error(error.message); return }
     setSchedules(prev => prev.filter(s => s.id !== id))
+    if (profile && block) {
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId!, details: { section: 'availability', removed: { day: DAYS[block.day_of_week], start: block.start_time, end: block.end_time } } })
+    }
   }
 
   // Copy all blocks from one day to another. Skips blocks that would overlap
@@ -154,7 +161,8 @@ export default function AvailabilityPage() {
     ))
     setCopyFromDay(null)
     const skipped = src.length - toInsert.length
-    toast.success(`Copied ${toInsert.length} block${toInsert.length !== 1 ? 's' : ''} to ${DAY_SHORT[toDay]}${skipped > 0 ? ` (${skipped} skipped — would overlap)` : ''}.'`)
+    toast.success(`Copied ${toInsert.length} block${toInsert.length !== 1 ? 's' : ''} to ${DAY_SHORT[toDay]}${skipped > 0 ? ` (${skipped} skipped — would overlap)` : ''}.`)
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'updated', entity_type: 'staff', entity_id: targetStaffId!, details: { section: 'availability', copied_from: DAYS[fromDay], to: DAYS[toDay], blocks: toInsert.length } })
   }
 
   async function copyAllWeekdays(fromDay: number) {

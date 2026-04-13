@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { logAudit } from '../lib/audit'
 import { computeCredits } from '../lib/credits'
 import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
@@ -120,25 +121,36 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
       organization_id: profile.organization_id, mentee_offering_id: assignment.id,
       mentee_id: mentee.id, logged_by: profile.id, session_date: logDate, notes: logNotes.trim() || null,
     }).select().single()
-    if (!error && data) { setSessions(prev => [data as EngagementSession, ...prev]); setLogNotes(''); setLogDate(new Date().toISOString().slice(0, 10)) }
+    if (!error && data) {
+      setSessions(prev => [data as EngagementSession, ...prev])
+      setLogNotes('')
+      setLogDate(new Date().toISOString().slice(0, 10))
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'engagement_session', entity_id: (data as EngagementSession).id, details: { mentee_id: mentee.id, session_date: logDate, mentee_offering_id: assignment.id } })
+    }
     setLogging(false)
   }
 
   async function deleteSession(sessionId: string) {
     await supabase.from('engagement_sessions').delete().eq('id', sessionId)
     setSessions(prev => prev.filter(s => s.id !== sessionId))
+    await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'engagement_session', entity_id: sessionId, details: { mentee_id: mentee.id, mentee_offering_id: assignment.id } })
   }
 
   async function createInvoice() {
     if (!newInvoiceAmount) return
     setCreatingInvoice(true)
+    const amountCents = Math.round(parseFloat(newInvoiceAmount) * 100)
     const { data, error } = await supabase.from('invoices').insert({
       organization_id: profile.organization_id, mentee_id: mentee.id, mentee_offering_id: assignment.id,
-      status: 'draft' as InvoiceStatus, amount_cents: Math.round(parseFloat(newInvoiceAmount) * 100),
+      status: 'draft' as InvoiceStatus, amount_cents: amountCents,
       currency: offering?.currency ?? 'USD', line_description: newInvoiceDesc.trim() || `${offering?.name ?? 'Engagement'}`,
       due_date: newInvoiceDue || null,
     }).select().single()
-    if (!error && data) { setInvoices(prev => [data as Invoice, ...prev]); setShowCreateInvoice(false); setNewInvoiceAmount(''); setNewInvoiceDesc(''); setNewInvoiceDue('') }
+    if (!error && data) {
+      setInvoices(prev => [data as Invoice, ...prev])
+      setShowCreateInvoice(false); setNewInvoiceAmount(''); setNewInvoiceDesc(''); setNewInvoiceDue('')
+      await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'created', entity_type: 'invoice', entity_id: (data as Invoice).id, details: { mentee_id: mentee.id, amount_cents: amountCents, mentee_offering_id: assignment.id } })
+    }
     setCreatingInvoice(false)
   }
 

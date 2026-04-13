@@ -35,6 +35,9 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   offering: 'Offering',
   pairing: 'Pairing',
   organization: 'Organization',
+  mentee_offering: 'Enrollment',
+  invoice: 'Invoice',
+  engagement_session: 'Session',
 }
 
 const ACTION_LABELS: Record<string, string> = {
