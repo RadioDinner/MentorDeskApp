@@ -102,6 +102,7 @@ export interface Organization {
   show_all_days_in_scheduler: boolean
   allocation_grant_mode: AllocationGrantMode
   allocation_refresh_mode: AllocationRefreshMode
+  pay_mentors_for_uncredited_meetings: boolean
   archive_settings: ArchiveSettings
   created_at: string
 }

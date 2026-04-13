@@ -80,6 +80,7 @@ export default function CompanySettingsPage() {
   const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
   const [allocationGrantMode, setAllocationGrantMode] = useState<AllocationGrantMode>('on_open')
   const [allocationRefreshMode, setAllocationRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
+  const [payForUncredited, setPayForUncredited] = useState(false)
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
 
   useLoadingGuard(loading, useCallback(() => {
@@ -106,6 +107,7 @@ export default function CompanySettingsPage() {
         setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
         setAllocationGrantMode(o.allocation_grant_mode ?? 'on_open')
         setAllocationRefreshMode(o.allocation_refresh_mode ?? 'by_cycle')
+        setPayForUncredited(o.pay_mentors_for_uncredited_meetings ?? false)
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       } catch (err) {
         setMsg({ type: 'error', text: 'Failed to load: ' + ((err as Error).message || 'Unknown error') })
@@ -132,6 +134,7 @@ export default function CompanySettingsPage() {
         show_all_days_in_scheduler: showAllDaysInScheduler,
         allocation_grant_mode: allocationGrantMode,
         allocation_refresh_mode: allocationRefreshMode,
+        pay_mentors_for_uncredited_meetings: payForUncredited,
         archive_settings: archiveSettings,
       }
       const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
@@ -380,6 +383,21 @@ export default function CompanySettingsPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Uncredited meeting toggle */}
+              <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-gray-200 px-4 py-4">
+                <div className="pr-4">
+                  <p className="text-sm font-medium text-gray-900">Pay staff for uncredited meetings</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    When a meeting is cancelled or no-showed AND the cancellation policy kept the mentee charged,
+                    should the staff member (on % of completed meetings) still be paid for it?
+                    When off, uncredited meetings are unpaid and the value stays with the org.
+                  </p>
+                </div>
+                <button type="button" onClick={() => setPayForUncredited(!payForUncredited)} className={toggleClass(payForUncredited)}>
+                  <span className={dotClass(payForUncredited)} />
+                </button>
+              </div>
             </div>
           </div>
 
