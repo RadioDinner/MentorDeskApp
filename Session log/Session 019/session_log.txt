@@ -1,0 +1,156 @@
+SESSION 019 HANDOFF LOG
+========================
+Date: 2026-04-14
+Branch: main (direct commits per CLAUDE.md rule #5 and explicit user
+instruction at start of session: "Merge your changes to main and continue
+pushing to main for the rest of the session")
+Context: Session 018 stalled after logging only its prompt_history.txt
+and was retroactively closed out at the start of this session. Session
+019 picked up the four Habits open items from the Session 017 handoff.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+All four Habits open items from Session 017 are shipped. Committed to
+main as bb1b85b. The feature slice that actually exists end-to-end now:
+
+1. STEP BUILDER  (app/src/pages/HabitEditPage.tsx)
+   - Loads habit_steps for the habit on mount via supabaseRestGet.
+   - "+ Add step" creates a new habit_steps row (via supabaseRestCall
+     POST, same SDK-bypass pattern CourseBuilderPage uses for lessons)
+     with order_index = current count, title = "Step N", then opens
+     the inline editor.
+   - Inline editor: title + optional instructions. "Save step" PATCHes
+     the row, "Cancel" discards, "Delete" removes with re-indexing.
+   - Drag-and-drop reorder — each <li> is draggable (unless in edit
+     mode), with a shared stepDragRef / stepDragOver pair mirroring
+     CourseBuilderPage's lesson reorder. On drop, we reindex locally
+     and fire parallel PATCHes for order_index; on failure we roll the
+     list back to the pre-drag snapshot and toast.
+   - Every mutation writes a logAudit row with entity_type='habit' and
+     details.sub = 'step_added' | 'step_updated' | 'step_deleted'.
+
+2. MENTEE ASSIGNMENT UI  (app/src/pages/HabitEditPage.tsx)
+   - "Mentee assignments" card below the step builder.
+   - Assign form: mentee dropdown (filtered to active mentees in the
+     org who don't already have an active assignment for this habit)
+     + start_date picker defaulting to todayISO() + Assign button.
+   - Assignment flow:
+       a. computeEndDate() from lib/habits to derive end_date (null
+          for until_x_successful).
+       b. Insert mentee_habits row with all the snapshot columns
+          (name_snapshot, description_snapshot, duration_*_snapshot,
+          etc.) plus start_date, end_date, status='active',
+          successful_days_count=0, assigned_by=profile.id.
+       c. Bulk-insert mentee_habit_steps — one row per current
+          habit_steps row, snapshotting title/instructions/order_index.
+          Using supabaseRestCall with an array body (cast to
+          Record<string, unknown>) since PostgREST accepts bulk insert
+          but supabaseRestCall's body type is the single-row shape.
+       d. Prepend to local assignments list, log audit row with
+          entity_type='mentee_habit'.
+   - Assignments display in two groups: Active and Past. Active rows
+     have an "End" button that PATCHes status to 'abandoned' and sets
+     completed_at.
+   - Guard rails: cannot assign if habit has 0 steps, cannot assign if
+     habit is retired, cannot assign to a mentee who already has an
+     active assignment for this habit.
+
+3. MENTEE EDIT PAGE HABITS SECTION  (app/src/pages/MenteeEditPage.tsx)
+   - Added a full-width "Habits" card below the existing grid that
+     shows all mentee_habits for this mentee, ordered by assigned_at
+     desc. Each row deep-links to /habits/:habit_id/edit. Status chip
+     color-codes active (teal) / completed (green) / abandoned (gray).
+   - This is a view-only mirror — the assignment UI lives on the habit
+     template side, not here.
+
+4. MENTEE-SIDE PAGES
+   - app/src/pages/MenteeHabitsPage.tsx — "My Habits" list. Fetches
+     mentee_habits filtered by menteeProfile.id, splits into Active
+     and Past, renders CourseRow-style cards with a progress bar
+     (successful_days_count / goal).
+   - app/src/pages/MenteeHabitDetailPage.tsx — detail view with:
+       · Progress summary card (count + percentage + duration summary +
+         start/end dates)
+       · "Today's check-in" card: one checkbox per mentee_habit_step.
+         Toggling inserts or deletes a mentee_habit_step_logs row for
+         today, then recomputes successful_days_count via
+         successfulDatesFromLogs() and writes it back. If computeStatus
+         transitions the assignment off 'active', it also patches
+         status and completed_at on the mentee_habits row.
+       · History grid: small colored squares from start_date through
+         today (filled=successful, ringed=today).
+   - Routes wired in App.tsx:
+        /my-habits        → MenteeHabitsPage
+        /my-habits/:id    → MenteeHabitDetailPage
+   - "My Habits" entry re-added to the mentee sidebar (was reverted at
+     the end of Session 017 because the target pages didn't exist yet).
+
+Build + test verification:
+   - cd app && npm run build  → clean (tsc + vite). Only the
+     pre-existing chunk-size warning from Session 015.
+   - cd app && npm run test   → 57 passing, 0 failing (unchanged).
+
+Session bookkeeping:
+   - Session 018/session_log.txt written retroactively to close out the
+     stalled session (commit 789e41c).
+   - Local main was 35 commits behind origin/main at session start;
+     fast-forwarded to origin/main before working. Current feature
+     branch was deleted implicitly by merging to main only.
+
+
+STILL OPEN / NEXT SESSION
+-------------------------
+
+1. APPLY MIGRATION 954_habits_tables.sql to the Supabase instance.
+   Until this runs, every /habits and /my-habits route will render
+   but the underlying queries will 404 on the missing tables. This
+   needs manual execution by the user in Supabase (same pattern as
+   prior migrations in this project).
+
+2. Visual QA in the browser against a live Supabase with the migration
+   applied. This session verified types + build + unit tests but did
+   NOT run the dev server or click through the feature — no real
+   Supabase instance was available. Things to sanity-check:
+     · Step reorder persists correctly
+     · Assignment flow creates both mentee_habits AND mentee_habit_steps
+     · Mentee detail page check-off loop: check → successful_days_count
+       updates → status transitions when the goal is hit
+     · RLS: mentee can only see / mutate their own step logs
+
+3. NOTIFICATION DELIVERY (still out of scope). The schema supports it;
+   nothing is wired.
+
+4. Older backlog (unchanged since Session 015):
+     · Edit-page RHF migration across remaining edit pages
+     · Chunk-size warning (consider code splitting)
+     · InvoicePrintPage loading text polish
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main = origin/main = bb1b85b, auto-deploying via Vercel.
+- Build clean; tests 57/0.
+- Migration 954_habits_tables.sql: STILL UNAPPLIED to Supabase.
+- Admin side:
+    HabitsPage (list), HabitCreatePage, HabitEditPage (metadata + step
+    builder + mentee assignments), MenteeEditPage (with Habits section)
+- Mentee side:
+    MenteeHabitsPage, MenteeHabitDetailPage, "My Habits" in sidebar.
+- Types: unchanged since Session 017.
+- lib/habits.ts: unchanged since Session 017 — all helpers exported
+  there were finally consumed this session (computeEndDate,
+  successfulDatesFromLogs, computeStatus, todayISO, addDaysISO,
+  diffDays, durationSummary).
+- No new npm dependencies.
+
+
+NOTES FOR SESSION 020
+----------------------
+
+The very first thing next session should do is confirm with the user
+whether they've run migration 954. If yes, visual-QA the feature in
+the browser against a real Supabase instance before touching anything
+else — it's the only verification gap left from this session's work.
