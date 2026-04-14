@@ -61,6 +61,7 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
       { label: 'Home',           letter: 'H', path: '/dashboard',      gradient: 'from-slate-500 to-slate-700' },
       { label: 'My Engagements', letter: 'E', path: '/my-engagements', gradient: 'from-rose-400 to-rose-600' },
       { label: 'My Courses',     letter: 'C', path: '/my-courses',     gradient: 'from-indigo-400 to-indigo-600' },
+      { label: 'My Habits',      letter: 'H', path: '/my-habits',      gradient: 'from-teal-400 to-teal-600' },
       { label: 'Billing',        letter: 'B', path: '/my-billing',     gradient: 'from-emerald-400 to-emerald-600' },
     ]
     return (

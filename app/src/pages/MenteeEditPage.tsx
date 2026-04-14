@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { Mentee, FlowStep } from '../types'
+import type { Mentee, FlowStep, MenteeHabit } from '../types'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
+import { durationSummary } from '../lib/habits'
 import { useToast } from '../context/ToastContext'
 import { reportSupabaseError } from '../lib/errorReporter'
 
@@ -20,6 +21,7 @@ export default function MenteeEditPage() {
   const [mentee, setMentee] = useState<Mentee | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [menteeHabits, setMenteeHabits] = useState<MenteeHabit[]>([])
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -78,6 +80,14 @@ export default function MenteeEditPage() {
         if (orgData?.mentee_flow) {
           setFlowSteps((orgData.mentee_flow as { steps: FlowStep[] }).steps ?? [])
         }
+
+        // Fetch habit assignments for this mentee
+        const mhRes = await supabaseRestGet<MenteeHabit>(
+          'mentee_habits',
+          `select=*&mentee_id=eq.${id}&order=assigned_at.desc`,
+          { label: 'menteeEdit:habits' },
+        )
+        if (!mhRes.error) setMenteeHabits(mhRes.data ?? [])
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -361,6 +371,64 @@ export default function MenteeEditPage() {
           </div>
 
         </div>
+      </div>
+
+      {/* ── Habit assignments ─────────────────────────────────────── */}
+      <div className="mt-6 bg-white rounded-md border border-gray-200/80 px-8 py-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Habits</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Daily check-in routines assigned to this mentee.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/habits')}
+            className="text-xs text-brand hover:underline"
+          >
+            Manage habits →
+          </button>
+        </div>
+
+        {menteeHabits.length === 0 ? (
+          <p className="text-sm text-gray-400">No habits assigned yet. Assign habits from the Habits page.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 border border-gray-200 rounded">
+            {menteeHabits.map(mh => (
+              <li key={mh.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  {mh.name_snapshot[0]?.toUpperCase() ?? 'H'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/habits/${mh.habit_id}/edit`)}
+                    className="text-sm font-medium text-gray-900 hover:text-brand text-left truncate"
+                  >
+                    {mh.name_snapshot}
+                  </button>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {durationSummary({
+                      duration_mode: mh.duration_mode_snapshot,
+                      duration_days: mh.duration_days_snapshot,
+                      goal_successful_days: mh.goal_successful_days_snapshot,
+                    })}
+                    {' · '}
+                    {mh.successful_days_count} successful day{mh.successful_days_count === 1 ? '' : 's'}
+                    {' · '}
+                    started {formatDate(mh.start_date)}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
+                  mh.status === 'active' ? 'bg-teal-50 text-teal-600'
+                    : mh.status === 'completed' ? 'bg-green-50 text-green-600'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {mh.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

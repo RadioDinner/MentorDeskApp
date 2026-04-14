@@ -36,6 +36,8 @@ import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
 import HabitsPage from './pages/HabitsPage'
 import HabitCreatePage from './pages/HabitCreatePage'
 import HabitEditPage from './pages/HabitEditPage'
+import MenteeHabitsPage from './pages/MenteeHabitsPage'
+import MenteeHabitDetailPage from './pages/MenteeHabitDetailPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
@@ -151,6 +153,8 @@ export default function App() {
             <Route path="/my-engagements/:id" element={<MenteeEngagementDetailPage />} />
             <Route path="/my-courses" element={<MenteeCoursesPage />} />
             <Route path="/my-courses/:id" element={<MenteeCourseViewerPage />} />
+            <Route path="/my-habits" element={<MenteeHabitsPage />} />
+            <Route path="/my-habits/:id" element={<MenteeHabitDetailPage />} />
             <Route path="/my-billing" element={<MenteeBillingPage />} />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
