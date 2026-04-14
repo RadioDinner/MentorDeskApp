@@ -396,6 +396,77 @@ export interface QuestionResponse {
 
 export type DueDateMode = 'none' | 'course' | 'lesson'
 
+// ── Habits ─────────────────────────────────────────────────────────────
+
+export type HabitDurationMode = 'fixed_days' | 'goal_x_of_y' | 'until_x_successful'
+export type MenteeHabitStatus = 'active' | 'completed' | 'abandoned'
+
+export interface Habit {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  duration_mode: HabitDurationMode
+  duration_days: number | null
+  goal_successful_days: number | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface HabitStep {
+  id: string
+  habit_id: string
+  organization_id: string
+  order_index: number
+  title: string
+  instructions: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MenteeHabit {
+  id: string
+  organization_id: string
+  habit_id: string
+  mentee_id: string
+  assigned_by: string | null
+  start_date: string
+  end_date: string | null
+  status: MenteeHabitStatus
+  successful_days_count: number
+  name_snapshot: string
+  description_snapshot: string | null
+  duration_mode_snapshot: HabitDurationMode
+  duration_days_snapshot: number | null
+  goal_successful_days_snapshot: number | null
+  assigned_at: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MenteeHabitStep {
+  id: string
+  mentee_habit_id: string
+  organization_id: string
+  order_index: number
+  title: string
+  instructions: string | null
+  created_at: string
+}
+
+export interface MenteeHabitStepLog {
+  id: string
+  mentee_habit_id: string
+  mentee_habit_step_id: string
+  organization_id: string
+  log_date: string // YYYY-MM-DD
+  completed_at: string
+}
+
+
 export interface StaffMember {
   id: string
   user_id: string | null

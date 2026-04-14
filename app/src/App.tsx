@@ -33,6 +33,9 @@ import InvoicingPage from './pages/InvoicingPage'
 import InvoicePrintPage from './pages/InvoicePrintPage'
 import PayrollPage from './pages/PayrollPage'
 import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
+import HabitsPage from './pages/HabitsPage'
+import HabitCreatePage from './pages/HabitCreatePage'
+import HabitEditPage from './pages/HabitEditPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
@@ -126,6 +129,17 @@ export default function App() {
             <Route path="/engagements/:id/edit" element={
               <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
                 <OfferingEditPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/habits" element={<HabitsPage />} />
+            <Route path="/habits/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <HabitCreatePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/habits/:id/edit" element={
+              <ProtectedRoute allowedRoles={['admin', 'course_creator']}>
+                <HabitEditPage />
               </ProtectedRoute>
             } />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />

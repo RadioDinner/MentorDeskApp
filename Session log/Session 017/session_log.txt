@@ -1,0 +1,179 @@
+SESSION 017 HANDOFF LOG
+=======================
+Date: 2026-04-14
+Branch: main (all commits direct to main, per CLAUDE.md rule #5 and explicit
+user instruction at start of session)
+Context: Session 016 got stuck mid-task (never produced a session_log.txt).
+Session 017 opened a new feature: "Habits".
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+Started building a new top-level feature called "Habits" (originally proposed
+as "Routines") — daily check-in routines authored by staff and assigned to
+mentees. Lives in the "Offerings" group of the admin sidebar.
+
+Design decisions locked in with the user before coding:
+  - One-off habits are OUT of scope (skipped; always goes through a template).
+  - Per-step checkboxes: a day is "successful" only when every step is checked.
+  - goal_x_of_y window: auto-complete if goal met, auto-abandoned if window
+    expires short.
+  - Feature renamed from "Routines" to "Habits".
+  - Notification/reminder delivery (email/SMS/push) is explicitly OUT of scope
+    for Phase 1 — data model supports it but nothing is wired.
+
+What actually shipped this session (the "metadata slice"):
+
+1. Migration 954_habits_tables.sql — the full schema for all 5 tables:
+   - habits                   template (name, desc, duration_mode, duration_days,
+                               goal_successful_days, is_active, created_by)
+     CHECK constraint validates the duration params against duration_mode.
+   - habit_steps              ordered steps (title, instructions, order_index)
+   - mentee_habits            assignment instance with snapshot fields
+                               (name_snapshot, duration_mode_snapshot,
+                               duration_days_snapshot, goal_successful_days_snapshot,
+                               successful_days_count, start_date, end_date, status)
+   - mentee_habit_steps       per-assignment snapshot of the steps
+   - mentee_habit_step_logs   one row per (step, day) when mentee checks off
+                              a step, with unique(mentee_habit_step_id, log_date)
+   RLS: staff read in-org, admin/course_creator manage habit templates, any
+   staff in org can manage mentee_habits, mentees can read/write their own
+   step logs. Uses the same my_organization_id()/my_staff_role() helpers that
+   998_offerings_tables.sql uses.
+
+   NOTE: This migration file has NOT been applied to the Supabase instance
+   yet — it just sits in the repo. It'll need to be applied manually (same
+   as other migrations in this project) before the feature works end-to-end.
+
+2. app/src/types/index.ts — added Habit, HabitStep, MenteeHabit, MenteeHabitStep,
+   MenteeHabitStepLog, HabitDurationMode, MenteeHabitStatus.
+
+3. app/src/lib/audit.ts — added 'habit' and 'mentee_habit' to EntityType union.
+
+4. app/src/lib/habits.ts — NEW helper module with:
+   - todayISO(), addDaysISO(), diffDays()      date helpers
+   - durationSummary(d)                         human-readable summary
+   - computeEndDate(startISO, d)                start+duration → end_date
+   - successfulDatesFromLogs(logs, stepCount)   set of successful YYYY-MM-DD dates
+   - successfulDayCount(...)                    count of successful days
+   - computeStatus(mh, successfulDays, today)   decides active/completed/abandoned
+   These are ready to power the mentee-side UI when it's built.
+
+5. app/src/lib/modules.ts — added "Habits" entry to ALL_MODULES in the
+   Offerings group (teal gradient, path /habits, letter H).
+
+6. app/src/App.tsx — added 3 admin routes:
+     /habits             → HabitsPage
+     /habits/new         → HabitCreatePage  (admin | course_creator only)
+     /habits/:id/edit    → HabitEditPage    (admin | course_creator only)
+
+7. app/src/pages/HabitsPage.tsx — admin list view. Shows teal-icon rows with
+   name, step count, duration summary, active/completed assignment counts.
+   Toggle to show retired habits. "+ Create Habit" button visible to
+   admin/course_creator. Uses supabaseRestGet for parallel fetch of habits,
+   step counts, and assignment counts.
+
+8. app/src/pages/HabitCreatePage.tsx — Zod + RHF form (matches Session 015
+   validation pattern). Fields: name, description, duration_mode radio group,
+   mode-specific inputs (duration_days and/or goal_successful_days). Zod
+   superRefine validates duration params per mode. Writes audit log. On
+   success, navigates to /habits/:id/edit.
+
+9. app/src/pages/HabitEditPage.tsx — metadata-only edit form (step builder
+   and assignment UI deliberately deferred, see OPEN ITEMS). Loads the habit,
+   prefills the same RHF form, supports save / retire (toggle is_active) /
+   delete. All mutations write audit log entries. Renders a prominent amber
+   notice explaining that the step builder + mentee assignments are coming
+   in the next session.
+
+Build + tests verified at the end of the session:
+  - cd app && npm run build → clean (tsc + vite), only the pre-existing
+    chunk-size warning from Session 015.
+  - cd app && npm run test  → 57 passing, 0 failing (same as Session 015).
+
+
+OPEN ITEMS / EXPLICITLY NOT BUILT THIS SESSION
+-----------------------------------------------
+
+The slice that shipped is "create, list, and edit habit metadata". The
+bigger pieces of the feature were cut when the user decided to wrap the
+session early. These are the concrete next steps for Session 018:
+
+1. STEP BUILDER (admin side)
+   Add an inline step editor to HabitEditPage.tsx:
+     - Add/remove/reorder habit_steps rows for a habit_id
+     - Fields per step: order_index, title, instructions (plain text)
+     - Bulk reorder should renumber order_index
+   Pattern to follow: the lesson list in CourseBuilderPage.tsx is the closest
+   analogue but simpler — no sections, no questions, just title + instructions.
+
+2. MENTEE ASSIGNMENT UI (admin side)
+   Add a section to HabitEditPage.tsx that lists current mentee_habits for
+   this habit and lets staff assign new ones:
+     - "Assign to mentee" form (mentee dropdown + start_date picker)
+     - On assign: insert mentee_habits row (snapshot all the fields),
+       then insert one mentee_habit_steps row per current habit_steps row
+       (also snapshotted), and compute end_date via computeEndDate() from
+       lib/habits.ts.
+     - List current assignments with mentee name, status, successful_days_count,
+       and an "End" button that sets status='abandoned'.
+   Also add a mirrored "Habits" tab/section on MenteeEditPage.tsx so staff
+   can see all habits assigned to a specific mentee.
+
+3. MENTEE-SIDE VIEW (mentee role)
+   Files to create:
+     - app/src/pages/MenteeHabitsPage.tsx — list of assigned mentee_habits
+       ("My Habits"), parallels MenteeCoursesPage.tsx.
+     - app/src/pages/MenteeHabitDetailPage.tsx — detail view with today's
+       per-step checklist, progress meter against the duration target, and
+       a history grid showing successful/unsuccessful days. Daily check-off
+       writes to mentee_habit_step_logs; after each check, client-side logic
+       computes the successful-day count and updates successful_days_count
+       on mentee_habits. Use computeStatus() from lib/habits.ts to decide if
+       the assignment should transition to 'completed' or 'abandoned' and
+       update it in the same transaction.
+   Wire routes in App.tsx:
+     /my-habits         → MenteeHabitsPage
+     /my-habits/:id     → MenteeHabitDetailPage
+   Add "My Habits" (teal) to the hardcoded mentee sidebar in
+   components/layout/Sidebar.tsx (was added and then reverted at the end of
+   this session because the target pages weren't built yet).
+
+4. APPLY THE MIGRATION
+   954_habits_tables.sql has not been run against the Supabase instance.
+   Apply it (manually, same as past migrations) before anything in the
+   feature actually works end-to-end. Until then the /habits routes will
+   render but all queries will 404/error on the missing tables.
+
+5. NOTIFICATION DELIVERY (later, not next session)
+   Email/SMS/push reminders are still "eventually" per the user. Nothing
+   in this session's data model blocks it — mentee_habits has enough fields
+   for a scheduler to walk active assignments and fan out reminders.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main is up to date on origin and auto-deploying via Vercel.
+- Build clean: tsc + vite build both pass with no TypeScript errors.
+- Tests: 57 passing, 0 failing.
+- New migration in repo (unapplied): 954_habits_tables.sql
+- New lib file: app/src/lib/habits.ts
+- New pages: HabitsPage, HabitCreatePage, HabitEditPage (metadata-only).
+- Sidebar: "Habits" appears in the admin Offerings group.
+- Mentee sidebar: NOT changed — "My Habits" entry was removed before commit
+  because the mentee pages don't exist yet.
+- No new npm dependencies this session.
+- Previous backlog from Session 015 (edit-page RHF migration, bundle size
+  warning, InvoicePrintPage loading text) all still open and unchanged.
+
+
+STALE BRANCHES
+--------------
+
+The task description for this session originally designated
+`claude/session-17-main-merge-4B2lL` as the development branch, but the
+user overrode that at the very start and instructed that all session 017
+work should merge and push to main directly. That branch is being deleted
+(locally and on origin) during the wrap.
