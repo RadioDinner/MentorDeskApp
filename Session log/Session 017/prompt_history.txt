@@ -1,0 +1,4 @@
+SESSION 017 PROMPT HISTORY
+==========================
+
+1. Time for a new session. Session 16 got stuck for some reason. Create a new session and remember to always merge to main and continue pushing to main for the remainder of the sesion
