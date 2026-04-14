@@ -2,3 +2,5 @@ SESSION 017 PROMPT HISTORY
 ==========================
 
 1. Time for a new session. Session 16 got stuck for some reason. Create a new session and remember to always merge to main and continue pushing to main for the remainder of the sesion
+
+2. Ok, I want to start building out a new feature called "Routines". It'll go in the offerings group of modules on the admin dashboard. In "Routines" we'll have a few different things we can do. One will be creating a daily check-in "Routine". Like say that a fitness coach uses it and he wants to setup a habit tracker of sorts. He'd create a "Routine" for "Daily walk" and then outline a step or several steps, similar to the step process in lesson creation in courses but more basic. Then serve the "Routine" as a reminder to the mentee from, eventually, a notification on the web app, via email or text or via notification on the mobile app we will build in the future. I want to be able to define how long the routine will run, by set number of days, a goal of x amount of days completed over y amount of days, or by X number of successful days. I also want the mentor or course builders to be able to issue a one off "Routine"
