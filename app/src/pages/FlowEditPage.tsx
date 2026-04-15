@@ -11,6 +11,7 @@ import { Skeleton } from '../components/ui'
 import {
   WORKSPACE_SIZE,
   NODE_DEFAULTS,
+  HISTORY_LIMIT,
   COLORS,
   migrateContent,
   createOfferingNode,
@@ -31,6 +32,8 @@ import type {
   Offering,
 } from '../types'
 
+type HistorySnapshot = { nodes: JourneyNode[]; connectors: JourneyConnector[] }
+
 export default function FlowEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile } = useAuth()
@@ -40,6 +43,9 @@ export default function FlowEditPage() {
   const [flow, setFlow] = useState<JourneyFlow | null>(null)
   const [nodes, setNodes] = useState<JourneyNode[]>([])
   const [connectors, setConnectors] = useState<JourneyConnector[]>([])
+  // Undo stack: each entry is the { nodes, connectors } state BEFORE a
+  // coarse action. Capped at HISTORY_LIMIT.
+  const [past, setPast] = useState<HistorySnapshot[]>([])
   const [offerings, setOfferings] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +73,9 @@ export default function FlowEditPage() {
     startNodeX: number
     startNodeY: number
     moved: boolean
+    historyPushed: boolean
+    prevNodes: JourneyNode[]
+    prevConnectors: JourneyConnector[]
   } | null>(null)
 
   // ── Load flow + offerings ──────────────────────────────────────────────
@@ -92,6 +101,7 @@ export default function FlowEditPage() {
         setFlow({ ...f, content: normalized })
         setNodes(normalized.nodes)
         setConnectors(normalized.connectors)
+        setPast([])
         setDirty(false)
         if (!offeringsRes.error) setOfferings(offeringsRes.data ?? [])
       } catch (err) {
@@ -126,6 +136,16 @@ export default function FlowEditPage() {
       const dy = e.clientY - drag.startPointerY
       if (dx === 0 && dy === 0) return
       drag.moved = true
+      // Lazy-push: a pointerdown with no real movement does not consume
+      // an undo slot.
+      if (!drag.historyPushed) {
+        setPast(prev => {
+          const next = [...prev, { nodes: drag.prevNodes, connectors: drag.prevConnectors }]
+          if (next.length > HISTORY_LIMIT) next.shift()
+          return next
+        })
+        drag.historyPushed = true
+      }
       setNodes(prev => prev.map(n => {
         if (n.id !== drag.nodeId) return n
         const size = nodeSize(n.type)
@@ -154,6 +174,29 @@ export default function FlowEditPage() {
   const canEdit = profile?.role === 'admin'
     || profile?.role === 'operations'
     || profile?.role === 'course_creator'
+
+  // ── Undo history ───────────────────────────────────────────────────────
+  function pushHistory() {
+    setPast(prev => {
+      const next = [...prev, { nodes, connectors }]
+      if (next.length > HISTORY_LIMIT) next.shift()
+      return next
+    })
+  }
+
+  function undo() {
+    if (past.length === 0) return
+    const snapshot = past[past.length - 1]
+    setPast(prev => prev.slice(0, -1))
+    setNodes(snapshot.nodes)
+    setConnectors(snapshot.connectors)
+    // Any in-progress label edit or connect mode should be closed so the
+    // restored content sticks.
+    setEditingConnectorId(null)
+    setEditingLabelValue('')
+    setConnectorMode(null)
+    setDirty(true)
+  }
 
   // ── Connector mode ─────────────────────────────────────────────────────
   function startConnectMode() {
@@ -185,6 +228,7 @@ export default function FlowEditPage() {
       c => c.fromNodeId === src && c.toNodeId === nodeId,
     )
     if (!alreadyExists) {
+      pushHistory()
       setConnectors(prev => [...prev, createConnector(src, nodeId)])
       setDirty(true)
     }
@@ -197,6 +241,7 @@ export default function FlowEditPage() {
       setEditingConnectorId(null)
       setEditingLabelValue('')
     }
+    pushHistory()
     setConnectors(prev => prev.filter(c => c.id !== connectorId))
     setDirty(true)
   }
@@ -210,30 +255,51 @@ export default function FlowEditPage() {
 
   function saveConnectorLabel(connectorId: string) {
     const trimmed = editingLabelValue.trim()
-    setConnectors(prev =>
-      prev.map(c => (c.id === connectorId ? { ...c, label: trimmed } : c)),
-    )
+    const existing = connectors.find(c => c.id === connectorId)
+    if (existing && existing.label !== trimmed) {
+      pushHistory()
+      setConnectors(prev =>
+        prev.map(c => (c.id === connectorId ? { ...c, label: trimmed } : c)),
+      )
+      setDirty(true)
+    }
     setEditingConnectorId(null)
     setEditingLabelValue('')
-    setDirty(true)
   }
 
-  // Esc cancels connect mode or label editing.
+  // Keyboard shortcuts:
+  //   Escape          — cancel connect mode or label editing
+  //   Cmd/Ctrl + Z    — undo
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      if (connectorMode) {
-        setConnectorMode(null)
+      // Don't hijack keys while the user is typing in an input/textarea.
+      const target = e.target as HTMLElement | null
+      const inField = !!target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      )
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if (inField) return
+        e.preventDefault()
+        undo()
         return
       }
-      if (editingConnectorId) {
-        setEditingConnectorId(null)
-        setEditingLabelValue('')
+      if (e.key === 'Escape') {
+        if (connectorMode) {
+          setConnectorMode(null)
+          return
+        }
+        if (editingConnectorId) {
+          setEditingConnectorId(null)
+          setEditingLabelValue('')
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [connectorMode, editingConnectorId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectorMode, editingConnectorId, past, nodes, connectors])
 
   // ── Node actions ───────────────────────────────────────────────────────
   function handleNodePointerDown(e: React.PointerEvent, node: JourneyNode) {
@@ -254,6 +320,9 @@ export default function FlowEditPage() {
       startNodeX: node.x,
       startNodeY: node.y,
       moved: false,
+      historyPushed: false,
+      prevNodes: nodes,
+      prevConnectors: connectors,
     }
     e.preventDefault()
   }
@@ -270,6 +339,7 @@ export default function FlowEditPage() {
   }
 
   function addOfferingNode(offeringId: string) {
+    pushHistory()
     const { x, y } = spawnPosition('offering')
     setNodes(prev => [...prev, createOfferingNode(x, y, offeringId)])
     setDirty(true)
@@ -277,18 +347,21 @@ export default function FlowEditPage() {
   }
 
   function addDecisionNode() {
+    pushHistory()
     const { x, y } = spawnPosition('decision')
     setNodes(prev => [...prev, createDecisionNode(x, y, 'Decision')])
     setDirty(true)
   }
 
   function addStatusNode() {
+    pushHistory()
     const { x, y } = spawnPosition('status')
     setNodes(prev => [...prev, createStatusNode(x, y, 'Status')])
     setDirty(true)
   }
 
   function addEndNode() {
+    pushHistory()
     const { x, y } = spawnPosition('end')
     setNodes(prev => [...prev, createEndNode(x, y)])
     setDirty(true)
@@ -467,6 +540,14 @@ export default function FlowEditPage() {
             className={connectorMode ? 'ring-2 ring-brand' : ''}
           >
             {connectorMode ? 'Cancel connect' : 'Connect'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={undo}
+            disabled={past.length === 0}
+            title="Undo (⌘Z)"
+          >
+            Undo
           </Button>
         </div>
       )}
