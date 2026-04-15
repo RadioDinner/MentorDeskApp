@@ -16,6 +16,7 @@ import {
   colorClasses,
   createStickyNote,
   WORKSPACE_SIZE,
+  NOTE_MIN,
   HISTORY_LIMIT,
 } from '../lib/canvas'
 import type { Canvas, CanvasConnector, CanvasNote, CanvasNoteColor } from '../types'
@@ -58,6 +59,16 @@ export default function CanvasEditPage() {
     // Snapshot of pre-drag state, pushed onto the undo stack only if the
     // user actually moves the pointer (so a plain click doesn't consume
     // an undo slot).
+    prevNotes: CanvasNote[]
+    prevConnectors: CanvasConnector[]
+    historyPushed: boolean
+  } | null>(null)
+  const resizeStateRef = useRef<{
+    noteId: string
+    startX: number
+    startY: number
+    startWidth: number
+    startHeight: number
     prevNotes: CanvasNote[]
     prevConnectors: CanvasConnector[]
     historyPushed: boolean
@@ -127,34 +138,67 @@ export default function CanvasEditPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
 
-  // Drag listeners (attached to document while a drag is in progress)
+  // Drag + resize listeners (attached to document while either gesture
+  // is in progress). Both gestures use the same lazy-history pattern:
+  // the pre-gesture snapshot is pushed onto the undo stack only on the
+  // first real pointermove, so a plain pointerdown with no movement
+  // does not consume an undo slot.
   useEffect(() => {
     function handleMove(e: PointerEvent) {
-      const s = dragStateRef.current
-      if (!s) return
-      const dx = e.clientX - s.startX
-      const dy = e.clientY - s.startY
-      if (dx === 0 && dy === 0) return
-      // First real movement of this drag — snapshot the pre-drag state.
-      if (!s.historyPushed) {
-        setPast(prev => {
-          const next = [...prev, { notes: s.prevNotes, connectors: s.prevConnectors }]
-          if (next.length > HISTORY_LIMIT) next.shift()
-          return next
-        })
-        s.historyPushed = true
+      const drag = dragStateRef.current
+      if (drag) {
+        const dx = e.clientX - drag.startX
+        const dy = e.clientY - drag.startY
+        if (dx === 0 && dy === 0) return
+        if (!drag.historyPushed) {
+          setPast(prev => {
+            const next = [...prev, { notes: drag.prevNotes, connectors: drag.prevConnectors }]
+            if (next.length > HISTORY_LIMIT) next.shift()
+            return next
+          })
+          drag.historyPushed = true
+        }
+        setNotes(prev => prev.map(n => n.id === drag.noteId
+          ? {
+              ...n,
+              x: Math.max(0, Math.min(WORKSPACE_SIZE.width - n.width, drag.noteStartX + dx)),
+              y: Math.max(0, Math.min(WORKSPACE_SIZE.height - n.height, drag.noteStartY + dy)),
+            }
+          : n))
+        return
       }
-      setNotes(prev => prev.map(n => n.id === s.noteId
-        ? {
+      const rs = resizeStateRef.current
+      if (rs) {
+        const dx = e.clientX - rs.startX
+        const dy = e.clientY - rs.startY
+        if (dx === 0 && dy === 0) return
+        if (!rs.historyPushed) {
+          setPast(prev => {
+            const next = [...prev, { notes: rs.prevNotes, connectors: rs.prevConnectors }]
+            if (next.length > HISTORY_LIMIT) next.shift()
+            return next
+          })
+          rs.historyPushed = true
+        }
+        setNotes(prev => prev.map(n => {
+          if (n.id !== rs.noteId) return n
+          const maxW = WORKSPACE_SIZE.width - n.x
+          const maxH = WORKSPACE_SIZE.height - n.y
+          return {
             ...n,
-            x: Math.max(0, Math.min(WORKSPACE_SIZE.width - n.width, s.noteStartX + dx)),
-            y: Math.max(0, Math.min(WORKSPACE_SIZE.height - n.height, s.noteStartY + dy)),
+            width: Math.max(NOTE_MIN.width, Math.min(maxW, rs.startWidth + dx)),
+            height: Math.max(NOTE_MIN.height, Math.min(maxH, rs.startHeight + dy)),
           }
-        : n))
+        }))
+      }
     }
     function handleUp() {
       if (dragStateRef.current) {
         dragStateRef.current = null
+        setDirty(true)
+      }
+      if (resizeStateRef.current) {
+        resizeStateRef.current = null
         setDirty(true)
       }
     }
@@ -251,6 +295,23 @@ export default function CanvasEditPage() {
       if (!target || target.z >= topZ) return prev
       return prev.map(n => n.id === noteId ? { ...n, z: topZ + 1 } : n)
     })
+  }
+
+  function handleResizePointerDown(e: React.PointerEvent, note: CanvasNote) {
+    if (!canEdit) return
+    if (editingNoteId === note.id) return
+    e.stopPropagation()
+    e.preventDefault()
+    resizeStateRef.current = {
+      noteId: note.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: note.width,
+      startHeight: note.height,
+      prevNotes: notes,
+      prevConnectors: connectors,
+      historyPushed: false,
+    }
   }
 
   function handleNotePointerDown(e: React.PointerEvent, note: CanvasNote) {
@@ -560,6 +621,18 @@ export default function CanvasEditPage() {
                   >
                     {note.text || <span className="text-gray-400 italic">Double-click to edit</span>}
                   </div>
+                )}
+                {/* Resize handle (bottom-right corner) */}
+                {canEdit && (
+                  <div
+                    data-no-drag
+                    onPointerDown={e => handleResizePointerDown(e, note)}
+                    className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize"
+                    style={{
+                      background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.25) 50%)',
+                    }}
+                    title="Drag to resize"
+                  />
                 )}
               </div>
             )
