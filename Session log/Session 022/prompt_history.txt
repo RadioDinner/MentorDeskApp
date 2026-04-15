@@ -5,3 +5,5 @@
 3. slice 2
 
 4. Slice 3
+
+5. slice 4. Commit to main and continue committing to main for the rest of the session, now do block 1, all slices of it
