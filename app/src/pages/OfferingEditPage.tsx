@@ -446,6 +446,20 @@ export default function OfferingEditPage() {
           </div>
         )}
 
+        {/* Options — courses only */}
+        {isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Options</h2>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
+                <p className="text-xs text-gray-500 mt-0.5">Include as a step in the mentee progression.</p>
+              </div>
+            </label>
+          </div>
+        )}
+
         {/* Engagement settings */}
         {!isCourse && (
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
@@ -490,6 +504,20 @@ export default function OfferingEditPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Options — engagements only */}
+        {!isCourse && (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Options</h2>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
+                <p className="text-xs text-gray-500 mt-0.5">Include as a step in the mentee progression.</p>
+              </div>
+            </label>
           </div>
         )}
 
