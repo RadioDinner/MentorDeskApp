@@ -11,3 +11,7 @@
 6. lets take bigger chunks, lets keep going. Finish Phase A
 
 7. start phase b and build the whole thing
+
+8. I applied the migrations. Let's work on 2 and 4. Notification delivery is a project of its own. What does number 5 mean with the chunk-size warning?
+
+9. Let's start with the CanvasEdit page
