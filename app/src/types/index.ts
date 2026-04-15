@@ -116,6 +116,7 @@ export interface Organization {
   allocation_refresh_mode: AllocationRefreshMode
   pay_mentors_for_uncredited_meetings: boolean
   archive_settings: ArchiveSettings
+  journey_auto_assign_offerings: boolean
   created_at: string
 }
 
@@ -555,6 +556,104 @@ export interface CanvasFolder {
   name: string
   order_index: number
   created_at: string
+}
+
+// ── Journeys ────────────────────────────────────────────────────────────
+//
+// A Flow is an org-level reusable flowchart template. A Journey is a
+// per-mentee snapshot copy of a Flow. Both use the same content shape:
+// a set of JourneyNodes connected by JourneyConnectors with labels.
+// The connector labels are where the if/then logic lives (e.g. "completed
+// course", "waitlist").
+
+export interface JourneyBaseNode {
+  id: string     // client-generated id
+  x: number      // px offset from workspace origin
+  y: number
+}
+
+export interface JourneyStartNode extends JourneyBaseNode {
+  type: 'start'
+}
+
+export interface JourneyOfferingNode extends JourneyBaseNode {
+  type: 'offering'
+  offeringId: string
+}
+
+export interface JourneyDecisionNode extends JourneyBaseNode {
+  type: 'decision'
+  label: string
+}
+
+/**
+ * A terminal/status label node (e.g. "waitlist", "graduated"). Distinct
+ * from the mentee_journeys.status column — this is a NODE inside the
+ * flowchart, not the lifecycle state of the journey itself.
+ */
+export interface JourneyStatusNode extends JourneyBaseNode {
+  type: 'status'
+  label: string
+}
+
+export interface JourneyEndNode extends JourneyBaseNode {
+  type: 'end'
+}
+
+export type JourneyNode =
+  | JourneyStartNode
+  | JourneyOfferingNode
+  | JourneyDecisionNode
+  | JourneyStatusNode
+  | JourneyEndNode
+
+export interface JourneyConnector {
+  id: string
+  fromNodeId: string
+  toNodeId: string
+  label: string   // if/then logic label, rendered at the connector midpoint
+}
+
+export interface JourneyContent {
+  nodes: JourneyNode[]
+  connectors: JourneyConnector[]
+}
+
+export interface JourneyFolder {
+  id: string
+  organization_id: string
+  name: string
+  order_index: number
+  created_at: string
+}
+
+export interface JourneyFlow {
+  id: string
+  organization_id: string
+  folder_id: string | null
+  name: string
+  description: string | null
+  content: JourneyContent
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type MenteeJourneyStatus = 'active' | 'completed' | 'cancelled'
+
+export interface MenteeJourney {
+  id: string
+  organization_id: string
+  mentee_id: string
+  flow_id: string | null          // null if the source flow was later deleted
+  content: JourneyContent         // snapshot copy — edits do not affect the source flow
+  current_node_id: string | null  // which node the mentee is currently on
+  status: MenteeJourneyStatus
+  assigned_by: string | null
+  started_at: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 /** Shared list/grid view-mode type used across pages that support the toggle. */

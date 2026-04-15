@@ -12,6 +12,8 @@ export type EntityType =
   | 'habit'
   | 'mentee_habit'
   | 'canvas'
+  | 'journey_flow'
+  | 'mentee_journey'
 
 export interface AuditEntry {
   organization_id: string
