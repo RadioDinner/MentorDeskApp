@@ -1,0 +1,416 @@
+SESSION 021 HANDOFF LOG
+========================
+Date: 2026-04-15
+Branch: main (per CLAUDE.md rule #5 and user instruction at session start:
+"Merge everything to main and continue pushing to main in the new session")
+
+Session 021 picked up after the Session 020 crash wrap was merged into
+main. Two things shipped this session:
+  1. Engagement closeout feature (Mark Complete + Cancel with refund)
+  2. Full design + 69-slice task list for the new "Journeys" feature
+The Journeys feature itself is NOT built — it's fully planned and
+queued for Session 022.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+A) HOUSEKEEPING
+
+   - Merged the Session 020 wrap branch (claude/happy-sagan-k0AuD) into
+     main with --allow-unrelated-histories and pushed. The sandbox's
+     origin/main was stuck at Session 007; local main is now caught
+     up with all the accumulated session work through 020 plus the
+     merge commit f9a9039.
+   - Ran npm ci in app/ — 315 packages installed, fixed the missing
+     @types/node + vite/client stubs that broke build at the end of
+     Session 020. Build clean, tests 57/57.
+
+
+B) ENGAGEMENT CLOSEOUT FEATURE  (commit 1796a08 on main)
+
+   Two admin buttons on EngagementManageModal for closing out a
+   mentee's engagement. Lifecycle completion — the thing the user
+   asked for as "close out" (but renamed because CoachAccountable
+   owns that phrase).
+
+   1. Migration 951_mentee_offering_cancellation.sql
+      Adds to mentee_offerings:
+        · cancelled_at timestamptz
+        · cancellation_reason text
+        · refund_amount_cents int not null default 0
+      (completed_at already existed from migration 978.)
+      STATUS: APPLIED by user during session.
+
+   2. types/index.ts
+      MenteeOffering extended with the three new fields.
+
+   3. EngagementManageModal.tsx — new footer action bar:
+
+      WHEN status = 'active':
+        · "Mark complete" (primary) — confirmation dialog warns if
+          the mentee has unused sessions, nudging toward Cancel
+          instead. Sets status='completed', completed_at=now.
+        · "Cancel engagement" (danger) — opens a dialog showing:
+            - Sessions used (X of Y)
+            - Paid-to-date total (from invoices with status='paid')
+            - Pro-rata refund suggestion = paid_total * (unused/total)
+            - Editable refund amount field (pre-filled)
+            - Optional reason textarea
+          Sets status='cancelled', cancelled_at, cancellation_reason,
+          refund_amount_cents. The actual payment-processor refund
+          is NOT wired — the app just records that a refund was
+          agreed to, matching how the rest of billing works today.
+
+      WHEN status = 'completed' or 'cancelled':
+        · Footer shows summary info (date, refund amount, reason)
+        · "Reopen engagement" button clears all closeout fields
+          and flips status back to active.
+
+      Header badge now shows three states: green Completed / gray
+      Cancelled / rose Active.
+
+   Build clean + 57/57 tests after commit.
+
+   KNOWN CAVEAT: cancelled engagements disappear from
+   MenteeManageSlideOver's list because its query at line 61 filters
+   on `status in ('active','completed')`. Acceptable for MVP — if
+   the user wants a "show cancelled" toggle later, that's the line.
+
+
+C) JOURNEYS FEATURE — FULL DESIGN + TODO LIST
+
+   Mid-session the user pivoted to designing the next big feature:
+   "Journeys". This is a flowchart-based way to sequence offerings
+   (courses + engagements) into a decision-tree flow that a mentor
+   can walk a mentee through. Think Zapier's flowchart editor.
+
+   Concept:
+     - FLOW (template)     = reusable flowchart, lives in
+                             Offerings > Flows. Example: "General
+                             Flow" starts with "Get to know us"
+                             engagement, then decision node: course
+                             OR waitlist, then 4x mentoring → 2x
+                             → 1x → graduate.
+     - JOURNEY (instance)  = per-mentee snapshot copy of a Flow
+                             that can be edited independently for
+                             that mentee.
+     - Nodes: start, offering (course or engagement), decision,
+              status (waitlist, graduated, etc.), end.
+     - Connectors have LABELS — this is where the if/then/else
+       logic lives (e.g. "if completed course", "if waitlist").
+     - Mentor manually advances a Journey by clicking an outgoing
+       connector from the current node.
+
+   User decisions captured via AskUserQuestion:
+     1. Scope: MVP this session → turned into "MVP next session",
+        since the design itself ate the remaining time.
+     2. Node semantics: NEW COMPANY SETTING —
+        journey_auto_assign_offerings (default TRUE). When ON,
+        entering an offering node auto-creates the mentee_offerings
+        row. When OFF, the mentor gets a pending-assignment
+        notification and manually confirms.
+     3. Sidebar: new "Flows" module under the Offerings group.
+     4. Legacy Mentee Flow: left alone in Company Settings, just
+        fix the existing bug (see Item D below).
+
+   RESEARCH FINDINGS (from two Explore agents):
+
+   - THE BUG the user reported: OfferingEditPage.tsx has NO
+     addToFlow field in its Zod schema (lines 35-53), NO checkbox
+     in the UI, and NO save logic. OfferingCreatePage.tsx:57,168-175
+     has it working correctly — so the fix is to mirror the create
+     page pattern on the edit page.
+
+   - CANVAS REUSE: 100% reusable infrastructure. lib/canvas.ts
+     contains factories, constants, migrateContent, clientId. The
+     drag-to-move / resize / undo / SVG connector machinery in
+     CanvasEditPage.tsx is entirely type-agnostic. CanvasConnector
+     already has a `label` field in the type (types:528) and
+     createConnector already accepts a label — but labels are
+     NOT currently rendered in the SVG. For Journeys, labels are
+     critical, so the Journey flowchart editor either needs its
+     own SVG render layer or we extend CanvasEditPage's.
+
+   - GREENFIELD: no "next offering on completion" logic exists
+     today. No triggers, no hooks. mentee_offerings has status =
+     'active'/'completed'/'cancelled' with no cascade behavior.
+
+   - EXISTING MENTEE FLOW: organizations.mentee_flow (jsonb) +
+     mentees.flow_step_id (text). Purely a label/status system.
+     MenteeFlowEditor lives in CompanySettingsPage.tsx:610-804.
+     Migration 991 is the origin. Will be left as-is this session.
+
+
+D) OFFERINGEDITPAGE BUG (not yet fixed)
+
+   User request from prompt 6: "I also found a bug while creating
+   that engagement. I checked the box to add it to the mentee flow
+   but it didn't work."
+
+   Not actually a create-page bug — it was on the EDIT page. The
+   create page works fine; the edit page never implemented it.
+   Fix is slated as the first block of Session 022 work (Block 0
+   below), so the fix lands even if the full Journey feature
+   doesn't finish.
+
+
+JOURNEYS TASK LIST — 69 SLICES IN 17 BLOCKS  (for Session 022)
+---------------------------------------------------------------
+
+Every block ends in a commit so the session can pause/resume
+cleanly. Block 0 is the standalone bug fix; each subsequent block
+builds on the previous. Totals ~69 granular slices grouped like
+this:
+
+BLOCK 0 — OfferingEditPage addToFlow bug fix  (4 slices)
+  - Add addToFlow to OfferingEditPage form schema
+  - Add addToFlow checkbox UI (course + engagement sections)
+  - Wire addToFlow save logic mirroring OfferingCreatePage:168-175
+  - Build + test + commit the fix
+
+BLOCK 1 — Migrations  (6 slices)
+  - 950_journey_flows.sql (id, org_id, name, description,
+    folder_id, content jsonb, archived_at, timestamps)
+  - 950_flow_folders.sql (id, org_id, name, sort_order)  — or
+    bundled into 950 with the flows table, TBD at build time
+  - 950_mentee_journeys.sql (id, org_id, mentee_id, flow_id,
+    content jsonb, current_node_id, status, assigned_by,
+    started_at, completed_at)
+  - RLS policies for all three journey tables
+  - 949_journey_auto_assign.sql: add
+    journey_auto_assign_offerings boolean to organizations
+    (default TRUE)
+  - Commit migrations (user applies in Supabase before any
+    UI work can be verified)
+
+  NOTE: per CLAUDE.md rule #6, migrations count DOWN from 999.
+  Lowest existing migration is 951. Next new migrations are 950
+  and 949 in DECREASING order.
+
+BLOCK 2 — Types  (6 slices)
+  - JourneyFlow + JourneyFolder interfaces
+  - MenteeJourney interface (with status type)
+  - JourneyContent interface
+  - JourneyNode discriminated union (start / offering / decision /
+    status / end)
+  - JourneyConnector interface (fromNodeId, toNodeId, label)
+  - Extend Organization type with journey_auto_assign_offerings;
+    extend audit entity_type union with 'journey_flow' and
+    'mentee_journey'
+  - Commit types
+
+BLOCK 3 — lib/journeyFlow.ts  (6 slices)
+  Mirrors lib/canvas.ts one-for-one. Single source of truth for the
+  journey model.
+  - Constants: COLORS, NODE_DEFAULTS, WORKSPACE_SIZE, HISTORY_LIMIT
+  - Helpers: clientId, baseAt
+  - Factories: createStartNode, createOfferingNode,
+    createDecisionNode, createStatusNode, createEndNode
+  - createConnector(from, to, label)
+  - migrateContent() for normalizing loaded jsonb
+  - Commit lib/journeyFlow
+
+BLOCK 4 — Sidebar wiring  (2 slices)
+  - Add Flows entry to lib/modules.ts under Offerings group
+    (suggest violet gradient, letter F, path /flows)
+  - Commit
+
+BLOCK 5 — FlowsPage (list / grid / folders)  (6 slices)
+  - Scaffold FlowsPage.tsx shell: fetch flows + folders,
+    loading/error states
+  - List view rendering
+  - Grid view card rendering
+  - Wire ListGridToggle + FolderManager
+  - "+ Create Flow" button + register /flows and /flows/new
+    routes in App.tsx
+  - Commit
+
+BLOCK 6 — FlowCreatePage  (2 slices)
+  - Simple form (name + description); insert with initial content
+    { nodes: [startNode], connectors: [] }; navigate to edit
+  - Commit
+
+BLOCK 7 — FlowEditPage — node rendering  (7 slices)
+  - Scaffold page: fetch flow, title edit, archive/delete buttons,
+    run loaded content through migrateContent
+  - Render fixed-size workspace with dotted grid (copy from
+    CanvasEditPage)
+  - Render start node type (fixed style, non-deletable)
+  - Render offering node type (resolves offering by id from cache,
+    shows name + icon)
+  - Render decision node type (diamond or labeled box)
+  - Render status node type (plain labeled box)
+  - Render end node type
+  - Commit
+
+BLOCK 8 — Drag-to-move  (2 slices)
+  - Port dragStateRef pattern from CanvasEditPage (pointerdown /
+    document pointermove / pointerup, clamp to WORKSPACE_SIZE)
+  - Commit
+
+BLOCK 9 — Add-node toolbar  (3 slices)
+  - "+ Offering" button opens offering picker (dropdown filtered
+    to available offerings)
+  - "+ Decision", "+ Status", "+ End" toolbar buttons
+  - Commit
+
+BLOCK 10 — Connectors  (5 slices)
+  - Render SVG overlay drawing connectors from node centers
+  - Render connector labels at midpoint (SVG text elements)
+  - Connect mode: click source → click target → creates
+  - Connector label inline edit + delete (click line or × at mid)
+  - Commit
+
+BLOCK 11 — Undo history  (2 slices)
+  - Port past stack pattern from CanvasEditPage, snapshot before
+    coarse actions, Cmd/Ctrl+Z keyboard handler
+  - Commit
+
+BLOCK 12 — Save flow  (3 slices)
+  - Save button + dirty badge + beforeunload warning
+  - Wire save to PATCH journey_flows.content with audit log
+  - Commit
+
+BLOCK 13 — Assign a Flow to a mentee  (3 slices)
+  - Add "Journeys" section to MenteeManageSlideOver alongside
+    Courses + Engagements
+  - Flow picker dropdown + "Start" button → inserts mentee_journeys
+    row (snapshot flow.content, current_node_id = start node id)
+  - Commit
+
+BLOCK 14 — Advance handler  (5 slices)
+  - Render journey card: current node name + type + outgoing
+    connector options
+  - Advance handler: pick outgoing connector, update
+    current_node_id, audit log
+  - If target = offering node AND auto-assign ON → create
+    mentee_offerings row snapshotting the offering
+  - If target = offering node AND auto-assign OFF → flag as
+    pending_assignment on the journey, surface a badge on the
+    mentee row in MenteesListPage
+  - If target = end node → set mentee_journeys.status='completed'
+    + completed_at
+  - Commit
+
+BLOCK 15 — Company setting toggle  (2 slices)
+  - Add journey_auto_assign_offerings toggle to CompanySettingsPage
+    with helper text explaining the difference
+  - Commit
+
+BLOCK 16 — Verification + wrap  (3 slices)
+  - cd app && npm run build + npm run test
+  - Any final polish commits
+  - Write Session 022 session_log.txt + commit
+
+
+DELIBERATELY OUT OF SCOPE FOR SESSION 022 MVP
+----------------------------------------------
+
+(Listed explicitly so the user can pull them into a future session.)
+
+  a. Per-mentee journey EDITING after assignment. The user wants
+     this eventually — "I could make changes to the 'Flow' for
+     that mentee and have his 'Journey' be a bit different. Maybe
+     he would need a 'Business 101 Course' supplement." MVP just
+     snapshots the flow content; editing the snapshot needs a
+     separate editor shell reading mentee_journeys instead of
+     journey_flows, with its own save wiring.
+
+  b. Auto-advance on mentee_offerings.status → 'completed'. For
+     MVP the mentor manually clicks Advance. Automatic cascade
+     requires either a DB trigger on mentee_offerings or an
+     app-level hook in the complete button handler, plus logic
+     to find the "originating node" of the completed offering.
+
+  c. Mentee-side read-only view at /my-journey. MVP is admin/mentor
+     only.
+
+  d. Migrating organizations.mentee_flow into a "Default Flow"
+     template in journey_flows. Legacy MenteeFlowEditor stays.
+
+  e. Notification delivery for pending_assignment state. For MVP
+     we flag the journey in the DB and surface a badge; actual
+     email/push is its own project.
+
+  f. MenteeEditPage sub-sections still not migrated to RHF
+     (habits, engagements, etc.) — same as prior sessions.
+
+  g. InvoicePrintPage loading text polish — oldest backlog item.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = origin/main = 1796a08, pushed
+  - Working tree clean (after session_log commit)
+  - Tests: 57/57 passing
+  - Build: clean, chunk-size warning resolved in Session 020
+  - New migration since Session 020: 951 (applied by user
+    mid-session)
+  - Highest / lowest migration numbers so far:
+      lowest (newest):  951_mentee_offering_cancellation.sql
+      highest (oldest): 999
+  - No new npm dependencies this session
+  - Engagement closeout is LIVE and migration applied
+  - Journeys: NOTHING IN CODE YET. Only this plan exists.
+  - Active branch per session instructions was
+    claude/happy-sagan-k0AuD, but main was used directly this
+    session per user instruction
+
+
+NOTES FOR SESSION 022
+----------------------
+
+The 69-slice task list above is the literal instruction set for
+session 022. Recommended execution order:
+
+  1. START with Block 0 (bug fix). It's four slices and one
+     commit. Ship it as a standalone win even if Journey work
+     doesn't complete.
+
+  2. Then Block 1 (migrations). Commit and STOP to let the user
+     apply migrations 949 and 950 in Supabase before continuing
+     to Block 5+. Blocks 2, 3, 4 are safe to keep going in the
+     meantime — they're types, lib, sidebar, no runtime queries.
+
+  3. Blocks 5–12 are the flowchart editor itself. This is the
+     bulk of the work. Expect ~400-600 lines on FlowEditPage
+     alone, probably comparable to CanvasEditPage's ~1100.
+
+  4. Blocks 13–15 are the mentee-side glue (assign, advance,
+     company toggle).
+
+  5. Block 16 is the verification + wrap.
+
+Before touching FlowEditPage, re-read:
+  - app/src/lib/canvas.ts (for factory / migrateContent pattern)
+  - app/src/pages/CanvasEditPage.tsx (for drag / undo / SVG
+    connector / save pattern — entire file is the reference)
+
+The Journey flowchart editor is NOT a fork of CanvasEditPage —
+it's a new component that mirrors CanvasEditPage's architecture
+but with its own node types and a labeled connector renderer.
+Duplication is acceptable for this consumer; don't extract shared
+primitives yet.
+
+
+PROMPTS LOGGED THIS SESSION
+---------------------------
+
+Six prompts captured in Session 021/prompt_history.txt:
+  1. Wrap Session 020 + merge to main for new session
+  2. Run npm ci in app/
+  3. Discovery call one-off engagement — does current system
+     handle it?
+  4. Engagement closeout design + mentor-view-mentee question
+  5. Build both Mark Complete + Cancel buttons with refund flow
+  6. Big Journeys feature design + OfferingEditPage bug report
+
+
+========================================================================
+This session was unusual: we shipped one feature end-to-end
+(engagement closeout) AND fully designed a much larger feature
+(Journeys) without starting to build it. Session 022 should be
+almost entirely execution, not design. Everything needed to
+execute is in the task list above.
