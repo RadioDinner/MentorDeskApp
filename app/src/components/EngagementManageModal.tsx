@@ -20,6 +20,15 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
   const toast = useToast()
   const offering = assignment.offering
   const isCompleted = assignment.status === 'completed'
+  const isCancelled = assignment.status === 'cancelled'
+  const isActive = assignment.status === 'active'
+
+  // Close-out state
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelRefund, setCancelRefund] = useState('')
+  const [closingOut, setClosingOut] = useState(false)
 
   // Data state
   const [meetings, setMeetings] = useState<Meeting[]>([])
@@ -170,6 +179,113 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
     setEditingInvoiceId(null)
   }
 
+  // ── Close-out: paid total + suggested refund ──
+
+  const paidInvoices = invoices.filter(i => i.status === 'paid')
+  const paidTotalCents = paidInvoices.reduce((sum, inv) => sum + inv.amount_cents, 0)
+  // Suggested pro-rata refund for cancellation: unused/total * paidTotal.
+  // If meeting_count is null (unlimited), no suggestion — admin enters manually.
+  const suggestedRefundCents = (() => {
+    if (totalCredits <= 0) return 0
+    const used = credits.used
+    if (used >= totalCredits) return 0
+    const unused = totalCredits - used
+    return Math.round(paidTotalCents * (unused / totalCredits))
+  })()
+
+  function openCancelDialog() {
+    setCancelReason('')
+    setCancelRefund((suggestedRefundCents / 100).toFixed(2))
+    setShowCancelDialog(true)
+  }
+
+  async function confirmMarkComplete() {
+    setClosingOut(true)
+    try {
+      const now = new Date().toISOString()
+      await onUpdate(assignment.id, { status: 'completed', completed_at: now })
+      await logAudit({
+        organization_id: profile.organization_id,
+        actor_id: profile.id,
+        action: 'updated',
+        entity_type: 'mentee_offering',
+        entity_id: assignment.id,
+        details: { sub: 'engagement_completed', mentee_id: mentee.id, offering_id: assignment.offering_id },
+      })
+      toast.success('Engagement marked complete.')
+      setShowCompleteConfirm(false)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to mark complete.')
+    } finally {
+      setClosingOut(false)
+    }
+  }
+
+  async function confirmCancel() {
+    setClosingOut(true)
+    try {
+      const now = new Date().toISOString()
+      const refundCents = cancelRefund ? Math.round(parseFloat(cancelRefund) * 100) : 0
+      await onUpdate(assignment.id, {
+        status: 'cancelled',
+        cancelled_at: now,
+        cancellation_reason: cancelReason.trim() || null,
+        refund_amount_cents: refundCents,
+      })
+      await logAudit({
+        organization_id: profile.organization_id,
+        actor_id: profile.id,
+        action: 'updated',
+        entity_type: 'mentee_offering',
+        entity_id: assignment.id,
+        details: {
+          sub: 'engagement_cancelled',
+          mentee_id: mentee.id,
+          offering_id: assignment.offering_id,
+          refund_amount_cents: refundCents,
+          reason: cancelReason.trim() || null,
+        },
+      })
+      toast.success(refundCents > 0
+        ? `Engagement cancelled. Refund of $${(refundCents / 100).toFixed(2)} recorded.`
+        : 'Engagement cancelled.')
+      setShowCancelDialog(false)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to cancel engagement.')
+    } finally {
+      setClosingOut(false)
+    }
+  }
+
+  async function reopenEngagement() {
+    setClosingOut(true)
+    try {
+      await onUpdate(assignment.id, {
+        status: 'active',
+        completed_at: null,
+        cancelled_at: null,
+        cancellation_reason: null,
+        refund_amount_cents: 0,
+      })
+      await logAudit({
+        organization_id: profile.organization_id,
+        actor_id: profile.id,
+        action: 'updated',
+        entity_type: 'mentee_offering',
+        entity_id: assignment.id,
+        details: { sub: 'engagement_reopened', mentee_id: mentee.id, offering_id: assignment.offering_id },
+      })
+      toast.success('Engagement reopened.')
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to reopen.')
+    } finally {
+      setClosingOut(false)
+    }
+  }
+
 
 
   function getBlocksForDate(date: string) {
@@ -270,8 +386,12 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className={`text-xs font-medium px-3 py-1 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-rose-50 text-rose-700'}`}>
-              {isCompleted ? 'Completed' : 'Active'}
+            <span className={`text-xs font-medium px-3 py-1 rounded-full ${
+              isCompleted ? 'bg-green-100 text-green-700'
+              : isCancelled ? 'bg-gray-200 text-gray-600'
+              : 'bg-rose-50 text-rose-700'
+            }`}>
+              {isCompleted ? 'Completed' : isCancelled ? 'Cancelled' : 'Active'}
             </span>
             <button onClick={onClose} aria-label="Close dialog" className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
               <svg className="w-5 h-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -569,7 +689,147 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
             </div>
           )}
         </div>
+
+        {/* Footer: close-out actions */}
+        <div className="shrink-0 px-8 py-4 border-t border-gray-200 bg-gray-50/50 flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            {isCancelled && assignment.cancelled_at && (
+              <div className="space-y-0.5">
+                <p>
+                  Cancelled {new Date(assignment.cancelled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {(assignment.refund_amount_cents ?? 0) > 0 && (
+                    <> · Refund <span className="font-semibold text-gray-700 tabular-nums">${((assignment.refund_amount_cents ?? 0) / 100).toFixed(2)}</span></>
+                  )}
+                </p>
+                {assignment.cancellation_reason && <p className="italic">"{assignment.cancellation_reason}"</p>}
+              </div>
+            )}
+            {isCompleted && assignment.completed_at && (
+              <p>Completed {new Date(assignment.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+            )}
+            {isActive && totalCredits > 0 && (
+              <p>{credits.used} of {totalCredits} session{totalCredits !== 1 ? 's' : ''} used</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {isActive ? (
+              <>
+                <Button variant="danger" size="sm" onClick={openCancelDialog} disabled={closingOut}>
+                  Cancel engagement
+                </Button>
+                <Button size="sm" onClick={() => setShowCompleteConfirm(true)} disabled={closingOut}>
+                  Mark complete
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={reopenEngagement} disabled={closingOut}>
+                {closingOut ? 'Reopening...' : 'Reopen engagement'}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Mark complete confirmation */}
+      {showCompleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={e => { e.stopPropagation(); if (!closingOut) setShowCompleteConfirm(false) }}>
+          <div className="bg-white rounded-xl shadow-2xl w-[90%] max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Mark engagement complete?</h3>
+            <p className="text-sm text-gray-600">
+              This marks <span className="font-medium">{offering?.name ?? 'the engagement'}</span> as complete for {mentee.first_name} {mentee.last_name}.
+              They will no longer be able to schedule or book sessions against it.
+            </p>
+            {totalCredits > 0 && credits.used < totalCredits && (
+              <p className="mt-3 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                Note: only {credits.used} of {totalCredits} sessions have been used. If the mentee didn't use all their paid sessions, consider "Cancel engagement" instead so you can record a refund.
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <Button variant="ghost" size="sm" onClick={() => setShowCompleteConfirm(false)} disabled={closingOut}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={confirmMarkComplete} disabled={closingOut}>
+                {closingOut ? 'Marking complete...' : 'Mark complete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel engagement + refund dialog */}
+      {showCancelDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={e => { e.stopPropagation(); if (!closingOut) setShowCancelDialog(false) }}>
+          <div className="bg-white rounded-xl shadow-2xl w-[92%] max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Cancel engagement</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Cancelling <span className="font-medium">{offering?.name ?? 'this engagement'}</span> for {mentee.first_name} {mentee.last_name}.
+            </p>
+
+            {/* Usage + payment summary */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-4 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Sessions used</span>
+                <span className="font-medium text-gray-900 tabular-nums">
+                  {totalCredits > 0 ? `${credits.used} of ${totalCredits}` : `${credits.used} (unlimited plan)`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Paid to date</span>
+                <span className="font-medium text-gray-900 tabular-nums">
+                  ${(paidTotalCents / 100).toFixed(2)}
+                  <span className="text-gray-400 ml-1">({paidInvoices.length} invoice{paidInvoices.length !== 1 ? 's' : ''})</span>
+                </span>
+              </div>
+              {totalCredits > 0 && paidTotalCents > 0 && (
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-200">
+                  <span className="text-gray-500">Pro-rata refund suggestion</span>
+                  <span className="font-medium text-brand tabular-nums">
+                    ${(suggestedRefundCents / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Refund amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={cancelRefund}
+                    onChange={e => setCancelRefund(e.target.value)}
+                    className={inputClass + ' pl-7'}
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Recorded on the engagement. Issue the actual refund through your payment processor separately.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+                <textarea
+                  rows={2}
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  placeholder="Why is this engagement being cancelled?"
+                  className={inputClass + ' resize-none'}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <Button variant="ghost" size="sm" onClick={() => setShowCancelDialog(false)} disabled={closingOut}>
+                Never mind
+              </Button>
+              <Button variant="danger" size="sm" onClick={confirmCancel} disabled={closingOut}>
+                {closingOut ? 'Cancelling...' : 'Cancel engagement'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

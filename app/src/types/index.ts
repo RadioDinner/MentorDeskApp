@@ -217,6 +217,9 @@ export interface MenteeOffering {
   assigned_at: string
   started_at: string | null
   completed_at: string | null
+  cancelled_at: string | null
+  cancellation_reason: string | null
+  refund_amount_cents: number
   created_at: string
   updated_at: string
 }

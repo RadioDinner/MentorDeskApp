@@ -1,1 +1,9 @@
 1. Wrap it and lets start a new session. Merge everything to main and continue pushing to main in the new session
+
+2. I ran the migration. Now Run `npm ci` in `app/` first thing — the sandbox `node_modules` is missing `@types/node` and `vite/client.d.ts`, which broke `npm run build` at the end of last session
+
+3. I want to create a new feature in engagements. I want to be able to create one off engagements. Like, I want to create a "Discovery call" engagement, that allows them to schedule X number of appointments 1 time. The discovery call would allow for 1, 45 minute appointment. Or can my current system do this?
+
+4. That is actually a conversation we should have about engagements. I want to be able to "Close them out" so to speak. I'm not sure that we can actually use that verbage because CoachAccountable uses it. But I want to be able to, when viewing a mentee, be able to close out his engagements. Have we talked about the Mentors being able to "Open" a mentee and view their progress, habits, canvases, etc?
+
+5. Probably both buttons. "Mark complete" would be intended to be clicked after the mentee has scheduled and had all the meetings for which they've paid. "Cancel" would need some extra logic, because if they had 2 meetings of the 4 they paid for, they'd need to be refunded if the company had a policy that ran like that. Do this, then we'll start working on what the mentors see on their mentees
