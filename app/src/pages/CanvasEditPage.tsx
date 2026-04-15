@@ -15,13 +15,33 @@ import {
   COLORS,
   colorClasses,
   createStickyNote,
+  createChecklistNote,
+  createChecklistItem,
+  createLinkNote,
+  createConnector,
+  renderMarkdown,
   WORKSPACE_SIZE,
   NOTE_MIN,
   HISTORY_LIMIT,
 } from '../lib/canvas'
-import type { Canvas, CanvasConnector, CanvasNote, CanvasNoteColor } from '../types'
+import type {
+  Canvas,
+  CanvasConnector,
+  CanvasNote,
+  CanvasStickyNote,
+  CanvasChecklistNote,
+  CanvasLinkNote,
+  CanvasLinkType,
+  CanvasNoteColor,
+} from '../types'
 
 type HistorySnapshot = { notes: CanvasNote[]; connectors: CanvasConnector[] }
+type LinkOption = { id: string; label: string }
+type LinkOptionsCache = {
+  course?: LinkOption[]
+  habit?: LinkOption[]
+  canvas?: LinkOption[]
+}
 
 // ── Component ─────────────────────────────────────────────────────────
 
@@ -36,6 +56,11 @@ export default function CanvasEditPage() {
   const [connectors, setConnectors] = useState<CanvasConnector[]>([])
   const [past, setPast] = useState<HistorySnapshot[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Connector mode — null means not in connect-mode. sourceId is the first
+  // note the user clicked after pressing the "Connect" toolbar button.
+  const [connectorMode, setConnectorMode] = useState<{ sourceId: string | null } | null>(null)
+  // Lazy cache of picker option lists for link notes. Loaded on first open.
+  const [linkOptions, setLinkOptions] = useState<LinkOptionsCache>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -77,6 +102,10 @@ export default function CanvasEditPage() {
     prevConnectors: CanvasConnector[]
     historyPushed: boolean
   } | null>(null)
+  // Ref to the currently-focused sticky-note textarea (if any). Used by
+  // the markdown toolbar to wrap the active selection in bold / italic
+  // / bullet markers.
+  const activeTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   // Latest-ref for the keyboard shortcut handler. The document-level
   // listener is installed once and always calls through this ref, so
   // every key press sees the most recent closure over component state
@@ -108,6 +137,8 @@ export default function CanvasEditPage() {
         setConnectors(normalized.connectors)
         setPast([])
         setSelectedIds(new Set())
+        setConnectorMode(null)
+        setLinkOptions({})
         setDirty(false)
 
         // Look up last editor name (best effort)
@@ -321,6 +352,261 @@ export default function CanvasEditPage() {
     setDirty(true)
   }
 
+  // ── Checklist / link note creation ─────────────────────────────────
+
+  function nextNotePlacement() {
+    const scrollLeft = workspaceRef.current?.scrollLeft ?? 0
+    const scrollTop = workspaceRef.current?.scrollTop ?? 0
+    const topZ = notes.reduce((m, n) => Math.max(m, n.z), 0)
+    return {
+      x: scrollLeft + 40 + (notes.length % 5) * 20,
+      y: scrollTop + 40 + (notes.length % 5) * 20,
+      color: COLORS[notes.length % COLORS.length].key,
+      z: topZ + 1,
+    }
+  }
+
+  function addChecklistNoteAction() {
+    if (!canEdit) return
+    pushHistory()
+    const p = nextNotePlacement()
+    const newNote = createChecklistNote(p.x, p.y, p.color, p.z)
+    setNotes(prev => [...prev, newNote])
+    setSelectedIds(new Set([newNote.id]))
+    setDirty(true)
+  }
+
+  function addLinkNoteAction() {
+    if (!canEdit) return
+    pushHistory()
+    const p = nextNotePlacement()
+    const newNote = createLinkNote(p.x, p.y, p.color, p.z)
+    setNotes(prev => [...prev, newNote])
+    setSelectedIds(new Set([newNote.id]))
+    setDirty(true)
+  }
+
+  // ── Checklist note mutations ───────────────────────────────────────
+
+  function updateChecklistTitle(noteId: string, title: string) {
+    setNotes(prev => prev.map(n =>
+      n.id === noteId && n.type === 'checklist' ? { ...n, title } : n,
+    ))
+    setDirty(true)
+  }
+
+  function toggleChecklistItem(noteId: string, itemId: string) {
+    pushHistory()
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'checklist') return n
+      return {
+        ...n,
+        items: n.items.map(it => it.id === itemId ? { ...it, done: !it.done } : it),
+      }
+    }))
+    setDirty(true)
+  }
+
+  function updateChecklistItemText(noteId: string, itemId: string, text: string) {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'checklist') return n
+      return {
+        ...n,
+        items: n.items.map(it => it.id === itemId ? { ...it, text } : it),
+      }
+    }))
+    setDirty(true)
+  }
+
+  function addChecklistItemRow(noteId: string) {
+    pushHistory()
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'checklist') return n
+      return { ...n, items: [...n.items, createChecklistItem('')] }
+    }))
+    setDirty(true)
+  }
+
+  function deleteChecklistItemRow(noteId: string, itemId: string) {
+    pushHistory()
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'checklist') return n
+      return { ...n, items: n.items.filter(it => it.id !== itemId) }
+    }))
+    setDirty(true)
+  }
+
+  // ── Link note mutations ────────────────────────────────────────────
+
+  function setLinkNoteType(noteId: string, linkType: CanvasLinkType) {
+    pushHistory()
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'link') return n
+      return { ...n, linkType, linkId: null, linkUrl: null, label: '' }
+    }))
+    setDirty(true)
+    // Warm the options cache for the new type.
+    void loadLinkOptions(linkType)
+  }
+
+  function setLinkNoteTarget(noteId: string, linkId: string, defaultLabel: string) {
+    pushHistory()
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'link') return n
+      const label = n.label && n.label.trim() !== '' ? n.label : defaultLabel
+      return { ...n, linkId, label }
+    }))
+    setDirty(true)
+  }
+
+  function setLinkNoteUrl(noteId: string, linkUrl: string) {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'link') return n
+      return { ...n, linkUrl }
+    }))
+    setDirty(true)
+  }
+
+  function setLinkNoteLabel(noteId: string, label: string) {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || n.type !== 'link') return n
+      return { ...n, label }
+    }))
+    setDirty(true)
+  }
+
+  async function loadLinkOptions(type: CanvasLinkType) {
+    if (type === 'url') return
+    if (!canvas) return
+    if (linkOptions[type]) return
+    const orgId = canvas.organization_id
+    try {
+      if (type === 'course') {
+        const { data } = await supabaseRestGet<{ id: string; name: string }>(
+          'offerings',
+          `select=id,name&organization_id=eq.${orgId}&type=eq.course&order=name.asc`,
+          { label: 'canvas:link:courses' },
+        )
+        setLinkOptions(prev => ({
+          ...prev,
+          course: (data ?? []).map(o => ({ id: o.id, label: o.name })),
+        }))
+      } else if (type === 'habit') {
+        const { data } = await supabaseRestGet<{ id: string; name: string }>(
+          'habits',
+          `select=id,name&organization_id=eq.${orgId}&is_active=eq.true&order=name.asc`,
+          { label: 'canvas:link:habits' },
+        )
+        setLinkOptions(prev => ({
+          ...prev,
+          habit: (data ?? []).map(h => ({ id: h.id, label: h.name })),
+        }))
+      } else if (type === 'canvas') {
+        const { data } = await supabaseRestGet<{ id: string; title: string }>(
+          'canvases',
+          `select=id,title&organization_id=eq.${orgId}&id=neq.${canvas.id}&archived_at=is.null&order=title.asc`,
+          { label: 'canvas:link:canvases' },
+        )
+        setLinkOptions(prev => ({
+          ...prev,
+          canvas: (data ?? []).map(c => ({ id: c.id, label: c.title })),
+        }))
+      }
+    } catch (err) {
+      toast.error((err as Error).message || `Failed to load ${type} list`)
+    }
+  }
+
+  function openLinkTarget(note: CanvasLinkNote) {
+    if (note.linkType === 'url') {
+      if (note.linkUrl) window.open(note.linkUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (!note.linkId) return
+    if (note.linkType === 'course') {
+      navigate(isMenteeMode ? `/my-courses/${note.linkId}` : `/courses/${note.linkId}/edit`)
+    } else if (note.linkType === 'habit') {
+      navigate(isMenteeMode ? `/my-habits/${note.linkId}` : `/habits/${note.linkId}/edit`)
+    } else if (note.linkType === 'canvas') {
+      navigate(isMenteeMode ? `/my-canvases/${note.linkId}` : `/canvases/${note.linkId}`)
+    }
+  }
+
+  // ── Connector mode ─────────────────────────────────────────────────
+
+  function startConnectMode() {
+    if (!canEdit) return
+    setConnectorMode({ sourceId: null })
+    setSelectedIds(new Set())
+  }
+
+  function handleConnectClick(noteId: string) {
+    if (!connectorMode) return
+    if (!connectorMode.sourceId) {
+      setConnectorMode({ sourceId: noteId })
+      return
+    }
+    if (connectorMode.sourceId === noteId) {
+      // Clicking the source again cancels the in-progress connector.
+      setConnectorMode(null)
+      return
+    }
+    // Don't add a duplicate of an existing edge.
+    const src = connectorMode.sourceId
+    const alreadyExists = connectors.some(c =>
+      (c.fromNoteId === src && c.toNoteId === noteId) ||
+      (c.fromNoteId === noteId && c.toNoteId === src),
+    )
+    if (!alreadyExists) {
+      pushHistory()
+      setConnectors(prev => [...prev, createConnector(src, noteId)])
+      setDirty(true)
+    }
+    setConnectorMode(null)
+  }
+
+  function deleteConnector(connectorId: string) {
+    if (!canEdit) return
+    pushHistory()
+    setConnectors(prev => prev.filter(c => c.id !== connectorId))
+    setDirty(true)
+  }
+
+  // ── Markdown toolbar helpers (sticky note edit mode) ───────────────
+
+  function wrapSelection(noteId: string, marker: string) {
+    const ta = activeTextareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const value = ta.value
+    const selected = value.slice(start, end)
+    const newText = value.slice(0, start) + marker + selected + marker + value.slice(end)
+    updateNoteText(noteId, newText)
+    // Restore the selection inside the new marker pair on next tick.
+    setTimeout(() => {
+      if (!ta || activeTextareaRef.current !== ta) return
+      ta.focus()
+      ta.setSelectionRange(start + marker.length, end + marker.length)
+    }, 0)
+  }
+
+  function prefixLineBullet(noteId: string) {
+    const ta = activeTextareaRef.current
+    if (!ta) return
+    const value = ta.value
+    const caret = ta.selectionStart
+    // Find the start of the current line.
+    const lineStart = value.lastIndexOf('\n', caret - 1) + 1
+    const newText = value.slice(0, lineStart) + '- ' + value.slice(lineStart)
+    updateNoteText(noteId, newText)
+    setTimeout(() => {
+      if (!ta || activeTextareaRef.current !== ta) return
+      ta.focus()
+      ta.setSelectionRange(caret + 2, caret + 2)
+    }, 0)
+  }
+
   // Refresh the keyboard handler ref every render so the installed
   // document-level listener always sees the latest state closure.
   //
@@ -334,10 +620,27 @@ export default function CanvasEditPage() {
   keyHandlerRef.current = (e: KeyboardEvent) => {
     if (!canEdit) return
     const target = e.target as HTMLElement | null
-    if (target) {
-      const tag = target.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+    const inTextInput = !!target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    )
+    // Escape works from anywhere (including while typing): it cancels
+    // connector mode first, then clears selection.
+    if (e.key === 'Escape') {
+      if (connectorMode) {
+        e.preventDefault()
+        setConnectorMode(null)
+        return
+      }
+      if (selectedIds.size > 0 && !inTextInput) {
+        e.preventDefault()
+        setSelectedIds(new Set())
+        return
+      }
     }
+
+    if (inTextInput) return
 
     // Cmd/Ctrl+Z — undo.
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -403,9 +706,19 @@ export default function CanvasEditPage() {
   function handleNotePointerDown(e: React.PointerEvent, note: CanvasNote) {
     if (!canEdit) return
     if (editingNoteId === note.id) return // don't drag while text-editing
-    // Don't start a drag from the textarea or buttons
+    // Don't start a drag from inputs, textareas, buttons, or anything
+    // marked data-no-drag (e.g. the resize handle or the control bar).
     const target = e.target as HTMLElement
-    if (target.closest('textarea, button, [data-no-drag]')) return
+    if (target.closest('input, select, textarea, button, a, [data-no-drag]')) return
+
+    // In connector mode a pointerdown on a note is interpreted as a
+    // click for building the connector, NOT as a drag.
+    if (connectorMode) {
+      e.preventDefault()
+      e.stopPropagation()
+      handleConnectClick(note.id)
+      return
+    }
 
     // Shift-click toggles this note's membership in the selection and
     // does NOT start a drag. Matches Figma / Miro convention.
@@ -617,8 +930,23 @@ export default function CanvasEditPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Button type="button" onClick={addNote} disabled={!canEdit}>+ Note</Button>
+        <Button type="button" variant="secondary" onClick={addChecklistNoteAction} disabled={!canEdit}>
+          + Checklist
+        </Button>
+        <Button type="button" variant="secondary" onClick={addLinkNoteAction} disabled={!canEdit}>
+          + Link
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={connectorMode ? () => setConnectorMode(null) : startConnectMode}
+          disabled={!canEdit}
+          className={connectorMode ? 'ring-2 ring-brand' : ''}
+        >
+          {connectorMode ? 'Cancel connect' : 'Connect'}
+        </Button>
         <Button type="button" variant="secondary" onClick={undo} disabled={!canEdit || past.length === 0}>
           Undo
         </Button>
@@ -652,6 +980,13 @@ export default function CanvasEditPage() {
           You're in read-only mode. Only the assigned mentor, the mentee, and admins can edit this canvas.
         </p>
       )}
+      {connectorMode && (
+        <p className="text-xs text-brand mb-3">
+          {connectorMode.sourceId
+            ? 'Now click a second note to connect — Esc to cancel.'
+            : 'Click the first note to start a connector — Esc to cancel.'}
+        </p>
+      )}
 
       {/* Workspace */}
       <div
@@ -666,6 +1001,7 @@ export default function CanvasEditPage() {
             // that bubble up from notes (target !== currentTarget).
             if (e.target === e.currentTarget) {
               setSelectedIds(new Set())
+              if (connectorMode) setConnectorMode(null)
             }
           }}
           style={{
@@ -673,32 +1009,71 @@ export default function CanvasEditPage() {
             height: WORKSPACE_SIZE.height,
             backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
+            cursor: connectorMode ? 'crosshair' : undefined,
           }}
         >
+          {/* Connector overlay — lives beneath notes (z-index 0) so notes
+              stay clickable. Notes themselves get z >= 1 from bringToFront.
+              The SVG itself has pointer-events: none; only the invisible
+              wide hit-lines opt back in so they can be clicked to delete. */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={WORKSPACE_SIZE.width}
+            height={WORKSPACE_SIZE.height}
+            style={{ zIndex: 0 }}
+          >
+            {connectors.map(c => {
+              const from = notes.find(n => n.id === c.fromNoteId)
+              const to = notes.find(n => n.id === c.toNoteId)
+              if (!from || !to) return null
+              const x1 = from.x + from.width / 2
+              const y1 = from.y + from.height / 2
+              const x2 = to.x + to.width / 2
+              const y2 = to.y + to.height / 2
+              return (
+                <g key={c.id}>
+                  {canEdit && (
+                    <line
+                      x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke="transparent"
+                      strokeWidth={14}
+                      className="pointer-events-auto cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
+                    >
+                      <title>Click to delete connector</title>
+                    </line>
+                  )}
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#64748b" strokeWidth={2} />
+                </g>
+              )
+            })}
+          </svg>
+
           {notes.map(note => {
-            // V1 only supports sticky notes. Checklist and link variants
-            // exist in the type union (Session 019 scaffolding) but the
-            // editor UI for them ships next session. Skip any non-sticky
-            // note defensively — there shouldn't be any in practice yet.
-            if (note.type !== 'sticky') return null
             const cc = colorClasses(note.color)
-            const isEditing = editingNoteId === note.id
+            const isEditing = note.type === 'sticky' && editingNoteId === note.id
             const isSelected = selectedIds.has(note.id)
+            const isConnectSource = connectorMode?.sourceId === note.id
+            const ringClass = isConnectSource
+              ? 'ring-2 ring-brand'
+              : isEditing || isSelected
+                ? 'ring-2 ' + cc.ring
+                : ''
             return (
               <div
                 key={note.id}
                 onPointerDown={e => handleNotePointerDown(e, note)}
-                className={`absolute rounded shadow-md border ${cc.bg} ${cc.border} select-none ${isEditing || isSelected ? 'ring-2 ' + cc.ring : ''}`}
+                className={`absolute rounded shadow-md border ${cc.bg} ${cc.border} select-none overflow-hidden ${ringClass}`}
                 style={{
                   left: note.x,
                   top: note.y,
                   width: note.width,
                   height: note.height,
                   zIndex: note.z,
-                  cursor: isEditing ? 'text' : 'grab',
+                  cursor: connectorMode ? 'crosshair' : (isEditing ? 'text' : 'grab'),
                 }}
               >
-                {/* Note controls (top) */}
+                {/* Shared top controls bar */}
                 {canEdit && (
                   <div className="flex items-center justify-between px-2 py-1 border-b border-black/10" data-no-drag>
                     <div className="flex items-center gap-1">
@@ -722,28 +1097,12 @@ export default function CanvasEditPage() {
                     </button>
                   </div>
                 )}
-                {/* Note text */}
-                {isEditing ? (
-                  <textarea
-                    autoFocus
-                    value={note.text}
-                    onChange={e => updateNoteText(note.id, e.target.value)}
-                    onBlur={() => setEditingNoteId(null)}
-                    placeholder="Type here…"
-                    className="w-full h-[calc(100%-28px)] bg-transparent outline-none resize-none px-3 py-2 text-sm text-gray-800 placeholder-gray-400"
-                  />
-                ) : (
-                  <div
-                    className="w-full h-[calc(100%-28px)] overflow-auto px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap break-words"
-                    onDoubleClick={() => {
-                      if (!canEdit) return
-                      pushHistory()
-                      setEditingNoteId(note.id)
-                    }}
-                  >
-                    {note.text || <span className="text-gray-400 italic">Double-click to edit</span>}
-                  </div>
-                )}
+
+                {/* Type-specific body */}
+                {note.type === 'sticky' && renderStickyBody(note)}
+                {note.type === 'checklist' && renderChecklistBody(note)}
+                {note.type === 'link' && renderLinkBody(note)}
+
                 {/* Resize handle (bottom-right corner) */}
                 {canEdit && (
                   <div
@@ -763,4 +1122,237 @@ export default function CanvasEditPage() {
       </div>
     </div>
   )
+
+  // ── Body renderers (scoped inside CanvasEditPage so they close over
+  //    all the state + handlers) ─────────────────────────────────────
+
+  function renderStickyBody(note: CanvasStickyNote) {
+    const isEditing = editingNoteId === note.id
+    if (isEditing) {
+      return (
+        <div className="h-[calc(100%-28px)] flex flex-col" data-no-drag>
+          {/* Markdown toolbar */}
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-black/5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); wrapSelection(note.id, '**') }}
+              className="px-1.5 py-0.5 text-xs font-bold text-gray-600 hover:bg-black/10 rounded"
+              title="Bold (**text**)"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); wrapSelection(note.id, '*') }}
+              className="px-1.5 py-0.5 text-xs italic text-gray-600 hover:bg-black/10 rounded"
+              title="Italic (*text*)"
+            >
+              I
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); prefixLineBullet(note.id) }}
+              className="px-1.5 py-0.5 text-xs text-gray-600 hover:bg-black/10 rounded"
+              title="Bullet (- item)"
+            >
+              •
+            </button>
+          </div>
+          <textarea
+            autoFocus
+            ref={(el) => { if (el) activeTextareaRef.current = el }}
+            value={note.text}
+            onChange={e => updateNoteText(note.id, e.target.value)}
+            onBlur={() => {
+              if (activeTextareaRef.current && editingNoteId === note.id) {
+                activeTextareaRef.current = null
+              }
+              setEditingNoteId(null)
+            }}
+            placeholder="Type here…"
+            className="flex-1 w-full bg-transparent outline-none resize-none px-3 py-2 text-sm text-gray-800 placeholder-gray-400"
+          />
+        </div>
+      )
+    }
+    return (
+      <div
+        className="w-full overflow-auto px-3 py-2 text-sm text-gray-800 break-words"
+        style={{ height: canEdit ? 'calc(100% - 28px)' : '100%' }}
+        onDoubleClick={() => {
+          if (!canEdit) return
+          pushHistory()
+          setEditingNoteId(note.id)
+        }}
+      >
+        {note.text
+          ? <div dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
+          : <span className="text-gray-400 italic">Double-click to edit</span>}
+      </div>
+    )
+  }
+
+  function renderChecklistBody(note: CanvasChecklistNote) {
+    const done = note.items.filter(it => it.done).length
+    const total = note.items.length
+    return (
+      <div
+        className="flex flex-col px-2 py-1.5 text-sm text-gray-800"
+        style={{ height: canEdit ? 'calc(100% - 28px)' : '100%' }}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <input
+            type="text"
+            value={note.title}
+            onChange={e => updateChecklistTitle(note.id, e.target.value)}
+            onFocus={() => { if (canEdit) pushHistory() }}
+            disabled={!canEdit}
+            placeholder="Checklist title"
+            className="flex-1 bg-transparent outline-none font-semibold placeholder-gray-400 disabled:cursor-default"
+          />
+          <span className="text-[10px] text-gray-500 font-medium">{done}/{total}</span>
+        </div>
+        <div className="flex-1 overflow-auto space-y-1 pr-1">
+          {note.items.map(item => (
+            <div key={item.id} className="flex items-center gap-1.5 group">
+              <input
+                type="checkbox"
+                checked={item.done}
+                onChange={() => toggleChecklistItem(note.id, item.id)}
+                disabled={!canEdit}
+                className="accent-brand"
+              />
+              <input
+                type="text"
+                value={item.text}
+                onChange={e => updateChecklistItemText(note.id, item.id, e.target.value)}
+                onFocus={() => { if (canEdit) pushHistory() }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addChecklistItemRow(note.id)
+                  }
+                }}
+                disabled={!canEdit}
+                placeholder="Item"
+                className={`flex-1 bg-transparent outline-none placeholder-gray-400 disabled:cursor-default ${item.done ? 'line-through text-gray-400' : ''}`}
+              />
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); deleteChecklistItemRow(note.id, item.id) }}
+                  className="text-gray-400 hover:text-red-600 text-xs leading-none opacity-0 group-hover:opacity-100"
+                  title="Remove item"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); addChecklistItemRow(note.id) }}
+            className="mt-1 text-[11px] text-brand hover:underline self-start"
+          >
+            + Add item
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  function renderLinkBody(note: CanvasLinkNote) {
+    const picker = note.linkType !== 'url' ? linkOptions[note.linkType] : undefined
+    const resolved = note.linkType === 'url'
+      ? !!note.linkUrl
+      : !!note.linkId
+    return (
+      <div
+        className="flex flex-col px-2 py-1.5 gap-1.5 text-sm text-gray-800"
+        style={{ height: canEdit ? 'calc(100% - 28px)' : '100%' }}
+      >
+        {canEdit ? (
+          <>
+            <div className="flex items-center gap-1">
+              <select
+                value={note.linkType}
+                onChange={e => setLinkNoteType(note.id, e.target.value as CanvasLinkType)}
+                className="text-xs bg-white/70 border border-black/10 rounded px-1 py-0.5"
+              >
+                <option value="url">URL</option>
+                <option value="course">Course</option>
+                <option value="habit">Habit</option>
+                <option value="canvas">Canvas</option>
+              </select>
+            </div>
+            {note.linkType === 'url' ? (
+              <input
+                type="text"
+                value={note.linkUrl ?? ''}
+                onChange={e => setLinkNoteUrl(note.id, e.target.value)}
+                onFocus={() => { if (canEdit) pushHistory() }}
+                placeholder="https://…"
+                className="bg-transparent outline-none border-b border-black/10 text-xs placeholder-gray-400"
+              />
+            ) : (
+              <select
+                value={note.linkId ?? ''}
+                onFocus={() => void loadLinkOptions(note.linkType)}
+                onChange={e => {
+                  const id = e.target.value
+                  const opt = (picker ?? []).find(o => o.id === id)
+                  if (opt) setLinkNoteTarget(note.id, opt.id, opt.label)
+                }}
+                className="text-xs bg-white/70 border border-black/10 rounded px-1 py-0.5"
+              >
+                <option value="">
+                  {picker
+                    ? picker.length === 0
+                      ? `No ${note.linkType}s found`
+                      : `Select a ${note.linkType}…`
+                    : `Click to load ${note.linkType}s…`}
+                </option>
+                {(picker ?? []).map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            )}
+            <input
+              type="text"
+              value={note.label}
+              onChange={e => setLinkNoteLabel(note.id, e.target.value)}
+              onFocus={() => { if (canEdit) pushHistory() }}
+              placeholder="Label (shown on the card)"
+              className="bg-transparent outline-none text-xs border-b border-black/10 placeholder-gray-400"
+            />
+            {resolved && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openLinkTarget(note) }}
+                className="self-start text-[11px] text-brand hover:underline mt-auto"
+              >
+                Open ↗
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col h-full">
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">{note.linkType}</div>
+            <div className="font-semibold text-sm break-words">{note.label || '(no label)'}</div>
+            {resolved && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openLinkTarget(note) }}
+                className="self-start text-[11px] text-brand hover:underline mt-auto"
+              >
+                Open ↗
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 }

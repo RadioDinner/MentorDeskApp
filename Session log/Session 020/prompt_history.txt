@@ -9,3 +9,5 @@
 5. lets build another slice
 
 6. lets take bigger chunks, lets keep going. Finish Phase A
+
+7. start phase b and build the whole thing
