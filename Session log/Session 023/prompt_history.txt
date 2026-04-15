@@ -1,1 +1,3 @@
 1. Can you try to pick up the peices at block 10 from the last session
+
+2. do block 11 and 12, then merge to main, and wrap the session

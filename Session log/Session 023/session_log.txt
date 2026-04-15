@@ -1,0 +1,196 @@
+SESSION 023 HANDOFF LOG
+========================
+Date: 2026-04-15
+Branch: claude/continue-block-10-HfHWx (merged to main at end of session)
+
+Session 023 picked up the Journeys feature from where Session 022 stopped.
+Session 022 shipped Blocks 0-9 (bug fix, migrations, types, lib, sidebar,
+FlowsPage, FlowCreatePage, FlowEditPage render/drag/toolbar). Session 023
+added Blocks 10, 11, and 12 — connectors, undo, and save. The Journey
+flowchart editor is now a functional standalone editor; what's left on
+the 69-slice plan is the mentee-side glue (Blocks 13-16).
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+All work in this session was on app/src/pages/FlowEditPage.tsx plus the
+two session log files. Three commits on the feature branch, then a
+fast-forward merge to main.
+
+A) BLOCK 10 — CONNECTORS  (commit 6be73a7)
+
+   5 slices:
+   1. SVG overlay drawing connector lines from node centers with arrow
+      markers (<marker id="journey-arrow">). Invisible 14px transparent
+      hit-lines sit behind the visible 2px lines for click-to-delete
+      (same pattern as CanvasEditPage:1019).
+
+   2. Connector label layer — HTML (not SVG) buttons positioned absolutely
+      at the midpoint of each connector, so label interaction can use real
+      inputs/buttons. Empty labels show a dashed placeholder pill that
+      reads "label"; set labels show a solid white pill.
+
+   3. Connect mode — new "Connect" button in the toolbar. Click a source
+      node → click a target node → connector is created. Rules enforced:
+        - Start nodes cannot be targets
+        - End nodes cannot be sources
+        - Directed dedup (only A→B, not undirected like Canvas)
+        - Clicking the source again cancels
+        - Esc cancels
+      While in connect mode the workspace cursor is crosshair and the
+      source node gets a colored ring using COLORS[type].ring. Connector
+      label layer is hidden while in connect mode so clicks reach nodes.
+
+   4. Inline label edit — click a label pill to open an input at that
+      position (autofocus, Enter saves, Esc cancels, blur saves). A small
+      × button next to each label deletes the connector outright.
+
+   5. Build + test + commit. Blocks 10-12 re-use the pre-existing
+      beforeunload warning and dirty badge from Block 7.
+
+B) BLOCK 11 — UNDO HISTORY  (commit 4683be3)
+
+   Ported the past-stack pattern from CanvasEditPage one-for-one.
+
+   - New HistorySnapshot type = { nodes, connectors }
+   - past: HistorySnapshot[] state, capped at HISTORY_LIMIT (50)
+   - pushHistory() helper, called BEFORE every coarse mutation:
+       addOfferingNode, addDecisionNode, addStatusNode, addEndNode,
+       handleConnectClick (on successful add), deleteConnector,
+       saveConnectorLabel (only when label actually changed).
+   - Drag uses the lazy-push pattern: dragStateRef captures prevNodes
+     and prevConnectors on pointerdown, and the snapshot is only pushed
+     on the FIRST real pointermove. A pointerdown with no movement does
+     not consume an undo slot.
+   - undo() pops the top snapshot, restores nodes+connectors, clears any
+     in-progress label edit and connect mode, marks dirty.
+   - Cmd/Ctrl+Z keyboard shortcut wired via the existing keydown useEffect
+     (the one that already handled Escape). Typing in inputs/textareas is
+     ignored. past stack is reset to [] on fresh flow load.
+   - Undo button in the toolbar, disabled when past is empty.
+
+C) BLOCK 12 — SAVE FLOW  (commit 6632cbf)
+
+   - saveFlow(): PATCHes journey_flows.content with { nodes, connectors },
+     clears dirty, updates local flow state (optimistic updated_at), emits
+     a journey_flow 'updated' audit log entry with details sub='content',
+     node_count, connector_count. Toasts success/error.
+   - Primary Save button in the header, disabled when !dirty or saving,
+     shows "Saving…" during the request.
+   - Cmd/Ctrl+S keyboard shortcut (always preventDefault, only fires when
+     dirty and not already saving).
+   - dirty badge and beforeunload warning were already wired from Block 7.
+
+D) HOUSEKEEPING
+
+   - npm ci to restore @types/node + vite/client stubs (same issue as
+     Session 021 start — sandbox starts without node_modules).
+   - Session 023 session log folder created with prompt_history.txt and
+     this handoff doc.
+   - Feature branch fast-forward merged to main after all three commits.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = 6632cbf, pushed
+  - Working tree clean after session log commit (see last commit below)
+  - Tests: 57/57 passing
+  - Build: clean
+    FlowEditPage chunk: 13.49 kB (gzip 4.58 kB) after Block 10, still in
+    the same 4-5 kB gzip range after 11 + 12
+  - No new migrations this session. journey_flows + mentee_journeys +
+    flow_folders + organizations.journey_auto_assign_offerings were all
+    applied by the user in Session 022.
+  - Lowest / highest migration numbers unchanged:
+      lowest (newest):  949_journey_auto_assign.sql
+      highest (oldest): 999
+  - No new npm dependencies
+  - Branch claude/continue-block-10-HfHWx has been fast-forwarded into
+    main. The branch still exists on origin; safe to delete later.
+
+
+REMAINING JOURNEYS WORK (from Session 021 handoff)
+----------------------------------------------------
+
+Blocks 13-16 of the original 69-slice plan are still unbuilt:
+
+  BLOCK 13 — Assign a Flow to a mentee  (3 slices)
+    - "Journeys" section in MenteeManageSlideOver alongside Courses +
+      Engagements
+    - Flow picker dropdown + Start button → insert mentee_journeys row
+      snapshotting flow.content, current_node_id = start node id
+    - Commit
+
+  BLOCK 14 — Advance handler  (5 slices)
+    - Render journey card: current node name + type + outgoing
+      connector options
+    - Advance handler: pick outgoing connector, update current_node_id,
+      audit log
+    - If target = offering node AND auto-assign ON → create
+      mentee_offerings row snapshotting the offering
+    - If target = offering node AND auto-assign OFF → flag as
+      pending_assignment on the journey, surface a badge on the mentee
+      row in MenteesListPage
+    - If target = end node → set mentee_journeys.status='completed' +
+      completed_at
+    - Commit
+
+  BLOCK 15 — Company setting toggle  (2 slices)
+    - Add journey_auto_assign_offerings toggle to CompanySettingsPage
+      with helper text
+    - Commit
+
+  BLOCK 16 — Verification + wrap  (3 slices)
+    - Build + test, any polish, write session log, commit
+
+
+DELIBERATELY OUT OF SCOPE
+-------------------------
+
+Same list as Session 021's handoff — per-mentee journey editing,
+auto-advance on offering completion, mentee-side read-only view, legacy
+mentee_flow migration, notification delivery for pending_assignment,
+MenteeEditPage RHF holdouts, InvoicePrintPage loading text.
+
+
+NOTES FOR SESSION 024
+---------------------
+
+The Journey flowchart editor is now functionally complete for flow
+authoring. An admin can create a flow, add nodes (offering, decision,
+status, end), drag them, connect them with labeled arrows, undo/redo
+(well, undo — no redo), and save. The remaining work is the mentee-side
+glue: Blocks 13-15 plus the final verification/wrap in Block 16.
+
+FlowEditPage.tsx is now ~1080 lines — still shorter than CanvasEditPage
+(~1358) because we skipped sticky-note text editing, color pickers,
+multi-select, bring-to-front, and paste. If it keeps growing in Block 13+
+consider extracting the connector layer into its own component.
+
+Block 13 touches MenteeManageSlideOver and requires reading the existing
+Courses + Engagements sections to match their shape. The MenteeJourney
+type already exists from Session 022 Block 2.
+
+Before running Block 13, run `npm ci` in app/ if node_modules is missing
+— the sandbox tends to start clean.
+
+
+PROMPTS LOGGED THIS SESSION
+---------------------------
+
+Two prompts captured in Session 023/prompt_history.txt:
+  1. "Can you try to pick up the peices at block 10 from the last session"
+  2. "do block 11 and 12, then merge to main, and wrap the session"
+
+
+COMMITS
+-------
+
+  6be73a7  Block 10 — connectors (SVG + connect mode + label edit)
+  4683be3  Block 11 — undo history
+  6632cbf  Block 12 — save flow content
+  (plus a merge/ff to main and a session_log commit after this file)
+
+========================================================================
