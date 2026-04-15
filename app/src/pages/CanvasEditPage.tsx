@@ -10,33 +10,14 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import LoadingErrorState from '../components/LoadingErrorState'
 import { formatDateTime } from '../lib/format'
-import { migrateContent } from '../lib/canvas'
+import {
+  migrateContent,
+  COLORS,
+  colorClasses,
+  createStickyNote,
+  WORKSPACE_SIZE,
+} from '../lib/canvas'
 import type { Canvas, CanvasNote, CanvasNoteColor } from '../types'
-
-// ── Color palette ──────────────────────────────────────────────────────
-
-const COLORS: { key: CanvasNoteColor; bg: string; border: string; ring: string }[] = [
-  { key: 'yellow', bg: 'bg-yellow-100', border: 'border-yellow-300', ring: 'ring-yellow-400' },
-  { key: 'pink',   bg: 'bg-pink-100',   border: 'border-pink-300',   ring: 'ring-pink-400' },
-  { key: 'blue',   bg: 'bg-blue-100',   border: 'border-blue-300',   ring: 'ring-blue-400' },
-  { key: 'green',  bg: 'bg-green-100',  border: 'border-green-300',  ring: 'ring-green-400' },
-  { key: 'purple', bg: 'bg-purple-100', border: 'border-purple-300', ring: 'ring-purple-400' },
-  { key: 'orange', bg: 'bg-orange-100', border: 'border-orange-300', ring: 'ring-orange-400' },
-]
-
-function colorClasses(c: CanvasNoteColor) {
-  return COLORS.find(x => x.key === c) ?? COLORS[0]
-}
-
-// Non-crypto uuid v4-ish — good enough for client-side note ids.
-function clientId(): string {
-  const t = Date.now().toString(16)
-  const r = Math.random().toString(16).slice(2, 10)
-  return `n_${t}_${r}`
-}
-
-const NOTE_DEFAULTS = { width: 200, height: 160 } as const
-const WORKSPACE_SIZE = { width: 2400, height: 1800 }
 
 // ── Component ─────────────────────────────────────────────────────────
 
@@ -182,17 +163,12 @@ export default function CanvasEditPage() {
     // Place near top-left of the current viewport
     const scrollLeft = workspaceRef.current?.scrollLeft ?? 0
     const scrollTop = workspaceRef.current?.scrollTop ?? 0
-    const newNote: CanvasNote = {
-      id: clientId(),
-      type: 'sticky',
-      x: scrollLeft + 40 + (notes.length % 5) * 20,
-      y: scrollTop + 40 + (notes.length % 5) * 20,
-      width: NOTE_DEFAULTS.width,
-      height: NOTE_DEFAULTS.height,
-      text: '',
-      color: COLORS[notes.length % COLORS.length].key,
-      z: topZ + 1,
-    }
+    const newNote = createStickyNote(
+      scrollLeft + 40 + (notes.length % 5) * 20,
+      scrollTop + 40 + (notes.length % 5) * 20,
+      COLORS[notes.length % COLORS.length].key,
+      topZ + 1,
+    )
     setNotes(prev => [...prev, newNote])
     setEditingNoteId(newNote.id)
     setDirty(true)
