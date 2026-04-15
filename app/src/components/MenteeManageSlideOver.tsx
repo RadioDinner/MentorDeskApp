@@ -7,7 +7,8 @@ import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
-import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, FlowStep } from '../types'
+import { migrateContent } from '../lib/journeyFlow'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, FlowStep, JourneyFlow, MenteeJourney } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -29,12 +30,16 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [availableCourses, setAvailableCourses] = useState<Offering[]>([])
   const [availableEngagements, setAvailableEngagements] = useState<Offering[]>([])
   const [allEngagements, setAllEngagements] = useState<Offering[]>([])
+  const [allOfferings, setAllOfferings] = useState<Offering[]>([])
+  const [journeyFlows, setJourneyFlows] = useState<JourneyFlow[]>([])
+  const [menteeJourneys, setMenteeJourneys] = useState<MenteeJourney[]>([])
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
+  const [showJourneySelect, setShowJourneySelect] = useState(false)
   const [managingEngagementId, setManagingEngagementId] = useState<string | null>(null)
   const [confirmMultiEngagement, setConfirmMultiEngagement] = useState(false)
 
@@ -56,21 +61,36 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       setLoading(true)
       try {
         // Round 1: Fire all independent queries in parallel
-        const [orgRes, moRes, offeringsRes] = await Promise.all([
+        const [orgRes, moRes, offeringsRes, flowsRes, mjRes] = await Promise.all([
           supabase.from('organizations').select('allow_multi_engagement').eq('id', profile.organization_id).single(),
           supabase.from('mentee_offerings').select('*, offering:offerings(*)').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('assigned_at', { ascending: false }),
           supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
+          supabase.from('journey_flows').select('*').eq('organization_id', profile.organization_id).is('archived_at', null).order('name'),
+          supabase.from('mentee_journeys').select('*').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('started_at', { ascending: false }),
         ])
 
         setAllowMultiEngagement(orgRes.data?.allow_multi_engagement ?? false)
 
         const menteeOfferings = (moRes.data ?? []) as (MenteeOffering & { offering: Offering })[]
         const offerings = (offeringsRes.data ?? []) as Offering[]
+        setAllOfferings(offerings)
         const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
         const allEngs = offerings.filter(o => o.type === 'engagement')
         setAllEngagements(allEngs)
         setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
         setAvailableEngagements(allEngs)
+
+        // Journey flows (templates) + mentee journeys (per-mentee snapshots)
+        const flows = (flowsRes.data ?? []).map(f => ({
+          ...(f as JourneyFlow),
+          content: migrateContent((f as { content: unknown }).content),
+        })) as JourneyFlow[]
+        setJourneyFlows(flows)
+        const mjs = (mjRes.data ?? []).map(j => ({
+          ...(j as MenteeJourney),
+          content: migrateContent((j as { content: unknown }).content),
+        })) as MenteeJourney[]
+        setMenteeJourneys(mjs)
 
         // Round 2: Fetch lesson counts + progress in parallel (depends on round 1 IDs)
         const courseOfferingIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.offering_id)
@@ -229,6 +249,60 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     }
   }
 
+  async function assignJourney(flowId: string) {
+    const flow = journeyFlows.find(f => f.id === flowId)
+    if (!flow) return
+    const startNode = flow.content.nodes.find(n => n.type === 'start')
+    if (!startNode) {
+      toast.error('This flow has no start node. Edit the flow and add one before starting it.')
+      return
+    }
+    setAssigning(true)
+    try {
+      const { data: inserted, error } = await supabase
+        .from('mentee_journeys')
+        .insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          flow_id: flow.id,
+          content: flow.content,
+          current_node_id: startNode.id,
+          status: 'active',
+          assigned_by: profile.id,
+        })
+        .select('*')
+        .single()
+      if (error) { toast.error(error.message); return }
+
+      const newMj = {
+        ...(inserted as MenteeJourney),
+        content: migrateContent((inserted as { content: unknown }).content),
+      } as MenteeJourney
+
+      setMenteeJourneys(prev => [newMj, ...prev])
+      setShowJourneySelect(false)
+      toast.success(`Started ${flow.name}.`)
+
+      await logAudit({
+        organization_id: profile.organization_id,
+        actor_id: profile.id,
+        action: 'created',
+        entity_type: 'mentee_journey',
+        entity_id: newMj.id,
+        details: {
+          mentee: `${mentee.first_name} ${mentee.last_name}`,
+          flow: flow.name,
+          node_count: flow.content.nodes.length,
+        },
+      })
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to start journey')
+      console.error('[MenteeManageSlideOver] assignJourney error:', err)
+    } finally {
+      setAssigning(false)
+    }
+  }
+
   async function updateAssignment(assignmentId: string, updates: Record<string, unknown>) {
     const { error } = await supabase
       .from('mentee_offerings')
@@ -251,6 +325,11 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const completedCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'completed')
   const activeEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'active')
   const completedEngagements = assignments.filter(a => a.offering?.type === 'engagement' && a.status === 'completed')
+
+  const activeJourneys = menteeJourneys.filter(j => j.status === 'active')
+  const completedJourneys = menteeJourneys.filter(j => j.status === 'completed')
+  const activeFlowIds = new Set(activeJourneys.map(j => j.flow_id).filter((id): id is string => id != null))
+  const availableFlows = journeyFlows.filter(f => !activeFlowIds.has(f.id))
 
   // Engagement open button logic
   const hasActiveEngagement = activeEngagements.length > 0
@@ -301,7 +380,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           ) : (
             <>
               {/* Summary cards */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Active Courses</p>
                   <p className="text-2xl font-bold text-gray-900">{activeCourses.length}</p>
@@ -309,6 +388,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                 <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Open Engagements</p>
                   <p className="text-2xl font-bold text-gray-900">{activeEngagements.length}</p>
+                </div>
+                <div className="bg-white rounded-md border border-gray-200/80 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Active Journeys</p>
+                  <p className="text-2xl font-bold text-gray-900">{activeJourneys.length}</p>
                 </div>
               </div>
 
@@ -436,6 +519,78 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* Journeys — full-width section */}
+              <div className="mt-5 bg-white rounded-md border border-gray-200/80 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Journeys</h3>
+                    <p className="text-[11px] text-gray-400">{activeJourneys.length} active, {completedJourneys.length} completed</p>
+                  </div>
+                  {availableFlows.length > 0 && (
+                    <button
+                      onClick={() => setShowJourneySelect(!showJourneySelect)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      Start
+                    </button>
+                  )}
+                </div>
+
+                <div className="px-4 py-3">
+                  {showJourneySelect && (
+                    <div className="mb-3">
+                      <select className={selectClass} value="" disabled={assigning} onChange={e => { if (e.target.value) assignJourney(e.target.value) }}>
+                        <option value="">Select a flow...</option>
+                        {availableFlows.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  {activeJourneys.length === 0 && completedJourneys.length === 0 ? (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-gray-400">No journeys started.</p>
+                      {availableFlows.length > 0 && (
+                        <button onClick={() => setShowJourneySelect(true)} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
+                          Start first journey
+                        </button>
+                      )}
+                      {availableFlows.length === 0 && journeyFlows.length === 0 && (
+                        <button onClick={() => { onClose(); navigate('/flows') }} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
+                          Create a flow
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {activeJourneys.map(j => (
+                        <JourneyCard
+                          key={j.id}
+                          journey={j}
+                          flow={journeyFlows.find(f => f.id === j.flow_id) ?? null}
+                          offerings={allOfferings}
+                        />
+                      ))}
+                      {completedJourneys.length > 0 && activeJourneys.length > 0 && (
+                        <div className="border-t border-gray-100 pt-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
+                        </div>
+                      )}
+                      {completedJourneys.map(j => (
+                        <JourneyCard
+                          key={j.id}
+                          journey={j}
+                          flow={journeyFlows.find(f => f.id === j.flow_id) ?? null}
+                          offerings={allOfferings}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -849,6 +1004,52 @@ function LessonDetailRow({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+function JourneyCard({ journey, flow, offerings }: {
+  journey: MenteeJourney
+  flow: JourneyFlow | null
+  offerings: Offering[]
+}) {
+  const isCompleted = journey.status === 'completed'
+  const currentNode = journey.content.nodes.find(n => n.id === journey.current_node_id)
+
+  const currentLabel = (() => {
+    if (!currentNode) return 'Unknown'
+    if (currentNode.type === 'start') return 'Start'
+    if (currentNode.type === 'end') return 'End'
+    if (currentNode.type === 'offering') {
+      const o = offerings.find(off => off.id === currentNode.offeringId)
+      return o?.name ?? 'Unknown offering'
+    }
+    return currentNode.label || '(unlabeled)'
+  })()
+
+  return (
+    <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="px-4 py-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+            {flow?.name ?? 'Journey'}
+          </p>
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-violet-50 text-violet-600'}`}>
+            {isCompleted ? 'Completed' : 'Active'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <span>Currently at:</span>
+          <span className="font-medium text-gray-700">{currentLabel}</span>
+          {currentNode && <span className="text-[10px] text-gray-400">({currentNode.type})</span>}
+        </div>
+
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+          <span>Started {new Date(journey.started_at).toLocaleDateString()}</span>
+          {journey.completed_at && <span>Completed {new Date(journey.completed_at).toLocaleDateString()}</span>}
+        </div>
+      </div>
     </div>
   )
 }
