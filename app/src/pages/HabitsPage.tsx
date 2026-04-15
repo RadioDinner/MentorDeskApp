@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabaseRestGet } from '../lib/supabase'
+import { supabaseRestGet, supabaseRestCall } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
+import FolderManager from '../components/FolderManager'
+import ListGridToggle from '../components/ListGridToggle'
 import { durationSummary } from '../lib/habits'
-import type { Habit } from '../types'
+import type { Habit, HabitFolder, ViewMode } from '../types'
 
 interface HabitWithStats extends Habit {
   step_count: number
@@ -15,13 +17,24 @@ interface HabitWithStats extends Habit {
   completed_assignments: number
 }
 
+const VIEW_STORAGE_KEY = 'mentordesk_habits_view'
+
+function readStoredView(): ViewMode {
+  if (typeof window === 'undefined') return 'grid'
+  const v = window.localStorage.getItem(VIEW_STORAGE_KEY)
+  return v === 'list' || v === 'grid' ? v : 'grid'
+}
+
 export default function HabitsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<HabitWithStats[]>([])
+  const [folders, setFolders] = useState<HabitFolder[]>([])
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showRetired, setShowRetired] = useState(false)
+  const [view, setView] = useState<ViewMode>(readStoredView)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -29,6 +42,13 @@ export default function HabitsPage() {
   }, []), 15000)
 
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
+
+  function changeView(next: ViewMode) {
+    setView(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, next)
+    }
+  }
 
   useEffect(() => {
     if (!profile?.organization_id) { setLoading(false); return }
@@ -38,13 +58,22 @@ export default function HabitsPage() {
       setLoading(true)
       setError(null)
       try {
-        const habitsRes = await supabaseRestGet<Habit>(
-          'habits',
-          `select=*&organization_id=eq.${orgId}&order=created_at.desc`,
-          { label: 'habits:list' },
-        )
+        const [habitsRes, foldersRes] = await Promise.all([
+          supabaseRestGet<Habit>(
+            'habits',
+            `select=*&organization_id=eq.${orgId}&order=created_at.desc`,
+            { label: 'habits:list' },
+          ),
+          supabaseRestGet<HabitFolder>(
+            'habit_folders',
+            `select=*&organization_id=eq.${orgId}&order=order_index.asc`,
+            { label: 'habits:folders' },
+          ),
+        ])
         if (habitsRes.error) { setError(habitsRes.error.message); return }
+        if (foldersRes.error) { setError(foldersRes.error.message); return }
         const habits = habitsRes.data ?? []
+        setFolders(foldersRes.data ?? [])
 
         if (habits.length === 0) {
           setItems([])
@@ -95,7 +124,24 @@ export default function HabitsPage() {
     loadAll()
   }, [profile?.organization_id])
 
-  const visibleItems = items.filter(h => showRetired ? true : h.is_active)
+  async function moveHabitToFolder(habitId: string, folderId: string | null) {
+    // Optimistic local update first, then persist. If the server rejects
+    // (shouldn't happen — RLS was broadened in migration 952), we'll just
+    // have a stale client state until next refetch; toast surfacing can
+    // be added later if needed.
+    setItems(prev => prev.map(h => h.id === habitId ? { ...h, folder_id: folderId } : h))
+    const { error: err } = await supabaseRestCall(
+      'habits',
+      'PATCH',
+      { folder_id: folderId },
+      `id=eq.${habitId}`,
+    )
+    if (err) console.error('[HabitsPage] moveHabitToFolder error:', err)
+  }
+
+  const visibleItems = items
+    .filter(h => showRetired ? true : h.is_active)
+    .filter(h => (h.folder_id ?? null) === currentFolderId)
   const canCreate = profile?.role === 'admin' || profile?.role === 'course_creator'
 
   return (
@@ -108,6 +154,7 @@ export default function HabitsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ListGridToggle value={view} onChange={changeView} />
           <label className="flex items-center gap-1.5 text-xs text-gray-500">
             <input
               type="checkbox"
@@ -123,6 +170,21 @@ export default function HabitsPage() {
         </div>
       </div>
 
+      {profile?.organization_id && (
+        <FolderManager<HabitFolder>
+          folders={folders}
+          setFolders={setFolders}
+          currentFolderId={currentFolderId}
+          setCurrentFolderId={setCurrentFolderId}
+          orgId={profile.organization_id}
+          folderTable="habit_folders"
+          itemTable="habits"
+          dragKey="habit-id"
+          rootLabel="All Habits"
+          onMoveItem={moveHabitToFolder}
+        />
+      )}
+
       {loading ? (
         <Skeleton count={6} className="h-16 w-full" gap="gap-2" />
       ) : error ? (
@@ -132,10 +194,16 @@ export default function HabitsPage() {
           <p className="text-sm text-gray-500">No habits yet.</p>
           <p className="text-xs text-gray-400 mt-1">Create a habit to build out a daily check-in routine for your mentees.</p>
         </div>
+      ) : view === 'grid' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {visibleItems.map(h => (
+            <HabitGridCard key={h.id} habit={h} onOpen={() => navigate(`/habits/${h.id}/edit`)} />
+          ))}
+        </div>
       ) : (
         <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
           {visibleItems.map(h => (
-            <HabitRow key={h.id} habit={h} onOpen={() => navigate(`/habits/${h.id}/edit`)} />
+            <HabitListRow key={h.id} habit={h} onOpen={() => navigate(`/habits/${h.id}/edit`)} />
           ))}
         </div>
       )}
@@ -143,11 +211,13 @@ export default function HabitsPage() {
   )
 }
 
-function HabitRow({ habit, onOpen }: { habit: HabitWithStats; onOpen: () => void }) {
+function HabitListRow({ habit, onOpen }: { habit: HabitWithStats; onOpen: () => void }) {
   return (
-    <button
+    <div
+      draggable
+      onDragStart={e => e.dataTransfer.setData('habit-id', habit.id)}
       onClick={onOpen}
-      className="w-full text-left flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors"
+      className="w-full text-left flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
     >
       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold shrink-0">
         {habit.name[0]?.toUpperCase() ?? 'H'}
@@ -178,6 +248,59 @@ function HabitRow({ habit, onOpen }: { habit: HabitWithStats; onOpen: () => void
           <span className="text-gray-400">done</span>
         </span>
       </div>
-    </button>
+    </div>
+  )
+}
+
+function HabitGridCard({ habit, onOpen }: { habit: HabitWithStats; onOpen: () => void }) {
+  return (
+    <div
+      draggable
+      onDragStart={e => e.dataTransfer.setData('habit-id', habit.id)}
+      onClick={onOpen}
+      className="group bg-white rounded-md border border-gray-200/80 px-5 py-4 cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all"
+    >
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+          {habit.name[0]?.toUpperCase() ?? 'H'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-brand transition-colors">
+              {habit.name}
+            </h3>
+            {!habit.is_active && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                Retired
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5">{durationSummary(habit)}</p>
+          {habit.description && (
+            <p className="text-xs text-gray-500 mt-2 line-clamp-2">{habit.description}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <StatBox label="Steps" value={habit.step_count} tone="slate" />
+        <StatBox label="Active" value={habit.active_assignments} tone="teal" />
+        <StatBox label="Done" value={habit.completed_assignments} tone="green" />
+      </div>
+    </div>
+  )
+}
+
+function StatBox({ label, value, tone }: { label: string; value: number; tone: 'slate' | 'teal' | 'green' }) {
+  const toneClasses = {
+    slate: 'bg-slate-50 text-slate-700',
+    teal:  'bg-teal-50 text-teal-700',
+    green: 'bg-green-50 text-green-700',
+  }[tone]
+  return (
+    <div className={`rounded px-2 py-1.5 text-center ${toneClasses}`}>
+      <div className="text-sm font-semibold tabular-nums">{value}</div>
+      <div className="text-[9px] uppercase tracking-wide opacity-70">{label}</div>
+    </div>
   )
 }
