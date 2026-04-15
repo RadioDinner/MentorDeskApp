@@ -9,3 +9,7 @@
 5. slice 4. Commit to main and continue committing to main for the rest of the session, now do block 1, all slices of it
 
 6. Now do Block 2
+
+7. Block 3 and 5
+
+8. and 4

@@ -53,6 +53,7 @@ const CanvasesPage               = lazy(() => import('./pages/CanvasesPage'))
 const CanvasCreatePage           = lazy(() => import('./pages/CanvasCreatePage'))
 const CanvasEditPage             = lazy(() => import('./pages/CanvasEditPage'))
 const MenteeCanvasesPage         = lazy(() => import('./pages/MenteeCanvasesPage'))
+const FlowsPage                  = lazy(() => import('./pages/FlowsPage'))
 const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 
 export default function App() {
@@ -172,6 +173,12 @@ export default function App() {
               </ProtectedRoute>
             } />
             <Route path="/canvases/:id" element={<CanvasEditPage />} />
+            <Route path="/flows" element={<FlowsPage />} />
+            <Route path="/flows/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations', 'course_creator']}>
+                <ComingSoonPage title="Create Flow" />
+              </ProtectedRoute>
+            } />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />
