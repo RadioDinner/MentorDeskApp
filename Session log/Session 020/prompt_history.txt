@@ -1,0 +1,17 @@
+1. Let's pick up where we left off. These sessions have been rocky. I just want 1 single clean session. Let's make 020 the winner. Let's pick up where we left off in the last couple sessions and list all open items and let's work on 1 small task
+
+2. merge changes to main and continue pushing to main, then I'll apply the migration. Then lets work on 4. CanvasEditPage
+
+3. Phase A is fine. Just do the 1. Consolidate task
+
+4. go to the next slice
+
+5. lets build another slice
+
+6. lets take bigger chunks, lets keep going. Finish Phase A
+
+7. start phase b and build the whole thing
+
+8. I applied the migrations. Let's work on 2 and 4. Notification delivery is a project of its own. What does number 5 mean with the chunk-size warning?
+
+9. Let's start with the CanvasEdit page

@@ -1,0 +1,52 @@
+SESSION 018 HANDOFF LOG (retroactive — written at start of Session 019)
+========================================================================
+Date: 2026-04-14
+Branch: main (via PR #2 from claude/continue-session-017-xTV8c)
+Status: STALLED — no feature work shipped.
+
+WHAT HAPPENED
+--------------
+Session 018 was intended as a follow-up to Session 017 to pick up the
+Habits feature open items (step builder, mentee assignment UI, mentee-side
+pages, migration apply). The session stalled before any of that work
+started.
+
+ACTUAL COMMITS ON RECORD
+-------------------------
+  d337c7b  Session 017: start prompt history     (already existed)
+  057b31b  Session 017: log Routines feature prompt
+  114e7a6  Session 017: start Habits feature (metadata slice)
+  8894a77  Start session 018 — create session folder and prompt history
+  0f8f829  Merge pull request #2 from RadioDinner/claude/continue-session-017-xTV8c
+
+Session 018 produced exactly ONE file change: creating
+"Session log/Session 018/prompt_history.txt" with a single logged prompt.
+No code, no migrations, no handoff log were written. session_log.txt did
+not exist for Session 018 until this retroactive note was added at the
+start of Session 019.
+
+OPEN ITEMS CARRIED FORWARD (unchanged from Session 017 handoff)
+----------------------------------------------------------------
+All four Habits open items from Session 017 still apply verbatim:
+  1. Step builder on HabitEditPage.tsx
+  2. Mentee assignment UI on HabitEditPage.tsx + a Habits tab on
+     MenteeEditPage.tsx
+  3. Mentee-side pages (MenteeHabitsPage, MenteeHabitDetailPage) + routes
+     + mentee sidebar entry
+  4. Apply migration 954_habits_tables.sql to the Supabase instance
+Plus the pre-existing Session 015 backlog items (edit-page RHF migration,
+chunk-size warning, InvoicePrintPage loading text).
+
+CURRENT CODEBASE STATE
+-----------------------
+Unchanged from end of Session 017:
+  - Build clean; tests 57/0.
+  - Migration 954_habits_tables.sql in repo, still unapplied.
+  - Admin Habits pages (list/create/edit metadata) live.
+  - Mentee-side Habits pages do NOT exist.
+  - Mentee sidebar has no "My Habits" entry.
+
+NOTES FOR SESSION 019
+----------------------
+Start by picking up the Session 017 open items in the order listed there.
+Nothing from Session 018 blocks or contaminates that work.

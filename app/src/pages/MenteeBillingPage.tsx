@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
+import { formatMoney, formatDate, formatDateShort } from '../lib/format'
+import { Button, Badge, toneForStatus, Skeleton } from '../components/ui'
+import { useToast } from '../context/ToastContext'
 
 interface Invoice {
   id: string
@@ -23,6 +26,7 @@ interface PaymentMethod {
 
 export default function MenteeBillingPage() {
   const { menteeProfile } = useAuth()
+  const toast = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'invoices' | 'payment'>('invoices')
@@ -34,7 +38,6 @@ export default function MenteeBillingPage() {
   const [cardCvc, setCardCvc] = useState('')
   const [savedPayment, setSavedPayment] = useState<PaymentMethod | null>(null)
   const [savingPayment, setSavingPayment] = useState(false)
-  const [paymentMsg, setPaymentMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     if (!menteeProfile) { setLoading(false); return }
@@ -75,12 +78,11 @@ export default function MenteeBillingPage() {
   async function handleSavePayment() {
     if (!menteeProfile) return
     if (!cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim()) {
-      setPaymentMsg({ type: 'error', text: 'Please fill in all card fields.' })
+      toast.error('Please fill in all card fields.')
       return
     }
 
     setSavingPayment(true)
-    setPaymentMsg(null)
 
     // In production, this would go to Stripe/payment processor.
     // For now, we store a masked version in the mentee record.
@@ -100,34 +102,23 @@ export default function MenteeBillingPage() {
         .eq('id', menteeProfile.id)
 
       if (error) {
-        setPaymentMsg({ type: 'error', text: error.message })
+        toast.error(error.message)
       } else {
         setSavedPayment(paymentMethod)
         setCardNumber('')
         setCardExpiry('')
         setCardCvc('')
         setCardName('')
-        setPaymentMsg({ type: 'success', text: 'Payment method saved.' })
+        toast.success('Payment method saved.')
       }
     } catch (err) {
-      setPaymentMsg({ type: 'error', text: (err as Error).message || 'Failed to save' })
+      toast.error((err as Error).message || 'Failed to save')
     } finally {
       setSavingPayment(false)
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
-
-  const formatAmount = (cents: number, currency: string) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100)
-
-  const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-500',
-    sent: 'bg-blue-50 text-blue-600',
-    paid: 'bg-green-50 text-green-600',
-    overdue: 'bg-red-50 text-red-600',
-    cancelled: 'bg-gray-100 text-gray-400',
-  }
+  if (loading) return <Skeleton count={4} className="h-16 w-full" gap="gap-3" />
 
   const unpaidInvoices = invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
   const totalOwed = unpaidInvoices.reduce((sum, i) => sum + i.amount_cents, 0)
@@ -149,7 +140,7 @@ export default function MenteeBillingPage() {
               <p className="text-sm font-medium text-amber-800">Outstanding balance</p>
               <p className="text-xs text-amber-600 mt-0.5">{unpaidInvoices.length} unpaid invoice{unpaidInvoices.length !== 1 ? 's' : ''}</p>
             </div>
-            <p className="text-lg font-bold text-amber-800">{formatAmount(totalOwed, 'USD')}</p>
+            <p className="text-lg font-bold text-amber-800">{formatMoney(totalOwed, 'USD')}</p>
           </div>
         </div>
       )}
@@ -188,29 +179,40 @@ export default function MenteeBillingPage() {
                         <p className="text-sm font-medium text-gray-900">
                           {inv.invoice_number ?? 'Invoice'}
                         </p>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded capitalize ${statusColors[inv.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        <Badge tone={toneForStatus(inv.status)}>
                           {inv.status}
-                        </span>
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-xs text-gray-500">
-                          {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {formatDate(inv.created_at)}
                         </p>
                         {inv.due_date && (
                           <p className="text-xs text-gray-400">
-                            Due {new Date(inv.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            Due {formatDateShort(inv.due_date)}
                           </p>
                         )}
                         {inv.paid_at && (
                           <p className="text-xs text-green-600">
-                            Paid {new Date(inv.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            Paid {formatDateShort(inv.paid_at)}
                           </p>
                         )}
                       </div>
                     </div>
-                    <p className={`text-sm font-semibold ${inv.status === 'paid' ? 'text-gray-400' : 'text-gray-900'}`}>
-                      {formatAmount(inv.amount_cents, inv.currency)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className={`text-sm font-semibold ${inv.status === 'paid' ? 'text-gray-400' : 'text-gray-900'}`}>
+                        {formatMoney(inv.amount_cents, inv.currency)}
+                      </p>
+                      <a
+                        href={`/invoices/${inv.id}/print`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                        title="View / Print / Save as PDF"
+                      >
+                        View PDF
+                      </a>
+                    </div>
                   </div>
                   {inv.notes && (
                     <p className="text-xs text-gray-400 mt-2">{inv.notes}</p>
@@ -250,15 +252,6 @@ export default function MenteeBillingPage() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
               {savedPayment ? 'Update payment method' : 'Add payment method'}
             </p>
-
-            {paymentMsg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2 text-sm mb-4 ${
-                paymentMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span className="mt-0.5">{paymentMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {paymentMsg.text}
-              </div>
-            )}
 
             <div className="space-y-3">
               <div>
@@ -309,13 +302,9 @@ export default function MenteeBillingPage() {
             </div>
 
             <div className="mt-4">
-              <button
-                onClick={handleSavePayment}
-                disabled={savingPayment}
-                className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
-              >
+              <Button onClick={handleSavePayment} disabled={savingPayment}>
                 {savingPayment ? 'Saving...' : savedPayment ? 'Update Payment Method' : 'Save Payment Method'}
-              </button>
+              </Button>
             </div>
 
             <p className="text-[10px] text-gray-400 mt-3">

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import type { Offering, OfferingType } from '../types'
+import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
 
 const TABS: { label: string; value: OfferingType }[] = [
   { label: 'Courses', value: 'course' },
@@ -64,18 +66,8 @@ export default function OfferingsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Offerings</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/courses/new')}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + Create Course
-          </button>
-          <button
-            onClick={() => navigate('/engagements/new')}
-            className="rounded border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + Create Engagement
-          </button>
+          <Button onClick={() => navigate('/courses/new')}>+ Create Course</Button>
+          <Button variant="secondary" onClick={() => navigate('/engagements/new')}>+ Create Engagement</Button>
         </div>
       </div>
 
@@ -98,7 +90,7 @@ export default function OfferingsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading...</div>
+        <Skeleton count={4} className="h-12 w-full" gap="gap-2" />
       ) : error ? (
         <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
           Failed to load {tabLabel}: {error}
@@ -117,12 +109,12 @@ export default function OfferingsPage() {
                   <p className="text-xs text-gray-500 truncate mt-0.5">{item.description}</p>
                 )}
               </div>
-              <button
+              <Button
+                variant="secondary" size="sm"
                 onClick={() => navigate(`/${item.type === 'course' ? 'courses' : 'engagements'}/${item.id}/edit`)}
-                className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
               >
                 Edit
-              </button>
+              </Button>
             </div>
           ))}
         </div>

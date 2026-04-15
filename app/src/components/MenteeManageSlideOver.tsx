@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import Button from './ui/Button'
+import { Skeleton } from './ui'
+import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
-import type { Mentee, Offering, MenteeOffering, StaffMember } from '../types'
+import { useLoadingGuard } from '../hooks/useLoadingGuard'
+import EngagementManageModal from './EngagementManageModal'
+import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, FlowStep } from '../types'
 
 interface Props {
   mentee: Mentee
@@ -13,21 +18,30 @@ interface Props {
 interface MenteeOfferingWithDetails extends MenteeOffering {
   offering?: Offering
   lesson_count?: number
+  completed_lessons?: number
 }
 
 export default function MenteeManageSlideOver({ mentee, profile, onClose }: Props) {
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [assignments, setAssignments] = useState<MenteeOfferingWithDetails[]>([])
   const [availableCourses, setAvailableCourses] = useState<Offering[]>([])
   const [availableEngagements, setAvailableEngagements] = useState<Offering[]>([])
+  const [allEngagements, setAllEngagements] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
+  const [managingEngagementId, setManagingEngagementId] = useState<string | null>(null)
+  const [confirmMultiEngagement, setConfirmMultiEngagement] = useState(false)
+
+  useLoadingGuard(loading, useCallback(() => {
+    setLoading(false)
+    toast.error('Request timed out. Please try again.')
+  }, []))
 
   // Close on Escape
   useEffect(() => {
@@ -36,66 +50,55 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
 
-  // Fetch data
+  // Fetch data — parallelized to minimize total wait time
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
       try {
-        // Fetch org settings for multi-engagement flag
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('allow_multi_engagement')
-          .eq('id', profile.organization_id)
-          .single()
+        // Round 1: Fire all independent queries in parallel
+        const [orgRes, moRes, offeringsRes] = await Promise.all([
+          supabase.from('organizations').select('allow_multi_engagement').eq('id', profile.organization_id).single(),
+          supabase.from('mentee_offerings').select('*, offering:offerings(*)').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('assigned_at', { ascending: false }),
+          supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
+        ])
 
-        setAllowMultiEngagement(orgData?.allow_multi_engagement ?? false)
+        setAllowMultiEngagement(orgRes.data?.allow_multi_engagement ?? false)
 
-        const { data: moData } = await supabase
-          .from('mentee_offerings')
-          .select('*, offering:offerings(*)')
-          .eq('mentee_id', mentee.id)
-          .in('status', ['active', 'completed'])
-          .order('assigned_at', { ascending: false })
+        const menteeOfferings = (moRes.data ?? []) as (MenteeOffering & { offering: Offering })[]
+        const offerings = (offeringsRes.data ?? []) as Offering[]
+        const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
+        const allEngs = offerings.filter(o => o.type === 'engagement')
+        setAllEngagements(allEngs)
+        setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
+        setAvailableEngagements(allEngs)
 
-        const menteeOfferings = (moData ?? []) as (MenteeOffering & { offering: Offering })[]
+        // Round 2: Fetch lesson counts + progress in parallel (depends on round 1 IDs)
+        const courseOfferingIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.offering_id)
+        const courseMoIds = menteeOfferings.filter(mo => mo.offering?.type === 'course').map(mo => mo.id)
 
-        const courseOfferingIds = menteeOfferings
-          .filter(mo => mo.offering?.type === 'course')
-          .map(mo => mo.offering_id)
+        const [lessonsRes, progressRes] = await Promise.all([
+          courseOfferingIds.length > 0
+            ? supabase.from('lessons').select('offering_id').in('offering_id', courseOfferingIds)
+            : Promise.resolve({ data: [] }),
+          courseMoIds.length > 0
+            ? supabase.from('lesson_progress').select('mentee_offering_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed')
+            : Promise.resolve({ data: [] }),
+        ])
 
         const lessonCounts: Record<string, number> = {}
-        if (courseOfferingIds.length > 0) {
-          const { data: lessonsData } = await supabase
-            .from('lessons')
-            .select('offering_id')
-            .in('offering_id', courseOfferingIds)
+        if (lessonsRes.data) for (const l of lessonsRes.data as { offering_id: string }[]) lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
 
-          if (lessonsData) {
-            for (const l of lessonsData) {
-              lessonCounts[l.offering_id] = (lessonCounts[l.offering_id] || 0) + 1
-            }
-          }
-        }
+        const completedCounts: Record<string, number> = {}
+        if (progressRes.data) for (const p of progressRes.data as { mentee_offering_id: string }[]) completedCounts[p.mentee_offering_id] = (completedCounts[p.mentee_offering_id] || 0) + 1
 
-        const enriched: MenteeOfferingWithDetails[] = menteeOfferings.map(mo => ({
+        setAssignments(menteeOfferings.map(mo => ({
           ...mo,
           lesson_count: lessonCounts[mo.offering_id] ?? 0,
-        }))
-        setAssignments(enriched)
-
-        const { data: allOfferings } = await supabase
-          .from('offerings')
-          .select('*')
-          .eq('organization_id', profile.organization_id)
-          .order('name')
-
-        const offerings = (allOfferings ?? []) as Offering[]
-        const assignedIds = new Set(menteeOfferings.filter(mo => mo.status === 'active').map(mo => mo.offering_id))
-
-        setAvailableCourses(offerings.filter(o => o.type === 'course' && !assignedIds.has(o.id)))
-        setAvailableEngagements(offerings.filter(o => o.type === 'engagement' && !assignedIds.has(o.id)))
+          completed_lessons: completedCounts[mo.id] ?? 0,
+        })))
       } catch (err) {
         console.error('[MenteeManageSlideOver] fetch error:', err)
+        toast.error('Failed to load data. Please try again.')
       } finally {
         setLoading(false)
       }
@@ -106,7 +109,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   async function assignOffering(offeringId: string) {
     setAssigning(true)
-    setMsg(null)
     try {
       // Find the offering template to copy pricing/settings
       const allOfferings = [...availableCourses, ...availableEngagements]
@@ -126,7 +128,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         })
         .select('id')
 
-      if (insertErr) { setMsg({ type: 'error', text: insertErr.message }); return }
+      if (insertErr) { toast.error(insertErr.message); return }
       const insertedId = insertedArr?.[0]?.id
 
       const { data } = await supabase
@@ -150,12 +152,10 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
       if (newMo.offering?.type === 'course') {
         setAvailableCourses(prev => prev.filter(o => o.id !== offeringId))
-      } else {
-        setAvailableEngagements(prev => prev.filter(o => o.id !== offeringId))
       }
 
       const offering = newMo.offering
-      setMsg({ type: 'success', text: `${offering?.type === 'course' ? 'Course assigned' : 'Engagement opened'} successfully.` })
+      toast.success(`${offering?.type === 'course' ? 'Course assigned' : 'Engagement opened'} successfully.`)
       setShowCourseSelect(false)
       setShowEngagementSelect(false)
 
@@ -171,8 +171,58 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           type: offering?.type,
         },
       })
+
+      // Update mentee flow step if the offering is part of the active mentee flow
+      try {
+        const { data: orgFlow } = await supabase
+          .from('organizations')
+          .select('mentee_flow')
+          .eq('id', profile.organization_id)
+          .single()
+        if (orgFlow?.mentee_flow) {
+          const steps = ((orgFlow.mentee_flow as { steps: FlowStep[] }).steps ?? [])
+          const matchingStep = steps.find(s => s.in_flow && s.offering_id === offeringId)
+          if (matchingStep) {
+            await supabase.from('mentees').update({ flow_step_id: matchingStep.id }).eq('id', mentee.id)
+          }
+        }
+      } catch (err) {
+        console.error('[MenteeManageSlideOver] flow step update error:', err)
+      }
+
+      // Auto-create setup fee invoice if applicable
+      const setupFee = template?.setup_fee_cents ?? 0
+      if (setupFee > 0 && insertedId) {
+        await supabase.from('invoices').insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          mentee_offering_id: insertedId,
+          status: 'draft',
+          amount_cents: setupFee,
+          currency: template?.currency ?? 'USD',
+          line_description: `Setup fee — ${offering?.name ?? 'Engagement'}`,
+          due_date: new Date().toISOString().slice(0, 10),
+        })
+      }
+
+      // Auto-send first recurring invoice if engagement template has auto_send_invoice
+      const recurringPrice = template?.recurring_price_cents ?? 0
+      if (template?.auto_send_invoice && recurringPrice > 0 && insertedId && offering?.type === 'engagement') {
+        const startDate = new Date().toISOString().slice(0, 10)
+        const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+        await supabase.from('invoices').insert({
+          organization_id: profile.organization_id,
+          mentee_id: mentee.id,
+          mentee_offering_id: insertedId,
+          status: 'sent',
+          amount_cents: recurringPrice,
+          currency: template?.currency ?? 'USD',
+          line_description: `${offering?.name ?? 'Engagement'} — ${new Date(startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
+          due_date: dueDate,
+        })
+      }
     } catch (err) {
-      setMsg({ type: 'error', text: (err as Error).message || 'Failed to assign' })
+      toast.error((err as Error).message || 'Failed to assign')
       console.error(err)
     } finally {
       setAssigning(false)
@@ -184,9 +234,17 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       .from('mentee_offerings')
       .update(updates)
       .eq('id', assignmentId)
-    if (error) { setMsg({ type: 'error', text: error.message }); return }
+    if (error) { toast.error(error.message); throw new Error(error.message) }
     setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, ...updates } as MenteeOfferingWithDetails : a))
-    setMsg({ type: 'success', text: 'Updated.' })
+    toast.success('Updated.')
+  }
+
+  function handleCourseRemove(id: string) {
+    setAssignments(prev => prev.filter(a => a.id !== id))
+  }
+
+  function handleCourseStatusChange(id: string, newStatus: string) {
+    setAssignments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as MenteeOfferingWithDetails['status'] } : a))
   }
 
   const activeCourses = assignments.filter(a => a.offering?.type === 'course' && a.status === 'active')
@@ -196,8 +254,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
   // Engagement open button logic
   const hasActiveEngagement = activeEngagements.length > 0
-  const canOpenEngagement = availableEngagements.length > 0 && (!hasActiveEngagement || allowMultiEngagement)
-  const showOpenButtonDisabled = availableEngagements.length > 0 && hasActiveEngagement && !allowMultiEngagement
+  const engagementBlocked = hasActiveEngagement && !allowMultiEngagement
 
   const selectClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
 
@@ -229,28 +286,18 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
               </svg>
               Edit Profile
             </button>
-            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <button onClick={onClose} aria-label="Close panel" className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors">
+              <svg className="w-5 h-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
 
-        {/* Status message */}
-        {msg && (
-          <div className={`shrink-0 px-6 py-2.5 text-sm flex items-center gap-2 ${
-            msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-          }`}>
-            <span>{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-            {msg.text}
-          </div>
-        )}
-
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
-            <div className="text-sm text-gray-400 text-center py-12">Loading...</div>
+            <Skeleton count={5} className="h-12 w-full" gap="gap-3" />
           ) : (
             <>
               {/* Summary cards */}
@@ -308,13 +355,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} />)}
+                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                         {completedCourses.length > 0 && activeCourses.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} />)}
+                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                       </div>
                     )}
                   </div>
@@ -327,27 +374,35 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       <h3 className="text-sm font-semibold text-gray-900">Engagements</h3>
                       <p className="text-[11px] text-gray-400">{activeEngagements.length} active, {completedEngagements.length} completed</p>
                     </div>
-                    {canOpenEngagement ? (
-                      <button
-                        onClick={() => { setShowEngagementSelect(!showEngagementSelect); setShowCourseSelect(false) }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Open
-                      </button>
-                    ) : showOpenButtonDisabled ? (
-                      <span
-                        title="Multiple open engagements are disabled for this organization. Enable in Company Settings."
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 border border-gray-200 rounded cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Open
-                      </span>
-                    ) : null}
+                    {allEngagements.length > 0 && (
+                      engagementBlocked ? (
+                        <span
+                          title="Simultaneous engagements disabled per company settings. Contact your admin to have this changed."
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 border border-gray-200 rounded cursor-not-allowed"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          Assign
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (hasActiveEngagement) {
+                              setConfirmMultiEngagement(true)
+                            } else {
+                              setShowEngagementSelect(!showEngagementSelect); setShowCourseSelect(false)
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand border border-brand/30 rounded hover:bg-brand-light transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          Assign
+                        </button>
+                      )
+                    )}
                   </div>
 
                   <div className="px-4 py-3">
@@ -363,7 +418,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                     {activeEngagements.length === 0 && completedEngagements.length === 0 ? (
                       <div className="text-center py-6">
                         <p className="text-sm text-gray-400">No engagements open.</p>
-                        {canOpenEngagement && (
+                        {availableEngagements.length > 0 && (
                           <button onClick={() => setShowEngagementSelect(true)} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
                             Open first engagement
                           </button>
@@ -371,13 +426,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
+                        {activeEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} onManage={() => setManagingEngagementId(a.id)} />)}
                         {completedEngagements.length > 0 && activeEngagements.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} />)}
+                        {completedEngagements.map(a => <EngagementCard key={a.id} assignment={a} onUpdate={updateAssignment} profile={profile} mentee={mentee} onManage={() => setManagingEngagementId(a.id)} />)}
                       </div>
                     )}
                   </div>
@@ -386,216 +441,476 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
             </>
           )}
         </div>
+
+        {/* Confirmation dialog: open engagement when one is already active */}
+        {confirmMultiEngagement && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-20 rounded-lg">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-xl px-6 py-5 max-w-sm mx-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Open another engagement?</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                This mentee already has {activeEngagements.length} active engagement{activeEngagements.length !== 1 ? 's' : ''}. Are you sure you want to open an additional engagement?
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setConfirmMultiEngagement(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => { setConfirmMultiEngagement(false); setShowEngagementSelect(true); setShowCourseSelect(false) }}>Yes, open engagement</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Engagement management modal */}
+        {managingEngagementId && (() => {
+          const eng = assignments.find(a => a.id === managingEngagementId)
+          if (!eng) return null
+          return (
+            <EngagementManageModal
+              assignment={eng}
+              profile={profile}
+              mentee={mentee}
+              onClose={() => setManagingEngagementId(null)}
+              onUpdate={updateAssignment}
+            />
+          )
+        })()}
     </div>
   )
 }
 
 // ── Sub-components ──
 
-function DonutChart({ value, total, color, size = 56 }: { value: number; total: number; color: string; size?: number }) {
-  const strokeWidth = 6
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const pct = total > 0 ? Math.min(value / total, 1) : 0
-  const offset = circumference * (1 - pct)
-
-  return (
-    <svg width={size} height={size} className="shrink-0 -rotate-90">
-      {/* Background track */}
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f3f4f6" strokeWidth={strokeWidth} />
-      {/* Filled arc */}
-      <circle
-        cx={size / 2} cy={size / 2} r={radius} fill="none"
-        stroke={color} strokeWidth={strokeWidth}
-        strokeDasharray={circumference} strokeDashoffset={offset}
-        strokeLinecap="round"
-        className="transition-all duration-500"
-      />
-    </svg>
-  )
-}
-
-function CourseCard({ assignment }: { assignment: MenteeOfferingWithDetails }) {
+function CourseCard({ assignment, onRemove, onStatusChange }: {
+  assignment: MenteeOfferingWithDetails
+  onRemove: (id: string) => void
+  onStatusChange: (id: string, status: string) => void
+}) {
   const offering = assignment.offering
   const totalLessons = assignment.lesson_count ?? 0
-  const completedLessons = 0 // Will come from lesson_progress table later
+  const completedLessons = assignment.completed_lessons ?? 0
   const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
   const isCompleted = assignment.status === 'completed'
 
+  const toast = useToast()
+  const [expanded, setExpanded] = useState(false)
+  const [lessonDetails, setLessonDetails] = useState<(Lesson & { progress: LessonProgress | null; responses: (QuestionResponse & { question: LessonQuestion })[] })[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'reset' | 'remove' | 'complete'; label: string } | null>(null)
+
+  async function resetCourse() {
+    setConfirmAction(null)
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
+    ])
+    if (assignment.status === 'completed') {
+      await supabase.from('mentee_offerings').update({ status: 'active', completed_at: null }).eq('id', assignment.id)
+      onStatusChange(assignment.id, 'active')
+    }
+    setLessonDetails(prev => prev.map(l => ({ ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) })))
+    toast.success('Course progress reset.')
+  }
+
+  async function markCourseComplete() {
+    setConfirmAction(null)
+    const now = new Date().toISOString()
+    await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', assignment.id)
+    onStatusChange(assignment.id, 'completed')
+    toast.success('Course marked as completed.')
+  }
+
+  async function removeCourse() {
+    setConfirmAction(null)
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
+    ])
+    await supabase.from('mentee_offerings').delete().eq('id', assignment.id)
+    onRemove(assignment.id)
+  }
+
+  async function resetLesson(lessonId: string) {
+    await Promise.all([
+      supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
+      supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
+    ])
+    setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) } : l))
+    toast.success('Lesson reset.')
+  }
+
+  async function markLessonComplete(lessonId: string) {
+    const now = new Date().toISOString()
+    const existing = lessonDetails.find(l => l.id === lessonId)?.progress
+    if (existing) {
+      await supabase.from('lesson_progress').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', existing.id)
+    } else {
+      await supabase.from('lesson_progress').insert({
+        organization_id: assignment.organization_id, mentee_id: assignment.mentee_id, mentee_offering_id: assignment.id,
+        lesson_id: lessonId, status: 'completed', started_at: now, completed_at: now,
+      })
+    }
+    setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: { ...(l.progress ?? {} as LessonProgress), status: 'completed', completed_at: now } as LessonProgress } : l))
+    toast.success('Lesson marked as completed.')
+  }
+
+  async function loadDetails() {
+    if (lessonDetails.length > 0) { setExpanded(!expanded); return }
+    setExpanded(true)
+    setDetailLoading(true)
+    try {
+      // First fetch lessons and progress + responses in parallel
+      const [lessonsRes, progressRes, responsesRes] = await Promise.all([
+        supabase.from('lessons').select('*').eq('offering_id', assignment.offering_id).order('order_index', { ascending: true }),
+        supabase.from('lesson_progress').select('*').eq('mentee_offering_id', assignment.id),
+        supabase.from('question_responses').select('*').eq('mentee_offering_id', assignment.id),
+      ])
+
+      const lessons = (lessonsRes.data ?? []) as Lesson[]
+      const progressMap: Record<string, LessonProgress> = {}
+      for (const p of (progressRes.data ?? []) as LessonProgress[]) {
+        progressMap[p.lesson_id] = p
+      }
+
+      // Now fetch questions by lesson IDs
+      const lessonIds = lessons.map(l => l.id)
+      const questionsByLesson: Record<string, LessonQuestion[]> = {}
+      if (lessonIds.length > 0) {
+        const { data: questionsData } = await supabase
+          .from('lesson_questions')
+          .select('*')
+          .in('lesson_id', lessonIds)
+          .order('order_index', { ascending: true })
+
+        for (const q of (questionsData ?? []) as LessonQuestion[]) {
+          if (!questionsByLesson[q.lesson_id]) questionsByLesson[q.lesson_id] = []
+          questionsByLesson[q.lesson_id].push(q)
+        }
+      }
+
+      // Build response map by question_id
+      const responsesByQuestion: Record<string, QuestionResponse> = {}
+      for (const r of (responsesRes.data ?? []) as QuestionResponse[]) {
+        responsesByQuestion[r.question_id] = r
+      }
+
+      setLessonDetails(lessons.map(l => ({
+        ...l,
+        progress: progressMap[l.id] ?? null,
+        responses: (questionsByLesson[l.id] ?? []).map(q => ({
+          ...(responsesByQuestion[q.id] ?? { id: '', organization_id: '', mentee_id: '', mentee_offering_id: '', lesson_id: l.id, question_id: q.id, response_text: null, selected_option_index: null, is_correct: null, answered_at: '', created_at: '' } as QuestionResponse),
+          question: q,
+        })),
+      })))
+    } catch (err) {
+      console.error('[CourseCard] loadDetails error:', err)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   return (
-    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
-          {offering?.name ?? 'Unknown course'}
-        </p>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
-          isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'
-        }`}>
-          {isCompleted ? 'Completed' : 'Active'}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-500">Progress</span>
-            <span className="text-[11px] font-medium text-gray-700 tabular-nums">{pct}%</span>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
-              style={{ width: `${pct}%` }}
-            />
+    <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="px-4 py-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+            {offering?.name ?? 'Unknown course'}
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={loadDetails} className="text-[10px] text-gray-400 hover:text-brand transition-colors">{expanded ? 'Hide' : 'Details'}</button>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+              {isCompleted ? 'Completed' : 'Active'}
+            </span>
           </div>
         </div>
-        <div className="text-center shrink-0">
-          <p className="text-lg font-bold text-gray-900 tabular-nums leading-none">{completedLessons}<span className="text-gray-300">/{totalLessons}</span></p>
-          <p className="text-[10px] text-gray-400 mt-0.5">lessons</p>
+
+        {/* Confirmation dialog */}
+        {confirmAction && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 mb-2">
+            <p className="text-xs text-amber-800 mb-2">{confirmAction.label}</p>
+            <div className="flex items-center gap-2">
+              <button onClick={confirmAction.type === 'reset' ? resetCourse : confirmAction.type === 'complete' ? markCourseComplete : removeCourse}
+                className="px-2.5 py-1 text-[11px] font-medium rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors">
+                Confirm
+              </button>
+              <button onClick={() => setConfirmAction(null)} className="px-2.5 py-1 text-[11px] font-medium rounded border border-gray-200 text-gray-600 hover:bg-white transition-colors">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] text-gray-500">Progress</span>
+              <span className="text-[11px] font-medium text-gray-700 tabular-nums">{pct}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : 'bg-brand'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+          <div className="text-center shrink-0">
+            <p className="text-lg font-bold text-gray-900 tabular-nums leading-none">{completedLessons}<span className="text-gray-300">/{totalLessons}</span></p>
+            <p className="text-[10px] text-gray-400 mt-0.5">lessons</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-[10px] text-gray-400">
+          {assignment.assigned_at && (
+            <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+          )}
+          {offering?.expected_completion_days && (
+            <span>{offering.expected_completion_days}d expected</span>
+          )}
+        </div>
+
+        {/* Course actions */}
+        <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
+          {!isCompleted && (
+            <button type="button" onClick={() => setConfirmAction({ type: 'complete', label: 'Mark this course as completed for this mentee?' })}
+              className="px-2 py-1 text-[10px] font-medium rounded border border-green-200 text-green-600 hover:bg-green-50 transition-colors">
+              Mark Complete
+            </button>
+          )}
+          <button type="button" onClick={() => setConfirmAction({ type: 'reset', label: 'Reset all progress and responses for this course? This cannot be undone.' })}
+            className="px-2 py-1 text-[10px] font-medium rounded border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors">
+            Reset Progress
+          </button>
+          <button type="button" onClick={() => setConfirmAction({ type: 'remove', label: 'Remove this course assignment? All progress will be deleted.' })}
+            className="px-2 py-1 text-[10px] font-medium rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+            Remove
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-[10px] text-gray-400">
-        {assignment.assigned_at && (
-          <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
-        )}
-        {offering?.expected_completion_days && (
-          <span>{offering.expected_completion_days}d expected</span>
-        )}
-      </div>
+      {/* Expanded detail view */}
+      {expanded && (
+        <div className="border-t border-gray-100 px-4 py-3">
+          {detailLoading ? (
+            <p className="text-xs text-gray-400 text-center py-2">Loading lesson details...</p>
+          ) : lessonDetails.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No lessons in this course yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {/* Overall quiz grade summary */}
+              {(() => {
+                const allQuizResponses = lessonDetails.flatMap(l => l.responses.filter(r => r.question.question_type === 'quiz' && r.answered_at))
+                const totalQ = allQuizResponses.length
+                const correctQ = allQuizResponses.filter(r => r.is_correct).length
+                if (totalQ === 0) return null
+                const pctGrade = Math.round((correctQ / totalQ) * 100)
+                const color = pctGrade >= 90 ? 'text-green-700 bg-green-50 border-green-200' : pctGrade >= 70 ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-red-700 bg-red-50 border-red-200'
+                return (
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-md border mb-1 ${color}`}>
+                    <span className="text-[11px] font-medium">Quiz Grade</span>
+                    <span className="text-[11px] font-bold tabular-nums">{correctQ}/{totalQ} correct ({pctGrade}%)</span>
+                  </div>
+                )
+              })()}
+              {lessonDetails.map((lesson, idx) => {
+                const status = lesson.progress?.status ?? 'not_started'
+                const hasResponses = lesson.responses.some(r => r.answered_at)
+                return (
+                  <LessonDetailRow
+                    key={lesson.id}
+                    lesson={lesson}
+                    index={idx}
+                    status={status}
+                    hasResponses={hasResponses}
+                    responses={lesson.responses}
+                    onResetLesson={resetLesson}
+                    onMarkComplete={markLessonComplete}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function EngagementCard({ assignment, onUpdate }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void> }) {
+function LessonDetailRow({
+  lesson,
+  index,
+  status,
+  hasResponses,
+  responses,
+  onResetLesson,
+  onMarkComplete,
+}: {
+  lesson: Lesson & { progress: LessonProgress | null }
+  index: number
+  status: string
+  hasResponses: boolean
+  responses: (QuestionResponse & { question: LessonQuestion })[]
+  onResetLesson: (lessonId: string) => void
+  onMarkComplete: (lessonId: string) => void
+}) {
+  const [showResponses, setShowResponses] = useState(false)
+
+  // Compute quiz grade
+  const quizResponses = responses.filter(r => r.question.question_type === 'quiz' && r.answered_at)
+  const totalQuiz = quizResponses.length
+  const correctQuiz = quizResponses.filter(r => r.is_correct).length
+  const totalQuestions = responses.length
+  const answeredQuestions = responses.filter(r => r.answered_at).length
+  const gradeColor = totalQuiz > 0
+    ? correctQuiz === totalQuiz ? 'text-green-600 bg-green-50' : correctQuiz >= totalQuiz * 0.7 ? 'text-blue-600 bg-blue-50' : 'text-red-600 bg-red-50'
+    : ''
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 py-1">
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[9px] font-semibold ${
+          status === 'completed'
+            ? 'bg-green-100 text-green-600'
+            : status === 'in_progress'
+              ? 'bg-brand-light text-brand'
+              : 'bg-gray-100 text-gray-400'
+        }`}>
+          {status === 'completed' ? (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            index + 1
+          )}
+        </div>
+        <p className={`text-xs flex-1 truncate ${status === 'completed' ? 'text-gray-500' : 'text-gray-700'}`}>
+          {lesson.title}
+        </p>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quiz grade badge */}
+          {totalQuiz > 0 && (
+            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded tabular-nums ${gradeColor}`}>
+              {correctQuiz}/{totalQuiz}
+            </span>
+          )}
+          {/* Question count */}
+          {totalQuestions > 0 && totalQuiz === 0 && (
+            <span className="text-[9px] text-gray-400 tabular-nums">{answeredQuestions}/{totalQuestions} Q</span>
+          )}
+          {lesson.progress?.completed_at && (
+            <span className="text-[9px] text-gray-400">
+              {new Date(lesson.progress.completed_at).toLocaleDateString()}
+            </span>
+          )}
+          {hasResponses && (
+            <button onClick={() => setShowResponses(!showResponses)} className="text-[9px] text-brand hover:text-brand-hover transition-colors">
+              {showResponses ? 'Hide' : 'Responses'}
+            </button>
+          )}
+          {status !== 'completed' && (
+            <button onClick={() => onMarkComplete(lesson.id)} className="text-[9px] text-green-600 hover:text-green-700 transition-colors">Done</button>
+          )}
+          <button onClick={() => onResetLesson(lesson.id)} className="text-[9px] text-amber-500 hover:text-amber-600 transition-colors">Reset</button>
+        </div>
+      </div>
+
+      {showResponses && responses.length > 0 && (
+        <div className="ml-7 mb-2 space-y-1.5">
+          {responses.map((r) => {
+            const q = r.question
+            const isQuiz = q.question_type === 'quiz'
+            const options = (q.options ?? []) as { text: string; is_correct: boolean }[]
+            const answered = !!r.answered_at
+
+            return (
+              <div key={q.id} className="rounded border border-gray-100 px-3 py-2 bg-gray-50/50">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${
+                    isQuiz ? 'bg-violet-50 text-violet-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {isQuiz ? 'Quiz' : 'Response'}
+                  </span>
+                  {answered && isQuiz && (
+                    <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${
+                      r.is_correct ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                    }`}>
+                      {r.is_correct ? 'Correct' : 'Incorrect'}
+                    </span>
+                  )}
+                  {!answered && (
+                    <span className="text-[9px] text-gray-400">Not answered</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-700 mb-1">{q.question_text || 'No question text'}</p>
+                {answered && isQuiz && r.selected_option_index != null && (
+                  <p className="text-[10px] text-gray-500">
+                    Selected: {options[r.selected_option_index]?.text ?? `Option ${r.selected_option_index + 1}`}
+                  </p>
+                )}
+                {answered && !isQuiz && r.response_text && (
+                  <p className="text-[10px] text-gray-500 italic">{r.response_text}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EngagementCard({ assignment, onManage }: { assignment: MenteeOfferingWithDetails; onUpdate: (id: string, updates: Record<string, unknown>) => Promise<void>; profile: StaffMember; mentee: Mentee; onManage: () => void }) {
   const offering = assignment.offering
-  const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
-  const used = assignment.sessions_used
-  const remaining = Math.max(0, totalCredits - used)
   const isCompleted = assignment.status === 'completed'
   const period = assignment.allocation_period ?? offering?.allocation_period ?? 'per_cycle'
   const periodLabel = period === 'monthly' ? ' / month' : period === 'weekly' ? ' / week' : ''
   const priceCents = assignment.recurring_price_cents ?? offering?.recurring_price_cents ?? 0
   const priceDisplay = (priceCents / 100).toFixed(2)
 
-  const [editing, setEditing] = useState(false)
-  const [editPrice, setEditPrice] = useState(priceDisplay)
-  const [editMeetings, setEditMeetings] = useState(totalCredits ? String(totalCredits) : '')
-  const [editSetupFee, setEditSetupFee] = useState(((assignment.setup_fee_cents ?? 0) / 100).toFixed(2))
-  const [saving, setSaving] = useState(false)
+  const totalCredits = assignment.meeting_count ?? offering?.meeting_count ?? 0
+  const used = assignment.sessions_used
+  const remaining = totalCredits > 0 ? Math.max(0, totalCredits - used) : null
 
-  const allocatedColor = '#6366f1'
-  const usedColor = isCompleted ? '#4ade80' : remaining <= 1 ? '#f59e0b' : '#f43f5e'
-
-  async function handleSave() {
-    setSaving(true)
-    await onUpdate(assignment.id, {
-      recurring_price_cents: editPrice ? Math.round(parseFloat(editPrice) * 100) : 0,
-      setup_fee_cents: editSetupFee ? Math.round(parseFloat(editSetupFee) * 100) : 0,
-      meeting_count: editMeetings ? parseInt(editMeetings) : null,
-    })
-    setSaving(false)
-    setEditing(false)
-  }
-
-  const inputClass = 'w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
-  const numInputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20'
-
+  // Summary card — click "Manage" to open full modal
   return (
-    <div className={`rounded-lg border px-4 py-3.5 ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-3">
-        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
-          {offering?.name ?? 'Unknown engagement'}
-        </p>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!isCompleted && !editing && (
-            <button onClick={() => setEditing(true)} className="text-[10px] text-gray-400 hover:text-brand transition-colors">
-              Edit
-            </button>
-          )}
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-            isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'
-          }`}>
-            {isCompleted ? 'Completed' : 'Active'}
-          </span>
+    <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
+      <div className="px-4 py-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+            {offering?.name ?? 'Unknown engagement'}
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!isCompleted && (
+              <button onClick={onManage} className="text-[10px] font-medium text-brand hover:text-brand-hover transition-colors">
+                Manage
+              </button>
+            )}
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
+              {isCompleted ? 'Completed' : 'Active'}
+            </span>
+          </div>
+        </div>
+
+        {totalCredits > 0 ? (
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-gray-500">{used} of {totalCredits} sessions</span>
+                <span className={`text-[11px] font-medium ${(remaining !== null && remaining <= 1) && !isCompleted ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {remaining} remaining
+                </span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-400' : (remaining !== null && remaining <= 1) ? 'bg-amber-400' : 'bg-brand'}`}
+                  style={{ width: `${totalCredits > 0 ? Math.round((used / totalCredits) * 100) : 0}%` }} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Unlimited sessions · {used} completed</p>
+        )}
+
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+          {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
+          {assignment.assigned_at && <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>}
+          {assignment.ends_at ? <span>Ends {new Date(assignment.ends_at).toLocaleDateString()}</span> : !isCompleted && <span>Indefinite</span>}
         </div>
       </div>
-
-      {editing ? (
-        <div className="space-y-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Recurring price</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)} className={inputClass} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Setup fee</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                <input type="number" step="0.01" min="0" value={editSetupFee} onChange={e => setEditSetupFee(e.target.value)} className={inputClass} />
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Sessions per cycle</label>
-            <input type="number" min="1" value={editMeetings} onChange={e => setEditMeetings(e.target.value)} placeholder="Unlimited" className={numInputClass + ' max-w-24'} />
-          </div>
-          <div className="flex items-center gap-2 pt-1">
-            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium text-white bg-brand rounded hover:bg-brand-hover disabled:opacity-50 transition-colors">
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 transition-colors">
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {totalCredits > 0 ? (
-            <div className="flex items-center gap-5">
-              <div className="flex flex-col items-center gap-1">
-                <div className="relative">
-                  <DonutChart value={totalCredits} total={totalCredits} color={allocatedColor} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">{totalCredits}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] font-medium text-gray-500">Allocated{periodLabel}</p>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="relative">
-                  <DonutChart value={used} total={totalCredits} color={usedColor} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">{used}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] font-medium text-gray-500">Used</p>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-semibold ${remaining <= 1 && !isCompleted ? 'text-amber-600' : 'text-gray-900'}`}>
-                  {remaining} remaining
-                </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {used} of {totalCredits} sessions used
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-gray-400">Unlimited sessions</p>
-          )}
-
-          {/* Pricing info */}
-          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
-            {priceCents > 0 && <span>${priceDisplay}{periodLabel}</span>}
-            {(assignment.setup_fee_cents ?? 0) > 0 && <span>${((assignment.setup_fee_cents ?? 0) / 100).toFixed(2)} setup</span>}
-            {assignment.assigned_at && (
-              <span>Opened {new Date(assignment.assigned_at).toLocaleDateString()}</span>
-            )}
-          </div>
-        </>
-      )}
     </div>
   )
+
 }

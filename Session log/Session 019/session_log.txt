@@ -1,0 +1,447 @@
+SESSION 019 HANDOFF LOG
+========================
+Date: 2026-04-14
+Branch: main (direct commits per CLAUDE.md rule #5 and explicit user
+instruction at start of session: "Merge your changes to main and continue
+pushing to main for the rest of the session")
+Context: Session 018 stalled after logging only its prompt_history.txt
+and was retroactively closed out at the start of this session. Session
+019 picked up the four Habits open items from the Session 017 handoff.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+All four Habits open items from Session 017 are shipped. Committed to
+main as bb1b85b. The feature slice that actually exists end-to-end now:
+
+1. STEP BUILDER  (app/src/pages/HabitEditPage.tsx)
+   - Loads habit_steps for the habit on mount via supabaseRestGet.
+   - "+ Add step" creates a new habit_steps row (via supabaseRestCall
+     POST, same SDK-bypass pattern CourseBuilderPage uses for lessons)
+     with order_index = current count, title = "Step N", then opens
+     the inline editor.
+   - Inline editor: title + optional instructions. "Save step" PATCHes
+     the row, "Cancel" discards, "Delete" removes with re-indexing.
+   - Drag-and-drop reorder — each <li> is draggable (unless in edit
+     mode), with a shared stepDragRef / stepDragOver pair mirroring
+     CourseBuilderPage's lesson reorder. On drop, we reindex locally
+     and fire parallel PATCHes for order_index; on failure we roll the
+     list back to the pre-drag snapshot and toast.
+   - Every mutation writes a logAudit row with entity_type='habit' and
+     details.sub = 'step_added' | 'step_updated' | 'step_deleted'.
+
+2. MENTEE ASSIGNMENT UI  (app/src/pages/HabitEditPage.tsx)
+   - "Mentee assignments" card below the step builder.
+   - Assign form: mentee dropdown (filtered to active mentees in the
+     org who don't already have an active assignment for this habit)
+     + start_date picker defaulting to todayISO() + Assign button.
+   - Assignment flow:
+       a. computeEndDate() from lib/habits to derive end_date (null
+          for until_x_successful).
+       b. Insert mentee_habits row with all the snapshot columns
+          (name_snapshot, description_snapshot, duration_*_snapshot,
+          etc.) plus start_date, end_date, status='active',
+          successful_days_count=0, assigned_by=profile.id.
+       c. Bulk-insert mentee_habit_steps — one row per current
+          habit_steps row, snapshotting title/instructions/order_index.
+          Using supabaseRestCall with an array body (cast to
+          Record<string, unknown>) since PostgREST accepts bulk insert
+          but supabaseRestCall's body type is the single-row shape.
+       d. Prepend to local assignments list, log audit row with
+          entity_type='mentee_habit'.
+   - Assignments display in two groups: Active and Past. Active rows
+     have an "End" button that PATCHes status to 'abandoned' and sets
+     completed_at.
+   - Guard rails: cannot assign if habit has 0 steps, cannot assign if
+     habit is retired, cannot assign to a mentee who already has an
+     active assignment for this habit.
+
+3. MENTEE EDIT PAGE HABITS SECTION  (app/src/pages/MenteeEditPage.tsx)
+   - Added a full-width "Habits" card below the existing grid that
+     shows all mentee_habits for this mentee, ordered by assigned_at
+     desc. Each row deep-links to /habits/:habit_id/edit. Status chip
+     color-codes active (teal) / completed (green) / abandoned (gray).
+   - This is a view-only mirror — the assignment UI lives on the habit
+     template side, not here.
+
+4. MENTEE-SIDE PAGES
+   - app/src/pages/MenteeHabitsPage.tsx — "My Habits" list. Fetches
+     mentee_habits filtered by menteeProfile.id, splits into Active
+     and Past, renders CourseRow-style cards with a progress bar
+     (successful_days_count / goal).
+   - app/src/pages/MenteeHabitDetailPage.tsx — detail view with:
+       · Progress summary card (count + percentage + duration summary +
+         start/end dates)
+       · "Today's check-in" card: one checkbox per mentee_habit_step.
+         Toggling inserts or deletes a mentee_habit_step_logs row for
+         today, then recomputes successful_days_count via
+         successfulDatesFromLogs() and writes it back. If computeStatus
+         transitions the assignment off 'active', it also patches
+         status and completed_at on the mentee_habits row.
+       · History grid: small colored squares from start_date through
+         today (filled=successful, ringed=today).
+   - Routes wired in App.tsx:
+        /my-habits        → MenteeHabitsPage
+        /my-habits/:id    → MenteeHabitDetailPage
+   - "My Habits" entry re-added to the mentee sidebar (was reverted at
+     the end of Session 017 because the target pages didn't exist yet).
+
+Build + test verification:
+   - cd app && npm run build  → clean (tsc + vite). Only the
+     pre-existing chunk-size warning from Session 015.
+   - cd app && npm run test   → 57 passing, 0 failing (unchanged).
+
+Session bookkeeping:
+   - Session 018/session_log.txt written retroactively to close out the
+     stalled session (commit 789e41c).
+   - Local main was 35 commits behind origin/main at session start;
+     fast-forwarded to origin/main before working. Current feature
+     branch was deleted implicitly by merging to main only.
+
+
+STILL OPEN / NEXT SESSION
+-------------------------
+
+1. APPLY MIGRATION 954_habits_tables.sql to the Supabase instance.
+   Until this runs, every /habits and /my-habits route will render
+   but the underlying queries will 404 on the missing tables. This
+   needs manual execution by the user in Supabase (same pattern as
+   prior migrations in this project).
+
+2. Visual QA in the browser against a live Supabase with the migration
+   applied. This session verified types + build + unit tests but did
+   NOT run the dev server or click through the feature — no real
+   Supabase instance was available. Things to sanity-check:
+     · Step reorder persists correctly
+     · Assignment flow creates both mentee_habits AND mentee_habit_steps
+     · Mentee detail page check-off loop: check → successful_days_count
+       updates → status transitions when the goal is hit
+     · RLS: mentee can only see / mutate their own step logs
+
+3. NOTIFICATION DELIVERY (still out of scope). The schema supports it;
+   nothing is wired.
+
+4. Older backlog (unchanged since Session 015):
+     · Edit-page RHF migration across remaining edit pages
+     · Chunk-size warning (consider code splitting)
+     · InvoicePrintPage loading text polish
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main = origin/main = bb1b85b, auto-deploying via Vercel.
+- Build clean; tests 57/0.
+- Migration 954_habits_tables.sql: STILL UNAPPLIED to Supabase.
+- Admin side:
+    HabitsPage (list), HabitCreatePage, HabitEditPage (metadata + step
+    builder + mentee assignments), MenteeEditPage (with Habits section)
+- Mentee side:
+    MenteeHabitsPage, MenteeHabitDetailPage, "My Habits" in sidebar.
+- Types: unchanged since Session 017.
+- lib/habits.ts: unchanged since Session 017 — all helpers exported
+  there were finally consumed this session (computeEndDate,
+  successfulDatesFromLogs, computeStatus, todayISO, addDaysISO,
+  diffDays, durationSummary).
+- No new npm dependencies.
+
+
+NOTES FOR SESSION 020
+----------------------
+
+The very first thing next session should do is confirm with the user
+whether they've run migration 954. If yes, visual-QA the feature in
+the browser against a real Supabase instance before touching anything
+else — it's the only verification gap left from this session's work.
+
+
+========================================================================
+PART 2 — added later in Session 019
+========================================================================
+
+After the Habits wrap above, the session continued with a brand-new
+feature and a scaffolding pass for Canvases v1.1. Everything below is
+additive to the state described in PART 1.
+
+
+WORK COMPLETED — PART 2
+------------------------
+
+A) CANVASES FEATURE V1  (commit 852281f)
+
+   New top-level feature module in the "Offerings" sidebar group:
+   collaborative sticky-note whiteboards shared between a mentor and
+   a mentee on an active pairing. Ad-hoc, async, Coach-Accountable
+   style. Design choices were locked with the user before coding:
+
+     (A) Sticky notes only, no freehand drawing.
+     (D) Ad-hoc per pairing (NOT templates).
+     (F) Async — last save wins, explicit Save button.
+     Permissions: admin/operations can do anything; the assigned
+     mentor can edit + archive; admins can delete; the assigned
+     mentee can edit their own canvas.
+
+   Shipped:
+
+   1. Migration 953_canvases_tables.sql (UNAPPLIED — same drill as
+      954). Single `canvases` table. `content` is a jsonb column
+      holding { notes: CanvasNote[] } (V1 shape). RLS policies cover
+      the permission model above and an updated_by_uid column tracks
+      the last editor's auth.uid so we can render "last edited by".
+
+   2. Types: Canvas, CanvasContent, CanvasNote, CanvasNoteColor added
+      to types/index.ts. Audit entity_type union extended with
+      'canvas'.
+
+   3. lib/modules.ts: "Canvases" entry added to the Offerings group
+      (fuchsia gradient, letter V, path /canvases).
+
+   4. Admin pages:
+        - CanvasesPage: list all canvases in the org with mentor +
+          mentee names, note count, and last-updated timestamp. "Show
+          archived" toggle.
+        - CanvasCreatePage: form with an active-pairing picker (joins
+          staff and mentees), title, optional description. Seeds
+          content with { notes: [], connectors: [] } (shape updated
+          in PART 2 Tier-1 scaffolding, see below).
+        - CanvasEditPage: the sticky-note workspace. 2400x1800 fixed
+          scrollable dotted-grid area. Sticky notes are absolutely-
+          positioned cards with a six-color palette. Drag-to-move via
+          document-level pointer listeners. Double-click to edit
+          text (textarea). Click to bring-to-front. Inline rename of
+          the canvas title. Explicit Save button with an "Unsaved
+          changes" badge and a beforeunload warning. Archive /
+          restore / delete in the toolbar. Shows
+          "Updated DATETIME by NAME" from updated_by_uid, resolved
+          against both staff and mentees tables.
+
+   5. Mentee pages:
+        - MenteeCanvasesPage at /my-canvases.
+        - The same CanvasEditPage component is mounted at
+          /my-canvases/:id; it reads isMenteeMode to swap the Back
+          route and gates edit permission off
+          menteeProfile.id === canvas.mentee_id.
+        - "My Canvases" (fuchsia) added to the mentee sidebar.
+
+   6. Routes (App.tsx):
+        /canvases              CanvasesPage
+        /canvases/new          CanvasCreatePage  (admin/ops/mentor/asst)
+        /canvases/:id          CanvasEditPage
+        /my-canvases           MenteeCanvasesPage
+        /my-canvases/:id       CanvasEditPage
+
+   Build clean + 57/57 tests at time of commit.
+
+
+B) CANVASES v1.1 TIER-1 SCAFFOLDING  (uncommitted at wrap time —
+   see commit shipped as part of wrap-up below)
+
+   User asked for ideas beyond sticky notes and I proposed a tiered
+   feature list. User picked "all of Tier 1":
+     1. Resize notes
+     2. Rich text inside a note (**bold**, *italic*, - bullets)
+     3. Checklist note type
+     4. Multi-select + bulk move
+     5. Connectors / arrows between notes
+     6. Keyboard shortcuts (N, Delete, Cmd+Z undo)
+     7. Link notes (to courses, habits, canvases, or external URLs)
+
+   Implementing all seven in one session proved to be ~1000 lines
+   of new logic on top of CanvasEditPage. I started with the data-
+   model scaffolding and the shared helpers, then the wrap was
+   requested before the big CanvasEditPage rewrite landed. The
+   scaffolding is valuable on its own and is staying on main so the
+   rewrite can pick up cleanly tomorrow. What shipped this session:
+
+   1. types/index.ts — CanvasNote is now a DISCRIMINATED UNION:
+        CanvasStickyNote     { type: 'sticky', text }
+        CanvasChecklistNote  { type: 'checklist', title, items[] }
+        CanvasLinkNote       { type: 'link', label, linkType, linkId, linkUrl }
+      All three share CanvasBaseNote (id, x, y, width, height,
+      color, z). Added CanvasChecklistItem, CanvasConnector,
+      CanvasLinkType, and extended CanvasContent to require
+      `connectors: CanvasConnector[]`.
+
+   2. lib/canvas.ts (NEW) — single source of truth for the new
+      canvas model:
+        - clientId(prefix): non-crypto id generator
+        - COLORS array, colorClasses(c) helper
+        - NOTE_DEFAULTS, NOTE_MIN, WORKSPACE_SIZE, HISTORY_LIMIT
+          constants
+        - createStickyNote / createChecklistNote / createLinkNote /
+          createChecklistItem / createConnector factories
+        - migrateContent(raw): normalizes a loaded content jsonb
+          into the new shape. Legacy notes without a `type` field
+          get upgraded to sticky notes. Unknown / malformed entries
+          are dropped. Connectors array is defaulted to [].
+        - renderMarkdown(text): tiny HTML-escape-first markdown
+          renderer supporting **bold**, *italic*, and "- "/"* "
+          bullet lists. Safe to feed into
+          dangerouslySetInnerHTML. Three-feature scope by design.
+
+   3. CanvasCreatePage: default content shape is now
+      { notes: [], connectors: [] } so newly created canvases match
+      the new type exactly.
+
+   4. CanvasEditPage (stopgap — enough to compile, NOT the full
+      rewrite):
+        - Imports migrateContent from lib/canvas and runs the
+          loaded canvas.content through it on mount, setting both
+          `canvas` and `notes` from the normalized result.
+        - addNote now emits `type: 'sticky'` so the literal
+          satisfies the new union.
+        - save PATCH builds content as { notes, connectors: (...) }
+          instead of the old { notes } shape.
+        - The render loop early-returns null for any non-sticky
+          note. In practice there are no non-sticky notes (the
+          editor UI for them ships in the rewrite), but this keeps
+          the type narrowing clean.
+        - The local COLORS / colorClasses / clientId / NOTE_DEFAULTS
+          / WORKSPACE_SIZE duplicates at the top of CanvasEditPage
+          are still there. They overlap with lib/canvas.ts but I
+          deliberately left them to keep this checkpoint minimal;
+          the rewrite will consolidate them.
+
+   Build + tests after the stopgap: clean + 57/57.
+
+
+DEFERRED TO SESSION 020 — CANVASES v1.1
+----------------------------------------
+
+The CanvasEditPage rewrite itself. Everything below is unbuilt and
+is what the next session should pick up. Design notes are intentional
+— they're the conclusions I reached while planning today before
+running out of time, so session 020 can start coding instead of
+re-deciding.
+
+1. WORKSPACE DATA MODEL
+   - Keep the two flat arrays: notes[] and connectors[].
+   - Add local state for: selectedIds (Set<string>), editingNoteId
+     (string | null), connectorMode (null | { sourceId: string | null }),
+     and an undo history (past: CanvasContent[], cap at HISTORY_LIMIT).
+     Redo stack was considered and tabled — V1 undo-only is fine.
+   - History strategy: snapshot BEFORE any coarse action (add,
+     delete, drag start, resize start, createConnector, deleteConnector,
+     color change, starting a text edit). Do NOT snapshot on every
+     keystroke.
+
+2. RESIZE
+   - Drag handle in the bottom-right corner of each note card.
+   - Separate resizeStateRef from dragStateRef; both share the same
+     document-level pointermove/pointerup effect.
+   - Clamp to NOTE_MIN (140 x 100) and WORKSPACE_SIZE bounds.
+
+3. RICH TEXT FOR STICKY NOTES
+   - Display mode: render via dangerouslySetInnerHTML with
+     renderMarkdown(note.text) (already implemented in lib/canvas.ts).
+   - Edit mode: plain textarea on the markdown source.
+   - Optional toolbar (B / I / •) that wraps the textarea selection
+     in **, *, or prepends "- ". Pragmatic implementation: grab the
+     textarea ref, compute new text, setNotes, then
+     setTimeout(restoreSelection, 0). Finicky but workable. Can be
+     skipped for V1 if time is tight — the raw markdown typing path
+     works without the toolbar.
+
+4. CHECKLIST NOTE TYPE
+   - New "+ Checklist" button in the toolbar.
+   - Renders a title input + a list of rows: [checkbox] [text input]
+     [× delete]. Enter in a row creates a new row below.
+   - "+ Add item" link at the bottom.
+   - Toggling a checkbox updates items[i].done and pushes history.
+
+5. LINK NOTE TYPE
+   - New "+ Link" button.
+   - Edit UI: type dropdown (course / habit / canvas / url) + value
+     picker. For course/habit/canvas, lazy-load the relevant list
+     (offerings where type=course, habits, canvases excluding self)
+     the first time the picker is opened and cache in state. For
+     url, a plain input.
+   - Display: small card with an icon + label. Click opens the
+     target (/courses/:id/edit, /habits/:id/edit, /canvases/:id,
+     or external URL in a new tab).
+
+6. MULTI-SELECT + BULK MOVE
+   - Shift-click a note to add/remove from selectedIds.
+   - Plain click = clear-then-select. Click empty canvas = clear.
+   - When a drag starts on a selected note, all selected notes
+     move together; dragStateRef needs a startPositions map keyed
+     by noteId.
+   - Selected notes get a visible ring (e.g. `ring-2 ring-brand`).
+
+7. CONNECTORS
+   - Toolbar "Connect" button enters connectorMode.
+   - In connectorMode: first click on a note sets sourceId.
+     Second click on a different note creates a connector with
+     createConnector(...) and exits connectorMode. Click empty or
+     press Escape to cancel.
+   - Render as an SVG overlay positioned at 0,0 over the workspace.
+     For each connector, draw a line from note center to note
+     center, re-computed from current note state (so moving a note
+     drags its connectors with it automatically).
+   - Click a line to delete it (or show an inline × at the midpoint).
+
+8. KEYBOARD SHORTCUTS + UNDO
+   - Global keydown listener on document, scoped out of
+     HTMLInputElement/HTMLTextAreaElement targets:
+       N           — add a sticky note
+       Delete/Backspace — delete selectedIds (if any)
+       Cmd/Ctrl+Z  — undo (pop past, set current state)
+   - Beware of onKeyDown bubbling from textareas — the scope check
+     above is critical.
+
+9. EXTRACT COMPONENTS IF IT HELPS READABILITY
+   - CanvasEditPage is already ~540 lines. Adding all of the above
+     in one file puts it around 1200+ lines, which is OK for this
+     codebase (CourseBuilderPage is 728) but not great. Consider
+     extracting:
+       components/canvas/StickyNoteCard.tsx
+       components/canvas/ChecklistNoteCard.tsx
+       components/canvas/LinkNoteCard.tsx
+       components/canvas/ConnectorLayer.tsx
+     Each takes (note/connector, canEdit, isSelected, isEditing,
+     handlers...) as props. Keep the top-level page focused on
+     state + dispatch.
+
+10. MIGRATION 953 STILL UNAPPLIED
+    Independent of v1.1, the v1 feature itself needs migration 953
+    run against Supabase before ANY of /canvases or /my-canvases
+    works end-to-end. Same as 954.
+
+
+CURRENT CODEBASE STATE  (end of session, including wrap-up commit)
+-------------------------------------------------------------------
+
+- main = origin/main
+- Migrations in repo but unapplied: 953 (canvases), 954 (habits).
+- Build clean; tests 57/0.
+- Habits feature: complete and functional (pending migration 954).
+- Canvases v1 feature: complete and functional (pending migration 953).
+- Canvases v1.1: types + lib/canvas.ts + CanvasCreatePage seed +
+  CanvasEditPage stopgap. The BIG rewrite of CanvasEditPage is the
+  single remaining task from today and is fully deferred to session
+  020.
+- No new npm dependencies this session.
+
+
+REVISED NOTES FOR SESSION 020
+------------------------------
+
+Priority order for the next session:
+
+1. Confirm migrations 953 and 954 are applied to the Supabase
+   instance. Until they are, everything we've built is UI scaffolding
+   against empty tables.
+
+2. Do the CanvasEditPage v1.1 rewrite per the design notes in the
+   DEFERRED section above. All of the types, factories, helpers,
+   and migration code it needs already exist in lib/canvas.ts —
+   just consume them.
+
+3. After the rewrite, delete the duplicate COLORS / colorClasses /
+   clientId / NOTE_DEFAULTS / WORKSPACE_SIZE declarations at the
+   top of CanvasEditPage and import from lib/canvas.ts instead.
+
+4. Visual QA in a real browser with real Supabase for BOTH Habits
+   and Canvases. Today's session verified types + build + unit
+   tests only; neither feature has been touched in a running app.

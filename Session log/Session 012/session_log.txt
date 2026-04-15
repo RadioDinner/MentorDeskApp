@@ -1,0 +1,164 @@
+SESSION 012 HANDOFF LOG
+======================
+Date: 2026-04-13
+Branch started: claude/polish-backlog-1DnD3
+Merged to main: yes (merge commit a02a842)
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+1. Item 1b — Finished migrating ALL remaining pages and components
+   to the shared UI primitives introduced in Session 011.
+
+   Files changed (23 total):
+     Pages:
+       app/src/pages/LoginPage.tsx
+       app/src/pages/PersonCreatePage.tsx
+       app/src/pages/MenteeCreatePage.tsx
+       app/src/pages/PairingCreatePage.tsx
+       app/src/pages/OfferingsPage.tsx
+       app/src/pages/OfferingCreatePage.tsx
+       app/src/pages/OfferingEditPage.tsx
+       app/src/pages/PairingEditPage.tsx
+       app/src/pages/MenteeEditPage.tsx
+       app/src/pages/AuditLogPage.tsx
+       app/src/pages/PairingsPage.tsx
+       app/src/pages/PeopleListPage.tsx
+       app/src/pages/MenteesListPage.tsx
+       app/src/pages/EngagementsPage.tsx
+       app/src/pages/CoursesPage.tsx
+       app/src/pages/ProfilePage.tsx
+       app/src/pages/PersonEditPage.tsx
+       app/src/pages/CompanySettingsPage.tsx
+       app/src/pages/MenteeEngagementDetailPage.tsx
+       app/src/pages/MenteeCourseViewerPage.tsx
+       app/src/pages/AvailabilityPage.tsx
+
+     Components:
+       app/src/components/EngagementManageModal.tsx
+       app/src/components/MenteeManageSlideOver.tsx
+
+   What was done per file: replaced raw `<button className="rounded
+   bg-brand px-4 py-2 ...">` strings with `<Button>`, inline
+   toLocaleDateString() calls with formatDate/formatDateShort/etc,
+   inline status badges with `<Badge tone={...}>`, raw fixed-overlay
+   modals with `<Modal>` primitive.
+
+   Deliberate non-migrations (documented decisions, not oversights):
+     - Amber archive buttons (no amber variant in Button primitive)
+     - Tab/toggle active-state buttons (active/inactive state logic
+       doesn't fit any Button variant)
+     - "← Back" text links (text nav links, not actions)
+     - Purple undo button in AuditLogPage (one-off color)
+     - Icon-only upload/delete buttons smaller than Button.sm
+
+   Commit: e474b78
+
+2. Item 4 — Built ToastProvider + Skeleton, wired into key pages.
+
+   New files:
+     app/src/context/ToastContext.tsx
+       - ToastProvider component wraps app in App.tsx
+       - useToast() hook returns { success, error, info } methods
+       - Auto-dismiss after 4 seconds
+       - Stacks multiple toasts, each individually dismissible
+       - Renders in fixed bottom-right portal (z-[200])
+
+     app/src/components/ui/Skeleton.tsx
+       - Animated shimmer placeholder
+       - Props: className (sizing), count (repeat N times), gap
+       - Exported from components/ui/index.ts barrel
+
+   Wired into App.tsx: <ToastProvider> wraps the full route tree
+   (inside ThemeProvider, outside Routes).
+
+   Inline banner → toast conversions (4 pages):
+     ProfilePage.tsx — profileMsg, accountMsg, passwordMsg (3 useState
+       slots removed, 3 inline banner blocks removed)
+     PersonEditPage.tsx — profileMsg, compensationMsg, actionMsg
+       (3 useState slots, 3 banners)
+     MenteeEditPage.tsx — msg, statusMsg, dangerMsg
+       (3 useState slots, 3 banners)
+     CompanySettingsPage.tsx — msg
+       (1 useState slot, 1 banner, ~10 setMsg call sites)
+
+   Commit: 93407cc
+
+
+DECISIONS / ARCHITECTURE NOTES
+--------------------------------
+
+- Toast is the right pattern for mutation feedback (save/update/
+  send-email/etc). Inline banners remain appropriate only for
+  persistent page-level errors where the user needs to take action
+  (e.g. a fetch error with a Retry button — those use LoadingErrorState
+  which is still in place).
+
+- Skeleton primitive exists but is not yet adopted anywhere. Next
+  session can wire it into list-page "Loading..." states.
+
+- EngagementManageModal and MenteeManageSlideOver still have their
+  own raw overlay divs (not converted to the Modal primitive). They
+  were migrated for button and format primitives, but the overlay
+  conversion is a larger refactor noted in the backlog under item #7
+  (Accessibility pass).
+
+
+POLISH BACKLOG STATUS (as of end of Session 012)
+-------------------------------------------------
+
+From Session log/Session 011/polish_backlog.txt:
+
+  [DONE]    1   Extract shared UI primitives (Session 011)
+  [DONE]    1b  Finish migrating remaining pages (Session 012)
+  [DONE]    2   Kill CompanySettingsPage.optionB.tsx (Session 011)
+  [PARTIAL] 4   Toast + Skeleton infrastructure (Session 012)
+                  - ToastProvider + useToast() ✓
+                  - Skeleton primitive ✓
+                  - Banners → toasts on 4 key pages ✓
+                  - Remaining ~50+ pages still have inline banners
+                  - "Loading..." text → Skeleton not yet done
+                  - errorReporter wired into mutations: still open
+  [OPEN]    3   Pagination + server-side filtering on list pages
+  [OPEN]    5   Form validation pass — Zod + React Hook Form
+  [OPEN]    6   Mobile responsiveness pass
+  [OPEN]    7   Accessibility pass (EngagementManageModal,
+                  MenteeManageSlideOver still raw overlays)
+  [OPEN]    8   Audit logging coverage gaps
+  [OPEN]    9   Permission gating audit
+  [OPEN]    10  Test scaffolding (vitest, lib/* unit tests)
+  [OPEN]    11  Dashboard upgrade — KPIs, metrics, trends
+
+
+RECOMMENDED NEXT SESSION PRIORITIES
+-------------------------------------
+
+Option A — Finish item 4 (toast adoption):
+  Continue the inline-banner → toast sweep across the remaining
+  pages. grep for `setMsg\|setError\|set.*Msg` patterns. Highest-
+  volume pages: OfferingEditPage, PairingEditPage, PairingsPage,
+  EngagementManageModal, MenteeManageSlideOver.
+  Also: wire Skeleton into list-page "Loading..." states.
+
+Option B — Item 3 (pagination):
+  AuditLogPage already has a .limit(200) cap that's a ticking bug.
+  Start there, build usePaginatedList hook + PageBar component,
+  then propagate to InvoicingPage, PayrollPage, MenteesListPage.
+
+Option C — Item 5 (form validation):
+  MenteeCreatePage is smallest at ~170 LOC. Use as template for
+  Zod + React Hook Form pattern, then propagate.
+
+Suggested order: A → B → C → 7 → 9 → 10.
+
+
+CURRENT CODEBASE STATE
+------------------------
+
+- main is up to date and deployed via Vercel auto-deploy.
+- Feature branch claude/polish-backlog-1DnD3 merged and can be
+  considered closed (all commits are in main).
+- Build is clean: tsc + vite build both pass with no errors.
+- No migrations added this session (UI-only changes).
+- No new npm dependencies added this session.

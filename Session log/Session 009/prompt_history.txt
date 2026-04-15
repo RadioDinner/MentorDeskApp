@@ -1,0 +1,56 @@
+SESSION 009 - PROMPT HISTORY
+==============================
+
+1. Let's kick off another session. Review the most recent session and then let's get started fixing the questions on the course builder.
+
+2. When I click the button +Response or +Quiz in the sections of the lessons, it doesn't work. Also, I tried to delete Lesson questions at the bottom and it didn't work. It gave me a message saying "Failed to delete question."
+
+While we're looking at questions, fix the re-indexing bug, race conditions and validation.
+
+3. While we're looking at the course builder, I want you to add, for each section, a place for notes on the right side of the section card. These notes are for the course creator, and will only be visible to themselves, when editing a course, or to the other course creators.
+
+4. I want to do something cool with lessons. I want to add the ability to put in dynamic personalization. In the course builder, I want you to put a button somewhere on the section builder that is called "Dynamic fields". The way I want this to function is that the course builder can add one of these to the lesson to make it personal. For example, if the lesson starts off like "Hey so and so, so glad you are starting this course!". In the dynamic fields, I want to be able to add the option to make the lesson start like "Hey {mentee_first_name}, so glad you are starting this course!".
+
+To start, I want the available fields to be {mentee_first_name} {mentee_last_name} {mentee_email}{mentee_phone} {mentor_first_name} {mentor_last_name} {mentor_email} {mentor_phone}
+
+Then I want these fields to be filled when the course is assigned to the mentee.
+
+5. push all these changes to main and delete the branches, push to main for the remainder of the session
+
+Also, I want the save and delete links on the lesson sections to be buttons, not just words. I am going to make a change to sections in lessons. Rather than make each session have a place for text, a video url, or questions, I want you to add 4 buttons below the Lesson title card. A button labeled +Text, +Video, +Quiz, +Response. Also, make so I can re-order sessions easily. This way I could make a lesson look like, Text section > video section > Text section > quiz > Text section > Response > Text session.
+
+6. In the Mentees module, when I click the manage button on the mentee, it just goes to a screen like this that says "Loading..."
+
+7. This is a bug on the mentee side, since we've made changes to courses, when I log into my mentee account, I can see the lesson title, but not the subsequent sections. Fix this
+
+8. Ok, so on the section buttons, I want them to float below each new section, that way you don't need to scroll all the way up to the top to click the button to add a section by type. Or put the buttons to the side or something
+
+9. I want admins/staff to be able to edit mentors and assistant mentors availability schedules for them. Add a button on the mentor and assistant mentor edit screens to make provisions for that.
+
+10. Instead of needing to click the +Add Section button to get to the 4 other buttons, just put the other 4 buttons down there right away
+
+11. When I assign a course or open an engagement for a mentee, I want you to update their status with the name of the engagement IF, ONLY IF, the engagement is selected to be a part of the engagement mentee flow in the organizations company options.
+
+12. I want you to make the same sorting options for engagements as you have for the courses, a grid vs a list.
+
+13. In the "Manage" screen for mentees, I want you to show the "+ Assign" button on the engagement card, even if they already have an engagement open. But if they have the option turned off in their company options to allow multiple open engagements, I want it greyed out and a tooltip to say "Simultaneious engagements disabled per company settings. Contact your admin to have this changed". If they have the toggle turned on to allow it, show a popup confirming that they still want to create a new engagement despite there already being on open.
+
+14. In the course edit screen, I want you to do two things. Add a way to upload a course icon. And change the course due date to a duration, rather than a hard coded / set date.
+
+15. In the courses screen, I want to add some data to the card. Not sure how we'll record it or store it so it's accurate, but you'll figure it out. Make the cards for courses on the grid layout and cards for the engagements on the grid layout larger than they are now. On the courses card, I want to display how many people are currently taking the course, and how many people have completed. Make a beautiful visual to go along with this to effictively communicate the information
+
+16. We are STILL dealing with the loading bug on modules. I really can't ship this product until this is fixed. I went to the engagements page and saw the loading screen and then it eventually went to this message "Failed to load engagements: Request timed out. Please refresh the page." What system do we need to overhaul to get this working? I want a FIX. Then I got the loading message on the sideload screen when i click "Manage" on the mentee, it gave me this error "✗Request timed out. Please try again." but still loaded? Does that give you clues?
+
+17. I still don't see an "assign" button on the engagements in the "Manage" mentee sideload window
+
+18. In the company options, the option to allow multiple open engagements per mentee is in the "courses" tab. That is really not how it should be. I want to overhaul the company options and put it into a card view.
+
+the option to allow multiple open engagements per mentee should be renamed, "Multiple open engagements" and be put into an "Offerings" card.
+
+19. I want staff/admins and mentors to be able to reset a course that is assigned to a mentee, reset a specific lesson, or delete the course from the active list or mark lessons or the course complete manually from the "Mentee" manage sideload window.
+
+20. In the "Manage" popout in the open engagements card, if I click on the settings to edit them I see the price of the course as it should be from the engagements settings but when I edit the close out date I get this message "Could not find the 'allocation_period' column of 'mentee_offerings' in the schema cache". It doesn't save the closeout date and it should keep the default price that it started with or was set to
+
+21. I want to be able to add folders to the engagements and courses screen. These will function just like they would on a desktop.
+
+After you finish this task, merge to main, and wrap the session. Write the handoff document and we'll see you next time.

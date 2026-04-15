@@ -1,4 +1,19 @@
-export type StaffRole = 'admin' | 'mentor' | 'assistant_mentor' | 'staff'
+export type StaffRole = 'admin' | 'operations' | 'course_creator' | 'mentor' | 'assistant_mentor' | 'staff'
+
+// Roles that fall under the "/staff" (non-mentor) umbrella. The legacy 'staff'
+// value is kept for backwards compatibility with existing rows.
+export const STAFF_UMBRELLA_ROLES: StaffRole[] = ['admin', 'operations', 'course_creator', 'staff']
+
+// Human-readable labels for every staff role — use this when rendering role
+// in the UI so the wording stays consistent everywhere.
+export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
+  admin: 'Admin',
+  operations: 'Operations',
+  course_creator: 'Course Creator',
+  staff: 'Staff',
+  mentor: 'Mentor',
+  assistant_mentor: 'Asst. Mentor',
+}
 
 export interface RoleGroup {
   id: string
@@ -6,7 +21,39 @@ export interface RoleGroup {
   module_groups: string[]
 }
 
-export type PayType = 'hourly' | 'salary' | 'pct_monthly_profit' | 'pct_engagement_profit'
+export type PayType =
+  | 'hourly'
+  | 'salary'
+  | 'pct_monthly_profit'
+  | 'pct_engagement_profit'
+  | 'pct_course_profit'
+  | 'pct_per_meeting'
+
+// Pay types where pay_rate is a percentage (not a dollar amount).
+export const PERCENTAGE_PAY_TYPES: PayType[] = [
+  'pct_monthly_profit',
+  'pct_engagement_profit',
+  'pct_course_profit',
+  'pct_per_meeting',
+]
+
+// How often a salaried staff member is paid.
+export type PayFrequency = 'weekly' | 'bi_weekly' | 'semi_monthly' | 'monthly' | 'annually'
+
+export const PAY_FREQUENCY_LABELS: Record<PayFrequency, string> = {
+  weekly: 'Weekly',
+  bi_weekly: 'Bi-weekly (every 2 weeks)',
+  semi_monthly: 'Semi-monthly (twice a month)',
+  monthly: 'Monthly',
+  annually: 'Annually',
+}
+
+// Pay types that require the admin to pick a specific offering the staff
+// member is paid from (pay_offering_id on the staff record).
+export const OFFERING_LINKED_PAY_TYPES: PayType[] = [
+  'pct_engagement_profit',
+  'pct_course_profit',
+]
 
 export type RoleCategory = 'staff' | 'mentor' | 'assistant_mentor'
 
@@ -30,6 +77,8 @@ export interface MenteeFlow {
 export type CancelWindowUnit = 'hours' | 'days'
 export type CancelOutcome = 'keep_credit' | 'lose_credit'
 export type AllocationPeriod = 'monthly' | 'weekly' | 'per_cycle'
+export type AllocationGrantMode = 'on_open' | 'on_first_payment'
+export type AllocationRefreshMode = 'by_cycle' | 'by_payment'
 
 export interface CancellationPolicy {
   cancel_window_value: number
@@ -61,6 +110,11 @@ export interface Organization {
   role_groups: RoleGroup[]
   enable_lesson_due_dates: boolean
   allow_multi_engagement: boolean
+  show_all_days_in_scheduler: boolean
+  scheduler_max_days_ahead: number
+  allocation_grant_mode: AllocationGrantMode
+  allocation_refresh_mode: AllocationRefreshMode
+  pay_mentors_for_uncredited_meetings: boolean
   archive_settings: ArchiveSettings
   created_at: string
 }
@@ -76,6 +130,7 @@ export interface Offering {
   type: OfferingType
   name: string
   description: string | null
+  icon_url: string | null
   price_cents: number
   setup_fee_cents: number
   currency: string
@@ -87,13 +142,25 @@ export interface Offering {
   billing_mode: 'one_time' | 'recurring'
   recurring_price_cents: number
   meeting_count: number | null
+  default_meeting_duration_minutes: number
   allocation_period: AllocationPeriod
   use_org_default_cancellation: boolean
   cancellation_policy: CancellationPolicy | null
   due_date_mode: DueDateMode
   expected_completion_days: number | null
+  auto_send_invoice: boolean
+  folder_id: string | null
   created_at: string
   updated_at: string
+}
+
+export interface OfferingFolder {
+  id: string
+  organization_id: string
+  name: string
+  folder_type: 'course' | 'engagement'
+  order_index: number
+  created_at: string
 }
 
 export interface Mentee {
@@ -146,9 +213,105 @@ export interface MenteeOffering {
   meeting_count: number | null
   allocation_period: AllocationPeriod | null
   notes: string | null
+  ends_at: string | null
   assigned_at: string
   started_at: string | null
   completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EngagementSession {
+  id: string
+  organization_id: string
+  mentee_offering_id: string
+  mentee_id: string
+  logged_by: string | null
+  session_date: string
+  notes: string | null
+  created_at: string
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+
+export interface Invoice {
+  id: string
+  organization_id: string
+  mentee_id: string | null
+  mentee_offering_id: string | null
+  invoice_number: string | null
+  status: InvoiceStatus
+  amount_cents: number
+  currency: string
+  due_date: string | null
+  paid_at: string | null
+  line_description: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TimeCard {
+  id: string
+  organization_id: string
+  staff_id: string
+  period_start: string         // YYYY-MM-DD
+  period_end: string           // YYYY-MM-DD
+  hours_worked: number
+  notes: string | null
+  document_data_url: string | null
+  document_name: string | null
+  entered_by: string | null
+  created_at: string
+}
+
+export interface AvailabilitySchedule {
+  id: string
+  organization_id: string
+  staff_id: string
+  day_of_week: number // 0=Sunday, 6=Saturday
+  start_time: string  // HH:MM:SS
+  end_time: string    // HH:MM:SS
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AvailabilityOverride {
+  id: string
+  organization_id: string
+  staff_id: string
+  override_date: string
+  start_time: string
+  end_time: string
+  is_available: boolean
+  notes: string | null
+  created_at: string
+}
+
+export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+
+export interface Meeting {
+  id: string
+  organization_id: string
+  mentee_offering_id: string | null
+  mentee_id: string
+  mentor_id: string
+  engagement_session_id: string | null
+  title: string | null
+  description: string | null
+  starts_at: string
+  ends_at: string
+  duration_minutes: number
+  status: MeetingStatus
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancellation_reason: string | null
+  meeting_link: string | null
+  location: string | null
+  external_calendar_id: string | null
+  external_calendar_provider: string | null
+  external_calendar_event_url: string | null
   created_at: string
   updated_at: string
 }
@@ -160,9 +323,26 @@ export interface QuizOption {
   is_correct: boolean
 }
 
+export type SectionType = 'text' | 'video' | 'quiz' | 'response'
+
+export interface LessonSection {
+  id: string
+  lesson_id: string
+  organization_id: string
+  section_type: SectionType
+  title: string | null
+  content: string | null
+  video_url: string | null
+  notes: string | null
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
 export interface LessonQuestion {
   id: string
   lesson_id: string
+  section_id: string | null
   organization_id: string
   question_text: string
   question_type: QuestionType
@@ -185,7 +365,198 @@ export interface Lesson {
   updated_at: string
 }
 
+export type LessonProgressStatus = 'not_started' | 'in_progress' | 'completed'
+
+export interface LessonProgress {
+  id: string
+  organization_id: string
+  mentee_id: string
+  mentee_offering_id: string
+  lesson_id: string
+  status: LessonProgressStatus
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuestionResponse {
+  id: string
+  organization_id: string
+  mentee_id: string
+  mentee_offering_id: string
+  lesson_id: string
+  question_id: string
+  response_text: string | null
+  selected_option_index: number | null
+  is_correct: boolean | null
+  answered_at: string
+  created_at: string
+}
+
 export type DueDateMode = 'none' | 'course' | 'lesson'
+
+// ── Habits ─────────────────────────────────────────────────────────────
+
+export type HabitDurationMode = 'fixed_days' | 'goal_x_of_y' | 'until_x_successful'
+export type MenteeHabitStatus = 'active' | 'completed' | 'abandoned'
+
+export interface Habit {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  duration_mode: HabitDurationMode
+  duration_days: number | null
+  goal_successful_days: number | null
+  is_active: boolean
+  created_by: string | null
+  folder_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface HabitFolder {
+  id: string
+  organization_id: string
+  name: string
+  order_index: number
+  created_at: string
+}
+
+export interface HabitStep {
+  id: string
+  habit_id: string
+  organization_id: string
+  order_index: number
+  title: string
+  instructions: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MenteeHabit {
+  id: string
+  organization_id: string
+  habit_id: string
+  mentee_id: string
+  assigned_by: string | null
+  start_date: string
+  end_date: string | null
+  status: MenteeHabitStatus
+  successful_days_count: number
+  name_snapshot: string
+  description_snapshot: string | null
+  duration_mode_snapshot: HabitDurationMode
+  duration_days_snapshot: number | null
+  goal_successful_days_snapshot: number | null
+  assigned_at: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MenteeHabitStep {
+  id: string
+  mentee_habit_id: string
+  organization_id: string
+  order_index: number
+  title: string
+  instructions: string | null
+  created_at: string
+}
+
+export interface MenteeHabitStepLog {
+  id: string
+  mentee_habit_id: string
+  mentee_habit_step_id: string
+  organization_id: string
+  log_date: string // YYYY-MM-DD
+  completed_at: string
+}
+
+// ── Canvases ───────────────────────────────────────────────────────────
+
+export type CanvasNoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
+
+export interface CanvasBaseNote {
+  id: string        // client-generated id
+  x: number         // px offset from canvas origin
+  y: number
+  width: number
+  height: number
+  color: CanvasNoteColor
+  z: number         // stack order; higher = on top
+}
+
+export interface CanvasStickyNote extends CanvasBaseNote {
+  type: 'sticky'
+  text: string      // markdown: **bold**, *italic*, - bullets
+}
+
+export interface CanvasChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+export interface CanvasChecklistNote extends CanvasBaseNote {
+  type: 'checklist'
+  title: string
+  items: CanvasChecklistItem[]
+}
+
+export type CanvasLinkType = 'course' | 'habit' | 'canvas' | 'url'
+
+export interface CanvasLinkNote extends CanvasBaseNote {
+  type: 'link'
+  label: string
+  linkType: CanvasLinkType
+  linkId: string | null   // id of the target entity (null for external url)
+  linkUrl: string | null  // external URL if linkType === 'url'
+}
+
+export type CanvasNote = CanvasStickyNote | CanvasChecklistNote | CanvasLinkNote
+
+export interface CanvasConnector {
+  id: string
+  fromNoteId: string
+  toNoteId: string
+  label: string
+}
+
+export interface CanvasContent {
+  notes: CanvasNote[]
+  connectors: CanvasConnector[]
+}
+
+export interface Canvas {
+  id: string
+  organization_id: string
+  mentor_id: string
+  mentee_id: string
+  title: string
+  description: string | null
+  content: CanvasContent
+  created_by: string | null
+  updated_by_uid: string | null
+  folder_id: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CanvasFolder {
+  id: string
+  organization_id: string
+  name: string
+  order_index: number
+  created_at: string
+}
+
+/** Shared list/grid view-mode type used across pages that support the toggle. */
+export type ViewMode = 'list' | 'grid'
+
 
 export interface StaffMember {
   id: string
@@ -202,9 +573,13 @@ export interface StaffMember {
   zip: string | null
   country: string | null
   pay_type: PayType | null
+  pay_offering_id: string | null
+  pay_frequency: PayFrequency | null
   pay_rate: number | null
   access_groups: string[]
   allowed_modules: string[]
+  max_active_mentees: number | null
+  timezone: string | null
   archived_at: string | null
   created_at: string
   updated_at: string

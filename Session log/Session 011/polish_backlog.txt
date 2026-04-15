@@ -1,0 +1,287 @@
+POLISH BACKLOG — from the Session 011 comprehensive review
+============================================================
+
+This file is the durable version of the review done in Session 011.
+Items #1 and #2 were completed in that session. The rest are open,
+ordered by leverage (effort vs impact).
+
+Each item includes: what / why / where to start / rough scope.
+
+Status legend:
+  [DONE]    — completed
+  [PARTIAL] — infrastructure laid, adoption incomplete
+  [OPEN]    — not started
+
+
+─────────────────────────────────────────────────────────────
+1. [DONE] Extract shared UI primitives
+─────────────────────────────────────────────────────────────
+Completed in Session 011 (commit bf137d5).
+  - app/src/lib/format.ts (formatMoney, formatDollars, formatDate,
+    formatDateShort, formatDateLong, formatTime, formatDateTime,
+    formatWeekdayDate, parseDateOnly)
+  - app/src/components/ui/Button.tsx (primary / secondary / ghost /
+    danger / dangerGhost variants, sm/md sizes)
+  - app/src/components/ui/Badge.tsx (semantic tones + toneForStatus)
+  - app/src/components/ui/Modal.tsx (role=dialog, aria-modal, Escape,
+    focus save/restore, body scroll lock)
+  - app/src/components/ui/index.ts barrel export
+
+Migrated: InvoicingPage, PayrollPage, InvoicePrintPage,
+InvoiceEditModal, TimeCardModal, MenteeBillingPage.
+
+
+─────────────────────────────────────────────────────────────
+1b. [PARTIAL] Finish migrating remaining pages to the primitives
+─────────────────────────────────────────────────────────────
+~24 pages + several components still have inline button className
+strings and ad-hoc date formatters. This is mechanical work and low
+risk because the primitives already exist and the visual style is
+identical.
+
+Where: every file in app/src/pages/ and app/src/components/ not
+listed in item #1.
+
+Candidates (highest-value first because they're the ones with the
+most duplication):
+  - PersonEditPage.tsx (790 LOC, 5+ button instances, several
+    reusable patterns)
+  - EngagementManageModal.tsx (565 LOC, lots of dates)
+  - MenteeManageSlideOver.tsx (941 LOC, lots of dates + buttons)
+  - AuditLogPage.tsx (status badges, date formatting, action buttons)
+  - PairingsGrid.tsx + PairingsPage.tsx (status badges, buttons)
+  - MenteeEngagementDetailPage.tsx (dates)
+  - CoursesPage, OfferingsPage, EngagementsPage, MenteesListPage,
+    PeopleListPage, ProfilePage, MenteeEditPage, OfferingCreatePage,
+    OfferingEditPage, PersonCreatePage, PairingCreatePage,
+    PairingEditPage, MenteeCreatePage, LoginPage (each has one or
+    two inline buttons)
+
+Scope: ~2-5 minutes per page, 1-2 hour total block of work.
+
+Tip: grep for `bg-brand px-` and `toLocaleDateString` to find
+remaining sites.
+
+
+─────────────────────────────────────────────────────────────
+2. [DONE] Kill dead CompanySettingsPage.optionB.tsx
+─────────────────────────────────────────────────────────────
+Completed in Session 011 (commit bf137d5). 339-line leftover
+variant, zero references, deleted.
+
+
+─────────────────────────────────────────────────────────────
+3. [OPEN] Pagination + server-side filtering on list pages
+─────────────────────────────────────────────────────────────
+Zero pages currently paginate. Some pages (AuditLogPage) cap at
+.limit(200) which is a ticking bug once any org has real data
+volume. Others fetch all rows unbounded.
+
+Why: at any non-trivial org scale, list pages will hang or crash
+the browser. Payroll/Invoicing/Audit are most at risk.
+
+Where to start:
+  - AuditLogPage.tsx:129 — already has the 200 cap, easiest to
+    retrofit with offset+limit pagination
+  - InvoicingPage.tsx — largest list, highest frequency of use
+  - PayrollPage.tsx, PairingsPage.tsx, MenteesListPage.tsx,
+    PeopleListPage.tsx
+
+Approach: Add a `usePaginatedList` hook (page, pageSize, total,
+loading). Server-side via Supabase REST `Range` header + Content-
+Range response. Keep a consistent PageBar component.
+
+Scope: medium. The hook + component is a day, then each page is
+a 10-minute migration.
+
+
+─────────────────────────────────────────────────────────────
+4. [OPEN] Unify error UX — toasts, skeletons, retry, empty states
+─────────────────────────────────────────────────────────────
+Current state: every page shows plain "Loading..." text, uses
+inline red banners that persist until reload, no skeletons, no
+toasts, no retry buttons (except inside LoadingErrorState).
+
+Why: feels dated, confuses users, and makes errors feel worse
+than they are. Success feedback also disappears because there's
+nowhere for it to go.
+
+Where to start:
+  1. Add a ToastProvider context (app/src/context/ToastContext.tsx)
+     with useToast() -> toast.success() / toast.error() / toast.info()
+  2. Add a Skeleton primitive (components/ui/Skeleton.tsx)
+  3. Replace inline banners in successful mutations with toasts
+     (roughly 60+ sites — grep for setPaymentMsg, setError, set*Msg
+     patterns)
+  4. Replace "Loading..." text with Skeleton rows in list pages
+  5. Wire errorReporter.ts into every mutation (currently only
+     3 create pages)
+
+Scope: 1-2 days for the provider + primitives, then incremental.
+
+
+─────────────────────────────────────────────────────────────
+5. [OPEN] Form validation pass — adopt Zod + React Hook Form
+─────────────────────────────────────────────────────────────
+Current state: HTML5 `required` only, no schema validation, no
+field-level error messages. Error strings are guessed from
+backend messages ("Email already exists" detected by substring
+match in MenteeCreatePage.tsx:66).
+
+Why: data integrity, better UX on create/edit flows, real
+server-side validation rules.
+
+Where to start:
+  1. npm install zod react-hook-form @hookform/resolvers
+  2. Create app/src/lib/schemas.ts with Zod schemas per entity
+     (Mentee, Person, Offering, Pairing, Invoice, TimeCard)
+  3. Migrate one create page as the template (MenteeCreatePage
+     is smallest at 171 LOC)
+  4. Propagate pattern to the other create/edit pages
+
+Scope: template takes ~half a day; migration ~15 min per page
+for ~12 pages.
+
+
+─────────────────────────────────────────────────────────────
+6. [OPEN] Mobile responsiveness pass
+─────────────────────────────────────────────────────────────
+Current state: desktop-first. Zero `overflow-x-auto` wrappers on
+tables (AuditLog, Payroll, Invoicing will overflow on phones).
+Sidebar in CompanySettingsPage.tsx:134 is a fixed w-48 with no
+mobile toggle. Few responsive breakpoints outside of dashboard
+grids.
+
+Where to start:
+  1. Wrap every table in `<div className="overflow-x-auto">`
+  2. Add sidebar collapse toggle to layout (in
+     app/src/components/layout/)
+  3. Audit each modal — add max-h-[90vh] and vertical scroll
+     (Modal primitive already does this, so it's "migrate
+     remaining modals")
+  4. Audit grid layouts on PeopleListPage, MenteesListPage
+
+Scope: half a day for tables; full day for sidebar; ongoing
+for individual pages.
+
+
+─────────────────────────────────────────────────────────────
+7. [OPEN] Accessibility pass
+─────────────────────────────────────────────────────────────
+Current state: zero aria-* attributes in the entire app.
+Modal primitive (new in Session 011) fixed this for modals
+*going forward* — but EngagementManageModal and
+MenteeManageSlideOver still have their own raw div wrappers
+with no a11y.
+
+Where to start:
+  1. Migrate EngagementManageModal.tsx to the Modal primitive
+  2. Migrate MenteeManageSlideOver.tsx (this is a slide-over,
+     not a center modal — may need a Drawer primitive variant)
+  3. Add aria-label to every icon-only button (there are many —
+     delete X buttons, edit pencils, etc.)
+  4. Add role="status" / aria-live to error banners and toasts
+
+Scope: medium — most wins come from migrating the two big
+modals, which also brings focus trap + Escape + scroll lock.
+
+
+─────────────────────────────────────────────────────────────
+8. [OPEN] Audit logging coverage
+─────────────────────────────────────────────────────────────
+Current state: logAudit() is wired in most creates, some edits,
+and archive toggles, but has gaps. AuditLogPage itself is
+comprehensive (revert + filter + diff).
+
+Known gaps (not exhaustive):
+  - MenteeBillingPage.tsx:~99 — payment method save never logs
+  - Several settings mutations in CompanySettingsPage
+  - Most edit pages (PersonEditPage, MenteeEditPage,
+    OfferingEditPage, PairingEditPage) log archive/delete but
+    not field edits
+
+Where to start: grep for `supabase.from('X').update(` or
+`.insert(` and check each call site for a nearby `logAudit`.
+
+Scope: small-to-medium, mostly mechanical.
+
+
+─────────────────────────────────────────────────────────────
+9. [OPEN] Permission gating audit
+─────────────────────────────────────────────────────────────
+Current state: role checks exist via AuthContext.profile.role
+but are applied inconsistently. ProtectedRoute.tsx handles
+routing-level gating, but component/page-level has gaps.
+
+Known gaps:
+  - DashboardPage.tsx:238-277 renders admin-only sections
+    without verifying role=admin
+  - Create/edit pages don't guard mutations at the component
+    level (rely on RLS only)
+  - ModuleAccessControl used in only 3 places (PeopleListPage)
+
+Where to start: write a `<RoleGate role="admin">` helper and
+wrap admin-only UI with it. Audit DashboardPage first.
+
+Scope: small for the helper; medium for the audit.
+
+
+─────────────────────────────────────────────────────────────
+10. [OPEN] Test scaffolding
+─────────────────────────────────────────────────────────────
+Current state: zero tests. No vitest.config, no test files.
+
+Why: the biggest risk in the codebase. Anything pay/money/time
+related can regress silently with financial consequences.
+
+Where to start:
+  1. npm install -D vitest @testing-library/react
+     @testing-library/jest-dom jsdom
+  2. Add vitest.config.ts
+  3. Write pure-logic tests first (no DOM):
+     - lib/scheduling.ts (complex block-picker logic)
+     - lib/credits.ts (allocation math)
+     - lib/dynamicFields.ts
+     - lib/modules.ts
+     - lib/format.ts (trivial but validates the new primitives)
+     - salaryForPeriod() in PayrollPage.tsx (move to lib/ first)
+  4. Add one integration test per critical list page
+     (InvoicingPage status transitions, PayrollPage estimation)
+
+Scope: half a day for scaffolding + format tests; then
+incremental. Aim for 60% coverage on lib/ first.
+
+
+─────────────────────────────────────────────────────────────
+11. [OPEN] Dashboard upgrade — metrics, KPIs, trends
+─────────────────────────────────────────────────────────────
+Current state: DashboardPage.tsx is a navigation launchpad, not
+a dashboard. Admin sees link grids; mentor sees a mentee list;
+mentee sees engagement count.
+
+Why: low priority compared to above, but the "dashboard" is the
+first thing every user sees after login, and it currently has
+no information density.
+
+Where to start: only after #3-#7 land. This becomes a
+features conversation — what KPIs matter, what timeframes,
+what drill-throughs.
+
+Scope: multi-day, and overlaps with Reports module build.
+
+
+─────────────────────────────────────────────────────────────
+NOT IN THIS LIST
+─────────────────────────────────────────────────────────────
+These items from the review are *new features* or
+*integrations* — explicitly scoped out of the polish pass:
+  - Google Meet / Teams meeting join
+  - Google Calendar OAuth
+  - Stripe integration for MenteeBillingPage
+  - Reports module build (placeholder currently)
+  - Signup / invite flow
+  - Messaging between mentee and mentor
+  - Payroll v2 (self-serve time tracking)
+
+These are tracked in Session 010's session_log.txt under
+OPEN ITEMS / NEXT SESSION.

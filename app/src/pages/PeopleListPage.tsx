@@ -1,11 +1,16 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import ModuleAccessControl from '../components/ModuleAccessControl'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { StaffMember, StaffRole, RoleGroup } from '../types'
+import Button from '../components/ui/Button'
+import Modal from '../components/ui/Modal'
+import { Skeleton } from '../components/ui'
 
 interface PeopleListPageProps {
   title: string
@@ -17,6 +22,7 @@ interface PeopleListPageProps {
 
 export default function PeopleListPage({ title, roles, createLabel, createRoute, showAccessGroups }: PeopleListPageProps) {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [people, setPeople] = useState<StaffMember[]>([])
   const [allStaff, setAllStaff] = useState<StaffMember[]>([])
@@ -25,16 +31,20 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmArchive, setConfirmArchive] = useState<StaffMember | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
+
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[PeopleListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    const orgId = profile.organization_id
 
-    async function fetchPeople() {
+    async function loadPeople() {
       setLoading(true)
       setError(null)
 
@@ -45,44 +55,49 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
       }
 
       try {
-        let query = supabase
-          .from('staff')
-          .select('*')
-          .eq('organization_id', profile!.organization_id)
-          .order('first_name', { ascending: true })
-
-        if (roles.length === 1) {
-          query = query.eq('role', roles[0])
-        } else {
-          query = query.in('role', roles)
-        }
-
-        const [{ data, error: fetchError }, allStaffRes, orgRes] = await Promise.all([
-          query,
+        const roleFilter = roles.length === 1 ? `role=eq.${roles[0]}` : `role=in.(${roles.join(',')})`
+        const [peopleRes, allStaffRes, orgRes] = await Promise.all([
+          supabaseRestGet<StaffMember>(
+            'staff',
+            `select=*&organization_id=eq.${orgId}&${roleFilter}&order=first_name.asc`,
+            { label: 'people:list' },
+          ),
           showAccessGroups
-            ? supabase.from('staff').select('*').eq('organization_id', profile!.organization_id).order('first_name')
+            ? supabaseRestGet<StaffMember>(
+                'staff',
+                `select=*&organization_id=eq.${orgId}&order=first_name.asc`,
+                { label: 'people:allStaff' },
+              )
             : Promise.resolve({ data: [], error: null }),
           showAccessGroups
-            ? supabase.from('organizations').select('role_groups').eq('id', profile!.organization_id).single()
-            : Promise.resolve({ data: null, error: null }),
+            ? supabaseRestGet<{ role_groups: RoleGroup[] | null }>(
+                'organizations',
+                `select=role_groups&id=eq.${orgId}`,
+                { label: 'people:roleGroups' },
+              )
+            : Promise.resolve({ data: [], error: null }),
         ])
 
-        if (fetchError) { setError(fetchError.message); return }
+        if (peopleRes.error) { setError(peopleRes.error.message); return }
+        setPeople(peopleRes.data ?? [])
 
-        setPeople(data as StaffMember[])
         if (showAccessGroups) {
-          setAllStaff((allStaffRes.data ?? []) as StaffMember[])
-          setPermissionGroups((orgRes.data?.role_groups as RoleGroup[]) ?? [])
+          if (allStaffRes.error) { setError(allStaffRes.error.message); return }
+          if (orgRes.error) { setError(orgRes.error.message); return }
+          setAllStaff(allStaffRes.data ?? [])
+          const orgRow = (orgRes.data ?? [])[0] as { role_groups: RoleGroup[] | null } | undefined
+          setPermissionGroups(orgRow?.role_groups ?? [])
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[PeopleListPage] loadPeople error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchPeople()
+    fetchRef.current = loadPeople
+    loadPeople()
   }, [profile?.organization_id, roles, showAccessGroups])
 
   async function updateModules(personId: string, modules: string[]) {
@@ -103,7 +118,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
     if (!profile) return
     const now = new Date().toISOString()
     const { error: e } = await supabase.from('staff').update({ archived_at: now }).eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: now } : p))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'staff', entity_id: personId })
@@ -112,7 +127,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   async function unarchivePerson(personId: string) {
     if (!profile) return
     const { error: e } = await supabase.from('staff').update({ archived_at: null }).eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
     setAllStaff(ps => ps.map(p => p.id === personId ? { ...p, archived_at: null } : p))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'staff', entity_id: personId })
@@ -121,21 +136,17 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   async function deletePerson(personId: string) {
     if (!profile) return
     const { error: e } = await supabase.from('staff').delete().eq('id', personId)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setPeople(ps => ps.filter(p => p.id !== personId))
     setAllStaff(ps => ps.filter(p => p.id !== personId))
     setConfirmDelete(null)
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'staff', entity_id: personId })
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <div className="py-4"><Skeleton count={8} className="h-11 w-full" gap="gap-2" /></div>
 
   if (error) {
-    return (
-      <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-        Failed to load {title.toLowerCase()}: {error}
-      </div>
-    )
+    return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
   }
 
   const activePeople = people.filter(p => !p.archived_at)
@@ -164,12 +175,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
               {showArchived ? 'Hide archived' : `Show archived (${archivedPeople.length})`}
             </button>
           )}
-          <button
-            onClick={() => navigate(createRoute)}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-          >
-            + {createLabel}
-          </button>
+          <Button onClick={() => navigate(createRoute)}>+ {createLabel}</Button>
         </div>
       </div>
 
@@ -188,7 +194,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
               permissionGroups={permissionGroups}
               onUpdateModules={(modules) => updateModules(person.id, modules)}
               onEdit={() => navigate(`/people/${person.id}/edit`)}
-              onArchive={() => archivePerson(person.id)}
+              onArchive={() => setConfirmArchive(person)}
               onUnarchive={() => unarchivePerson(person.id)}
               onDelete={() => deletePerson(person.id)}
               confirmDelete={confirmDelete === person.id}
@@ -198,6 +204,43 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
           ))}
         </div>
       )}
+
+      {/* Archive confirmation modal */}
+      <Modal
+        open={!!confirmArchive}
+        title="Archive this person?"
+        onClose={() => setConfirmArchive(null)}
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="secondary" onClick={() => setConfirmArchive(null)}>Cancel</Button>
+            <button
+              onClick={async () => {
+                const id = confirmArchive!.id
+                setConfirmArchive(null)
+                await archivePerson(id)
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded font-medium transition focus:outline-none px-4 py-2 text-sm bg-amber-500 text-white hover:bg-amber-600"
+            >
+              Yes, archive
+            </button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <p className="text-sm text-gray-600">
+            Are you sure you want to archive{' '}
+            <span className="font-medium text-gray-900">
+              {confirmArchive?.first_name} {confirmArchive?.last_name}
+            </span>
+            ? They'll be hidden from active lists. You can restore them later from the archived view.
+          </p>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -269,53 +312,29 @@ function StaffRow({
 
           {isArchived ? (
             <>
-              <button
-                onClick={onUnarchive}
-                className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded hover:bg-brand-light transition-colors"
-              >
-                Restore
-              </button>
+              <Button variant="secondary" size="sm" onClick={onUnarchive}>Restore</Button>
               {confirmDelete ? (
                 <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={onDelete}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 rounded hover:bg-red-600 transition-colors"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={onConfirmDeleteToggle}
-                    className="px-2 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                  <Button variant="danger" size="sm" onClick={onDelete}>Confirm</Button>
+                  <Button variant="ghost" size="sm" onClick={onConfirmDeleteToggle}>Cancel</Button>
                 </div>
               ) : (
-                <button
-                  onClick={onConfirmDeleteToggle}
-                  className="px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
+                <Button variant="dangerGhost" size="sm" onClick={onConfirmDeleteToggle}>Delete</Button>
               )}
             </>
           ) : (
             <>
-              <button
-                onClick={onEdit}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-              >
-                Edit
-              </button>
+              <Button variant="secondary" size="sm" onClick={onEdit}>Edit</Button>
               {!isSelf && person.role !== 'admin' && (
                 <button
                   onClick={onArchive}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50 transition-colors"
                   title="Archive"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
+                  Archive
                 </button>
               )}
             </>

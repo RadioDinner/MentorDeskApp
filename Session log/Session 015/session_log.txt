@@ -1,0 +1,131 @@
+SESSION 015 HANDOFF LOG
+=======================
+Date: 2026-04-14
+Branch: main (all commits direct to main)
+Context: Continued from Session 014 summary (ran out of context mid-task)
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+Two backlog items fully completed. All changes committed and pushed to main.
+
+1. Item 4 (final piece) — errorReporter wired into all mutation catch blocks
+   Commit: d6eefc1 (landed by background agent)
+
+   Added `reportSupabaseError` import + calls into every mutation error path
+   that already called `toast.error` but lacked error reporting. Load errors
+   (fetch functions that set page-level error state) were intentionally skipped.
+
+   Files updated:
+   - PairingCreatePage.tsx — handleSubmit (Supabase error + catch block)
+   - PairingsPage.tsx — quickPair, changeMentor, changeStatus
+   - InvoicingPage.tsx — transition, deleteInvoice
+   - PersonEditPage.tsx — handleSave, handleCompensationSave, handleArchive,
+     handleDelete, handlePasswordReset (2 paths), handleInvite (2 paths)
+   - MenteeEditPage.tsx — handleSave, handleDeactivate, handleDeleteMentee,
+     inline status save
+   - CompanySettingsPage.tsx — handleSave (Supabase error + catch block),
+     handleLogoUpload
+   - AvailabilityPage.tsx — saveTimezone, addBlock, removeBlock, copyDay
+   - PairingEditPage.tsx — handleSave
+
+   Pattern used:
+     Supabase errors: reportSupabaseError(error, { component, action })
+     Caught JS errors: reportSupabaseError({ message: (err as Error).message }, { component, action })
+
+2. Item 5 — Zod + React Hook Form validation on all create pages
+   Commit: 6cc32fa
+
+   New npm dependencies added:
+   - react-hook-form@7.72.1
+   - zod@4.3.6
+   - @hookform/resolvers@5.2.2
+
+   All four create pages rewritten to use useForm + zodResolver:
+
+   MenteeCreatePage.tsx:
+   - Schema: firstName, lastName (required), email (required + .email()),
+     phone/street/city/state/zip/country (optional strings)
+   - isSubmitting replaces saving state
+   - noValidate on form; inline red border + error text on invalid fields
+
+   PersonCreatePage.tsx:
+   - Same schema + role: z.string() (defaults to defaultRole prop)
+   - role cast to StaffRole in onSubmit
+   - allowRoleSelection dropdown unchanged in behavior
+
+   OfferingCreatePage.tsx (most complex):
+   - cancelPolicy and orgDefaultPolicy kept as useState (complex child component
+     CancellationPolicyEditor not suitable for RHF registration)
+   - billingMode, dispenseMode, useOrgDefault in RHF via watch() + setValue()
+     since they're controlled by toggle buttons / radio labels, not native inputs
+   - Schema covers all fields: name (required), description, billingMode/
+     dispenseMode/previewMode/allocationPeriod (z.enum), price/recurringPrice/
+     setupFee/intervalDays/lessonCount/dueDate/meetingCount/meetingDuration
+     (z.string for numeric inputs), addToFlow/useOrgDefault (z.boolean)
+   - Both course and engagement layouts share one useForm instance
+
+   PairingCreatePage.tsx:
+   - Schema: mentorId (required), menteeId (required), notes (optional)
+   - mentors/mentees data still fetched via useState (not form state — those
+     are API results, not form values)
+   - Conditional empty-state messages remain; selects show inline error when
+     a mentor/mentee exists but none is selected
+   - Button disabled when isSubmitting OR no options available
+
+   Build verified clean after each change: tsc -b + vite build pass.
+
+
+POLISH BACKLOG STATUS (as of end of Session 015)
+-------------------------------------------------
+
+  [DONE]    1   Extract shared UI primitives (Session 011)
+  [DONE]    1b  Finish migrating remaining pages (Session 012)
+  [DONE]    2   Kill CompanySettingsPage.optionB.tsx (Session 011)
+  [DONE]    4   Toast + Skeleton infrastructure (fully complete as of Session 015)
+                  - ToastProvider + useToast() ✓
+                  - Skeleton primitive ✓
+                  - Loading→Skeleton on all main pages ✓
+                  - Mutation errors → toast in key pages ✓
+                  - errorReporter wired into all mutations ✓
+  [DONE]    3   Pagination (Session 013)
+  [DONE]    5   Form validation pass — Zod + React Hook Form (Session 015)
+  [DONE]    6   Mobile responsiveness (Session 014)
+  [DONE]    7   Accessibility pass — modals (Session 014)
+  [DONE]    8   Audit logging coverage (Session 013)
+  [DONE]    9   Permission gating audit (Session 014)
+  [DONE]    10  Test scaffolding — vitest + lib/* unit tests (Session 014)
+  [DONE]    11  Dashboard upgrade (Session 013)
+
+  ALL BACKLOG ITEMS COMPLETE.
+
+
+OPEN ITEMS / UNRESOLVED
+------------------------
+
+1. Form validation on edit pages:
+   PersonEditPage, MenteeEditPage, PairingEditPage still use manual state
+   for their forms. The Item 5 pass covered only create pages. Edit pages
+   have more complexity (existing data, conditional sections, multiple save
+   handlers) and were not in scope this session. Could be a follow-on item.
+
+2. InvoicePrintPage loading text:
+   Still has a full-screen centered "Loading invoice..." paragraph — this
+   is intentional (print-specific layout; centered spinner is appropriate).
+   Not worth changing.
+
+3. Bundle size warning:
+   Build outputs a chunk size warning (1,402 kB JS). Not a blocker but
+   could be addressed with dynamic import() code splitting if desired.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main is up to date (commit 6cc32fa) and auto-deploying via Vercel.
+- Build clean: tsc + vite build both pass with no TypeScript errors.
+- Tests: 57 passing (npm run test), 0 failing.
+- No new migrations this session (UI-only changes).
+- New npm dependencies: react-hook-form, zod, @hookform/resolvers.
+- The entire original polish backlog (Items 1–11) is now complete.

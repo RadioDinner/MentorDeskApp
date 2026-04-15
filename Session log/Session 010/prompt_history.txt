@@ -1,0 +1,55 @@
+1. ok, lets kick off a session. Review the most recent session and we'll start by troubleshooting any open items
+
+2. merge to main and continue merging to main for the remainder of the session
+
+3. All the migrations are run, and the stale branch is deleted. I'll check on that new engagement modal
+
+4. are you alive
+
+5. In the mentee login, when they're looking to try to schedule a meeting, in the dropdown right now, it gives them a list of all dates, regardless of availabilty. I want you to make a setting in company options to toggle whether or not the org wants their mentees schedule meeting button to function like that, or if they want only the available days to appear in that list. For example, if the option to show all days regardless of availability is turned on, keep the dropdown feature as is. If it is shut off, look at what mentor is assigned to them, and list only the available dates in the drop down. Make sense?
+
+6. While we're working on the schedule meeting feature, I want you to add an option to the engagement edit and create screen to set the meeting length time. So you could say, this engagement grants 4 meetings per cycle of 1 hour per piece. This also would be a change to the + Schedule a meeting system as well. When the mentee is trying to schedule a meeting, and selects a available day, say April 20, I would want "blocks" to appear to that they could select from, like "9:00 - 10:00","9:30 - 10:30" and "10:00 - 11:00"
+
+7. you're off with the migration numbers again. Add a reminder to the "new session instructions" to remember the numbering scheme we've decided to use. For now, I'll run what is in 977_scheduler_show_all_days but I want you to rename it to 964
+
+8. Ok. I've had it. THIS IS THE SESSION THAT WE GRAVEYARD THE LOADING BUG. I'm willing to dissaasemble this whole project to get to the bottom of it. I had it happen again where I clicked on the engagements module, it said "Loading..." for a while then gave me this "Failed to load engagements: Request timed out. Please refresh the page." You absolutely need to figure this out
+
+9. It's the loading path for all modules. This error happens on any module, from admin and mentee logins
+
+10. I'll test these as we build out features. Next, I want you to add a "Meetings" module to the Mentor login. I want this module to show the upcoming meetings scheduled with their mentees. Eventually, we'll have a "Join meeting" button that works with the integrations that we put in place. For now, just list the meetings and give the mentor the option to view the upcoming meetings as a list grouped by day or as a calendar view.
+
+11. On the mentee login, when they go to schedule a meeting, I want a way for them to see how many of the allocations they've used up. The general flow will like this. The mentor or admin opens an engagement today on 4/13/26 for a 4x mentoring engagement. This engagement entitles them to 4 meetings in the coming cycle (on month, per the engagement settings) and the mentee can schedule those 4 meetings. However, I don't want them to be able to schedule more than that until they've paid for the current engagement. Additionally, I want to build a system that orgs can change for their operations flow. For exmample, the example we're using now, the mentee would have 4 allocations for meetings available as soon as the engagement is opened, not when he pays. He would get 4 ADDITONAL allocations when he pays his invoice, giving him a total of 8. So to recap, with the org flow we use now, he gets the 4x opened on 4/13/26, he schedules 4 meetings, then pays his invoice on  4/16/26 and he could schedule 4 more meetings. This would essentially offset the payments for the invoices but still allow allocations. In the company options, I want a setting that orgs can say "Allocate meetings as soon as the engagement is opened" or "Allocate the meetings as soon as the invoice is paid". Then also a setting to control when more allocations get added "By cycle" or "By invoice payment"
+
+12. you there?
+
+13. I want to start building out the invoicing module of the admin dashboard. In this tab, I want the ability to view, and process invoices.
+
+14. On the "My Engagements" module in the mentee login, I want a way for them to see the upcoming meetings, as well as the option to view past meetings in history. Eventually, I want the integrations with google meet and ms teams to provide an option to click "Join Meeting" if the meeting is happening soon
+
+15. In the "Pairings" module of the admin dashboard, I want to be a bit more thoughtful of how I set that up. I want a system in which I can view it as a user selected/ordered grid with filters and all that, then I want a "By Mentor","By Offering","By Status" and "Unpaired/Waiting List"
+
+16. When trying to edit availability in the mentor availability screen, I get a message saying "new row violates row-level security policy for table "availability_schedules"" when I try to create a new time slot. In the screen for mentors to edit their availability, I want little arrows in the time selection boxes for them to increment up or down one on whatever value htey have highlighted. Either that or a much easier time selection system. We should add the ability to copy days from one to the other. Also, give them a chance to change their time zone of their availablility. Give them a drop down in the edit mentor screen where an admin can set it in the "Mentors" edit screen or the Mentor himself could edit it in his settings when he is logged in.
+
+17. Also, while we're editing the "Pairings" screen, I want to make a system wide change. Currently in that screen, it shows a "Status" column and a "Status step" column. I don't want that. I want one "Status" column that is updated when engagements are opened or courses are started. No "status Step" column
+
+18. I noticed something, that when using the "+ Schedule Meeting" button on the mentee login, if I selected 9:30-10:30 and confirmed the appointment, it showed up as something else like 5:30-6:30AM.
+
+19. Some of the staff don't have the permissions logos or drop downs. Why?
+
+20. Ah ok, I'm fine with it missing on admins but I want a way to set a staff account as an admin. And I want to setup staff roles. "Admin","Operations", or "Course Creator"
+
+21. I want to be able to delete an invoice from the "Invoicing" module, as well as edit if I need to. Also, I want invoices, across the board to be printable and viewable as beautiful, professional, downloaded PDFS
+
+22. I need to re-work the mentor payment options. The pay types are currently hourly, salary, % of engagement profit, % of monthly profit and I want to change that system up a bit. I think I want to still keep the two existing % options for now BUT I want to add a complex system for payments. I want the option to pay mentors based on a percent of completed meetings. So currently, the hourly and salary are very self explanatory. The % of engagement income would be if the mentor creates an engagement called "Harry's meetings" and he would get %50 of the income from that engagement. The % of the monthly profit would be across all courses and engagements. Actually, let's add a % of course profit and have it function similar to the engagement system. Also, in the drop down where they set pay type, if they choose a % of engagement profit or % of course profit, have them select what engagement or course they will be paid by. So, back to the system for % of meetings. I want to have the payroll module eventually manage this system, all pay types, and the % of completed meetings setting would look at what mentees are assigned to what mentor. Lets say Mentor A has 3 clients, Mentee 1, Mentee 3 and Mentee 9. Mentor B has 2 clients. Mentee 2 and Mentee 8. Mentee 1 has an engagement of 4x mentoring. He is allocated 4 meetings a month, but he cancelled 1 and completed 3. Then Mentor A would be paid for 3 of the meetings at whatever % he is set for. It would essentially pay PER MEETING rather than a total of engagements or courses.
+
+23. Also, while we're making changes here, let's go ahead and add a company option to toggle a setting for whether people get paid for meetings that not actually completed. I'll give you an example. If Mentor A has mentee 1 that is on an engagement where he pays for 4 meetings a month and no-shows or cancels a meeting where the policy is set that he doesn't get credited, I want the option to be able to be set to decide whether that person still gets paid for the cancelled meeting or if it would just go back to the org.
+
+24. In the mentor pay type screen, if they select salary, I want an additional field to set the frequency. like monthly, weekly, bi weekly, etc
+
+25. Also, make the staff edit pages a single screen. Right now it I need to scroll down to see the account archive and delete options. also, separate the "Max active mentees" field from the Compensation box.
+
+26. In the Mentee "My Engagements" screen, I don't want them to be able to set a meeting title. Also, I want add a company option to set the setting of how far in advance mentees can schedule appointments. If one org says mentees can schedule out 60 days in advance, they could set that in company options, that way a mentee could log in and schedule all his appointments for hte next 2 motnhs of his allocations allow. Also, in the Upcoming Meetings section, the meetings are sorted by the time they were created, I want them to be scheduled in chroniclogical order of occurrance.
+
+27. Let's start working on the payroll module in the admin dashboard. I want to how much I should pay who, based on their pay rate settings. In this module, I want a button up at the top for me to "Enter Time Card" where I can enter how many hours the staff member or mentor logged and he let me know about. I will eventually build out time tracking features in their login portals, but for now, they'll just report their time to me manually. Also, in the "Enter Time Card" feature, I want to optionally be able to upload and save a document, if they give me an excel sheet or something of their times logged.
+
+28. I want the archive button in the mentor, assistant mentors and staff page to say "Archive" not just be the box. Also, for those 3 types of people, I want a pop up box to ask, "Are you sure you want to archive this person?"

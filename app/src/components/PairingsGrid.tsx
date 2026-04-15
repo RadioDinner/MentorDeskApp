@@ -1,19 +1,23 @@
 import { useState, useRef, useCallback } from 'react'
 import type { PairingStatus, FlowStep } from '../types'
 
-interface MentorOption { id: string; first_name: string; last_name: string }
+interface MentorOption { id: string; first_name: string; last_name: string; max_active_mentees: number | null }
 interface MenteeRow { id: string; first_name: string; last_name: string; email: string; flow_step_id: string | null }
+interface OfferingOption { id: string; name: string; type: 'course' | 'engagement' }
 interface PairingRow {
-  id: string; status: PairingStatus; mentor_id: string; mentee_id: string
+  id: string; status: PairingStatus; mentor_id: string; mentee_id: string; offering_id: string | null
   mentor: MentorOption
   mentee: MenteeRow
+  offering?: OfferingOption | null
 }
 
 interface Props {
   pairings: PairingRow[]
   mentors: MentorOption[]
   mentees: MenteeRow[]
+  offerings: OfferingOption[]
   flowSteps: FlowStep[]
+  canEdit?: boolean
   onChangeMentor: (pairingId: string, newMentorId: string) => void
   onChangeStatus: (pairingId: string, newStatus: PairingStatus) => void
 }
@@ -31,14 +35,9 @@ interface ColumnDef {
 interface Helpers {
   flowStepName: (id: string | null) => string
   mentors: MentorOption[]
+  canEdit: boolean
   onChangeMentor: (pairingId: string, newMentorId: string) => void
   onChangeStatus: (pairingId: string, newStatus: PairingStatus) => void
-}
-
-const STATUS_COLORS: Record<PairingStatus, { bg: string; text: string; dot: string }> = {
-  active: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },
-  paused: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400' },
-  ended:  { bg: 'bg-gray-100', text: 'text-gray-500',  dot: 'bg-gray-400' },
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
@@ -73,7 +72,7 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
     width: 200,
     minWidth: 140,
     getValue: (r) => `${r.mentor.first_name} ${r.mentor.last_name}`,
-    render: (r, h) => (
+    render: (r, h) => h.canEdit ? (
       <select
         value={r.mentor_id}
         onChange={e => h.onChangeMentor(r.id, e.target.value)}
@@ -83,42 +82,41 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
           <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>
         ))}
       </select>
+    ) : (
+      <span className="text-xs text-gray-700">{r.mentor.first_name} {r.mentor.last_name}</span>
     ),
     sortable: true,
   },
   {
     id: 'status',
     label: 'Status',
-    width: 120,
-    minWidth: 100,
-    getValue: (r) => r.status,
-    render: (r, h) => {
-      const s = STATUS_COLORS[r.status]
-      return (
-        <select
-          value={r.status}
-          onChange={e => h.onChangeStatus(r.id, e.target.value as PairingStatus)}
-          className={`text-[11px] font-semibold uppercase tracking-wide rounded-full px-2.5 py-0.5 border-0 outline-none cursor-pointer ${s.bg} ${s.text}`}
-        >
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="ended">Ended</option>
-        </select>
-      )
-    },
-    sortable: true,
-  },
-  {
-    id: 'flow_step',
-    label: 'Status Step',
-    width: 140,
-    minWidth: 100,
+    width: 160,
+    minWidth: 120,
     getValue: (r, h) => h.flowStepName(r.mentee.flow_step_id),
     render: (r, h) => {
       const name = h.flowStepName(r.mentee.flow_step_id)
       return name
         ? <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">{name}</span>
-        : <span className="text-gray-300">—</span>
+        : <span className="text-gray-300 text-xs">—</span>
+    },
+    sortable: true,
+  },
+  {
+    id: 'offering',
+    label: 'Offering',
+    width: 180,
+    minWidth: 120,
+    getValue: (r) => r.offering?.name ?? '',
+    render: (r) => {
+      if (!r.offering) return <span className="text-gray-300">General</span>
+      const isEngagement = r.offering.type === 'engagement'
+      return (
+        <span className={`text-[11px] px-2 py-0.5 rounded font-medium truncate inline-block max-w-full ${
+          isEngagement ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'
+        }`}>
+          {r.offering.name}
+        </span>
+      )
     },
     sortable: true,
   },
@@ -126,7 +124,7 @@ const DEFAULT_COLUMNS: ColumnDef[] = [
 
 type SortDir = 'asc' | 'desc' | null
 
-export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flowSteps, onChangeMentor, onChangeStatus }: Props) {
+export default function PairingsGrid({ pairings, mentors, mentees: _mentees, offerings: _offerings, flowSteps, canEdit = false, onChangeMentor, onChangeStatus }: Props) {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
@@ -150,6 +148,7 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
       return flowSteps.find(s => s.id === id)?.name ?? ''
     },
     mentors,
+    canEdit,
     onChangeMentor,
     onChangeStatus,
   }
@@ -187,7 +186,8 @@ export default function PairingsGrid({ pairings, mentors, mentees: _mentees, flo
       `${r.mentee.first_name} ${r.mentee.last_name}`.toLowerCase().includes(q) ||
       r.mentee.email.toLowerCase().includes(q) ||
       `${r.mentor.first_name} ${r.mentor.last_name}`.toLowerCase().includes(q) ||
-      r.status.includes(q)
+      r.status.includes(q) ||
+      (r.offering?.name?.toLowerCase().includes(q) ?? false)
     )
   }
 

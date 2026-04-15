@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react'
-import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import type { PairingStatus } from '../types'
+import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
+import { formatDate } from '../lib/format'
+import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
 
 interface PairingDetail {
   id: string
@@ -25,19 +32,37 @@ const STATUSES: { value: PairingStatus; label: string }[] = [
   { value: 'ended', label: 'Ended' },
 ]
 
+const schema = z.object({
+  status: z.enum(['active', 'paused', 'ended']),
+  notes:  z.string(),
+})
+
+type FormValues = z.infer<typeof schema>
+
+const selectClass =
+  'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'
+const inputClass =
+  'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+
 export default function PairingEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [pairing, setPairing] = useState<PairingDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  const [status, setStatus] = useState<PairingStatus>('active')
-  const [notes, setNotes] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { status: 'active', notes: '' },
+  })
 
   useEffect(() => {
     if (!id) return
@@ -58,8 +83,7 @@ export default function PairingEditPage() {
 
         const a = data as unknown as PairingDetail
         setPairing(a)
-        setStatus(a.status)
-        setNotes(a.notes ?? '')
+        reset({ status: a.status, notes: a.notes ?? '' })
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
         console.error(err)
@@ -69,23 +93,20 @@ export default function PairingEditPage() {
     }
 
     fetchPairing()
-  }, [id])
+  }, [id, reset])
 
-  async function handleSave(e: FormEvent) {
-    e.preventDefault()
+  async function onSubmit(values: FormValues) {
     if (!pairing) return
-    setMsg(null)
-    setSaving(true)
 
     const updates: Record<string, unknown> = {
-      status,
-      notes: notes.trim() || null,
+      status: values.status,
+      notes: values.notes.trim() || null,
     }
 
-    if (status === 'ended' && !pairing.ended_at) {
+    if (values.status === 'ended' && !pairing.ended_at) {
       updates.ended_at = new Date().toISOString()
     }
-    if (status !== 'ended') {
+    if (values.status !== 'ended') {
       updates.ended_at = null
     }
 
@@ -94,18 +115,36 @@ export default function PairingEditPage() {
       .update(updates)
       .eq('id', pairing.id)
 
-    setSaving(false)
-
     if (error) {
-      setMsg({ type: 'error', text: error.message })
+      reportSupabaseError(error, { component: 'PairingEditPage', action: 'save' })
+      toast.error(error.message)
       return
     }
 
-    if (currentUser && pairing) await logAudit({ organization_id: pairing.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'pairing', entity_id: pairing.id, details: { status, mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`, mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}` } })
-    setMsg({ type: 'success', text: 'Pairing updated.' })
+    if (currentUser) {
+      await logAudit({
+        organization_id: pairing.organization_id,
+        actor_id: currentUser.id,
+        action: 'updated',
+        entity_type: 'pairing',
+        entity_id: pairing.id,
+        details: {
+          status: values.status,
+          mentor: `${pairing.mentor.first_name} ${pairing.mentor.last_name}`,
+          mentee: `${pairing.mentee.first_name} ${pairing.mentee.last_name}`,
+        },
+      })
+    }
+    setPairing({
+      ...pairing,
+      status: values.status,
+      notes: values.notes.trim() || null,
+      ended_at: (updates.ended_at as string | null) ?? pairing.ended_at,
+    })
+    toast.success('Pairing updated.')
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <Skeleton count={5} className="h-11 w-full" gap="gap-3" />
 
   if (fetchError || !pairing) {
     return (
@@ -116,12 +155,6 @@ export default function PairingEditPage() {
       </div>
     )
   }
-
-  const selectClass =
-    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white'
-
-  const inputClass =
-    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
   return (
     <div className="max-w-4xl">
@@ -139,24 +172,12 @@ export default function PairingEditPage() {
           <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
             <h2 className="text-base font-semibold text-gray-900 mb-6">Pairing Details</h2>
 
-            <form onSubmit={handleSave} className="space-y-5">
-              {msg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                  msg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{msg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {msg.text}
-                </div>
-              )}
-
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
                 <label htmlFor="editStatus" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Status
                 </label>
-                <select id="editStatus" value={status}
-                  onChange={e => setStatus(e.target.value as PairingStatus)} className={selectClass}>
+                <select id="editStatus" {...register('status')} className={selectClass}>
                   {STATUSES.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
@@ -167,17 +188,15 @@ export default function PairingEditPage() {
                 <label htmlFor="editNotes" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Notes
                 </label>
-                <textarea id="editNotes" rows={4} value={notes}
-                  onChange={e => setNotes(e.target.value)}
+                <textarea id="editNotes" rows={4} {...register('notes')}
                   placeholder="Optional"
                   className={inputClass + ' resize-none'} />
               </div>
 
               <div className="pt-2">
-                <button type="submit" disabled={saving}
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving…' : 'Save changes'}
+                </Button>
               </div>
             </form>
           </div>
@@ -221,11 +240,11 @@ export default function PairingEditPage() {
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Info</p>
             <div className="space-y-1.5 text-xs text-gray-500">
-              <p>Started: <span className="font-medium text-gray-700">{new Date(pairing.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+              <p>Started: <span className="font-medium text-gray-700">{formatDate(pairing.started_at)}</span></p>
               {pairing.ended_at && (
-                <p>Ended: <span className="font-medium text-gray-700">{new Date(pairing.ended_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+                <p>Ended: <span className="font-medium text-gray-700">{formatDate(pairing.ended_at)}</span></p>
               )}
-              <p>Created: <span className="font-medium text-gray-700">{new Date(pairing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+              <p>Created: <span className="font-medium text-gray-700">{formatDate(pairing.created_at)}</span></p>
             </div>
           </div>
         </div>

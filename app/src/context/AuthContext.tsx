@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, warmUpSupabase } from '../lib/supabase'
 import { purgeExpiredArchives } from '../lib/archivePurge'
 import type { StaffMember, Mentee } from '../types'
 
@@ -175,53 +175,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 3000)
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // CRITICAL: The onAuthStateChange callback holds an internal Supabase auth
+    // lock. Any `await supabase.*` call made synchronously inside this callback
+    // will deadlock against that lock once another part of the app tries to
+    // use the SDK. We MUST defer async work via setTimeout(0) so it runs
+    // outside the callback scope. See:
+    //   https://github.com/supabase/auth-js/issues/762
+    //   https://supabase.com/docs/reference/javascript/auth-onauthstatechange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[AuthContext] onAuthStateChange:', event, '| has session:', !!session)
+
+      // Synchronous state updates ONLY inside this callback.
+      setSession(session)
+      setUser(session?.user ?? null)
+
       if (!didInit) {
         didInit = true
         clearTimeout(initTimeout)
       }
-      setSession(session)
-      setUser(session?.user ?? null)
 
       // Clear any previous safety timeout before starting a new one
       if (activeSafetyTimeout) clearTimeout(activeSafetyTimeout)
 
-      // Safety timeout: if fetchAllProfiles hangs (network issue, etc.),
-      // ensure loading is cleared so the app doesn't get stuck on "Loading..."
+      // Safety timeout: if deferred profile fetch hangs, clear loading
       activeSafetyTimeout = setTimeout(() => {
         console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
         setLoading(false)
-      }, 6000)
+      }, 15000)
 
-      try {
-        if (session?.user) {
-          // On token refresh, don't disrupt the current profile
-          // Only do a full profile fetch on initial load or sign-in
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
-            const p = await fetchAllProfiles(session.user.id)
-            if (p?.organization_id) {
-              purgeExpiredArchives(p.organization_id).catch(() => {})
+      // Defer ALL async SDK work outside the auth callback to avoid the
+      // auth-lock deadlock. The setTimeout(0) trick releases the auth mutex
+      // before any `await supabase.*` calls run.
+      setTimeout(async () => {
+        try {
+          if (session?.user) {
+            // Warm up connection (fire-and-forget, also now outside the lock)
+            warmUpSupabase()
+
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
+              const p = await fetchAllProfiles(session.user.id)
+              if (p?.organization_id) {
+                purgeExpiredArchives(p.organization_id).catch(() => {})
+              }
             }
+            // TOKEN_REFRESHED: keep existing profile, don't re-fetch
+          } else {
+            setProfile(null)
+            setAllStaffProfiles([])
+            setMenteeProfile(null)
+            setActiveProfileId(null)
+            setIsMenteeMode(false)
           }
-          // TOKEN_REFRESHED: keep existing profile, don't re-fetch
-        } else {
-          // Only clear on actual sign out
-          setProfile(null)
-          setAllStaffProfiles([])
-          setMenteeProfile(null)
-          setActiveProfileId(null)
-          setIsMenteeMode(false)
+        } catch (err) {
+          console.error('[AuthContext] Error during deferred auth handling:', err)
+        } finally {
+          if (activeSafetyTimeout) {
+            clearTimeout(activeSafetyTimeout)
+            activeSafetyTimeout = null
+          }
+          setLoading(false)
         }
-      } catch (err) {
-        console.error('[AuthContext] Error during auth state change:', err)
-      } finally {
-        if (activeSafetyTimeout) {
-          clearTimeout(activeSafetyTimeout)
-          activeSafetyTimeout = null
-        }
-        setLoading(false)
-      }
+      }, 0)
     })
 
     supabase.auth.getSession().catch((err) => {

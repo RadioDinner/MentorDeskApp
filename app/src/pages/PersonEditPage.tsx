@@ -1,21 +1,72 @@
 import { useState, useEffect } from 'react'
-import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
-import type { StaffMember, PayType, PayTypeSettings, RoleCategory } from '../types'
+import TimezoneSelect from '../components/TimezoneSelect'
+import type { StaffMember, PayType, PayTypeSettings, RoleCategory, StaffRole, Offering, PayFrequency } from '../types'
+import { STAFF_ROLE_LABELS, STAFF_UMBRELLA_ROLES, PERCENTAGE_PAY_TYPES, OFFERING_LINKED_PAY_TYPES, PAY_FREQUENCY_LABELS } from '../types'
+import Button from '../components/ui/Button'
+import { Skeleton } from '../components/ui'
+import { formatDate } from '../lib/format'
+import { useToast } from '../context/ToastContext'
+import { reportSupabaseError } from '../lib/errorReporter'
+
+const personalSchema = z.object({
+  first_name: z.string().min(1, 'First name is required'),
+  last_name:  z.string().min(1, 'Last name is required'),
+  email:      z.string().email('Enter a valid email'),
+  phone:      z.string(),
+  role:       z.string(),   // StaffRole at runtime; looser here
+  street:     z.string(),
+  city:       z.string(),
+  state:      z.string(),
+  zip:        z.string(),
+  country:    z.string(),
+})
+
+type PersonalFormValues = z.infer<typeof personalSchema>
+
+const compensationSchema = z.object({
+  pay_type:           z.string(),
+  pay_rate:           z.string(),
+  pay_offering_id:    z.string(),
+  pay_frequency:      z.string(),
+  max_active_mentees: z.string(),
+})
+
+type CompensationFormValues = z.infer<typeof compensationSchema>
+
+const inputClass =
+  'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const errorClass = 'mt-1 text-xs text-red-500'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
   salary: 'Salary',
   pct_monthly_profit: '% of monthly profit',
-  pct_engagement_profit: '% of engagement profit',
+  pct_engagement_profit: '% of a specific engagement',
+  pct_course_profit: '% of a specific course',
+  pct_per_meeting: '% of each completed meeting',
+}
+
+const PAY_TYPE_HINTS: Record<PayType, string> = {
+  hourly: 'Paid per hour worked.',
+  salary: 'Fixed recurring amount.',
+  pct_monthly_profit: 'A share of total monthly profit across all courses and engagements.',
+  pct_engagement_profit: 'A share of the profit from one specific engagement. Select which engagement below.',
+  pct_course_profit: 'A share of the profit from one specific course. Select which course below.',
+  pct_per_meeting: 'A share of the per-meeting value (engagement price ÷ meetings per cycle) paid for every meeting the staff member completes with their paired mentees.',
 }
 
 function getRoleCategory(role: string): RoleCategory {
   if (role === 'mentor') return 'mentor'
   if (role === 'assistant_mentor') return 'assistant_mentor'
+  // admin, operations, course_creator, and legacy 'staff' all fall under the
+  // staff pay category.
   return 'staff'
 }
 
@@ -23,39 +74,47 @@ export default function PersonEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [person, setPerson] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  // Timezone is edited via the custom TimezoneSelect (value/onChange props),
+  // so it stays in local state rather than the RHF form.
+  const [timezone, setTimezone] = useState<string | null>(null)
 
-  // Personal info form
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [street, setStreet] = useState('')
-  const [city, setCity] = useState('')
-  const [state, setState] = useState('')
-  const [zip, setZip] = useState('')
-  const [country, setCountry] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-
-  // Compensation
-  const [payType, setPayType] = useState<PayType | ''>('')
-  const [payRate, setPayRate] = useState('')
+  const [orgOfferings, setOrgOfferings] = useState<Offering[]>([])
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
-  const [compensationSaving, setCompensationSaving] = useState(false)
-  const [compensationMsg, setCompensationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // System actions
-  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [sendingReset, setSendingReset] = useState(false)
   const [sendingInvite, setSendingInvite] = useState(false)
 
   // Archive / Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const personalForm = useForm<PersonalFormValues>({
+    resolver: zodResolver(personalSchema),
+    defaultValues: {
+      first_name: '', last_name: '', email: '', phone: '',
+      role: 'staff',
+      street: '', city: '', state: '', zip: '', country: '',
+    },
+  })
+
+  const compForm = useForm<CompensationFormValues>({
+    resolver: zodResolver(compensationSchema),
+    defaultValues: {
+      pay_type: '',
+      pay_rate: '',
+      pay_offering_id: '',
+      pay_frequency: '',
+      max_active_mentees: '',
+    },
+  })
+
+  const payType = compForm.watch('pay_type') as PayType | ''
 
   useEffect(() => {
     if (!id) return
@@ -75,25 +134,36 @@ export default function PersonEditPage() {
 
       const p = data as StaffMember
       setPerson(p)
-      setFirstName(p.first_name)
-      setLastName(p.last_name)
-      setEmail(p.email)
-      setPhone(p.phone ?? '')
-      setStreet(p.street ?? '')
-      setCity(p.city ?? '')
-      setState(p.state ?? '')
-      setZip(p.zip ?? '')
-      setCountry(p.country ?? '')
-      setPayType(p.pay_type ?? '')
-      setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
+      setTimezone(p.timezone ?? null)
 
-      // Fetch org pay settings to determine available types
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('pay_type_settings')
-        .eq('id', p.organization_id)
-        .single()
+      personalForm.reset({
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
+        phone: p.phone ?? '',
+        role: p.role,
+        street: p.street ?? '',
+        city: p.city ?? '',
+        state: p.state ?? '',
+        zip: p.zip ?? '',
+        country: p.country ?? '',
+      })
+      compForm.reset({
+        pay_type: p.pay_type ?? '',
+        pay_rate: p.pay_rate != null ? String(p.pay_rate) : '',
+        pay_offering_id: p.pay_offering_id ?? '',
+        pay_frequency: p.pay_frequency ?? '',
+        max_active_mentees: p.max_active_mentees != null ? String(p.max_active_mentees) : '',
+      })
 
+      // Fetch org pay settings + offerings (for pay_offering_id dropdown) in parallel
+      const [orgRes, offeringsRes] = await Promise.all([
+        supabase.from('organizations').select('pay_type_settings').eq('id', p.organization_id).single(),
+        supabase.from('offerings').select('*').eq('organization_id', p.organization_id).order('name'),
+      ])
+      setOrgOfferings((offeringsRes.data ?? []) as Offering[])
+
+      const orgData = orgRes.data
       if (orgData?.pay_type_settings) {
         const settings = orgData.pay_type_settings as PayTypeSettings
         const category = getRoleCategory(p.role)
@@ -104,77 +174,129 @@ export default function PersonEditPage() {
     }
 
     fetchPerson()
-  }, [id])
+  }, [id, personalForm, compForm])
 
-  async function handleSave(e: FormEvent) {
-    e.preventDefault()
+  async function onSavePersonal(values: PersonalFormValues) {
     if (!person) return
-    setProfileMsg(null)
-    setSaving(true)
+
+    const newVals = {
+      first_name: values.first_name.trim(),
+      last_name: values.last_name.trim(),
+      email: values.email.trim(),
+      phone: values.phone.trim() || null,
+      street: values.street.trim() || null,
+      city: values.city.trim() || null,
+      state: values.state.trim() || null,
+      zip: values.zip.trim() || null,
+      country: values.country.trim() || null,
+    }
 
     const { error } = await supabase
       .from('staff')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        street: street.trim() || null,
-        city: city.trim() || null,
-        state: state.trim() || null,
-        zip: zip.trim() || null,
-        country: country.trim() || null,
+        ...newVals,
+        timezone: timezone,
+        role: values.role as StaffRole,
       })
       .eq('id', person.id)
 
-    setSaving(false)
-
     if (error) {
-      setProfileMsg({ type: 'error', text: error.message })
+      reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveProfile' })
+      toast.error(error.message)
       return
     }
 
-    const oldVals = { first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, street: person.street, city: person.city, state: person.state, zip: person.zip, country: person.country }
-    const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
-
-    setPerson({ ...person, ...newVals })
-    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' }, old_values: oldVals, new_values: newVals })
-    setProfileMsg({ type: 'success', text: 'Personal information has been updated.' })
+    const oldVals = {
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      phone: person.phone,
+      street: person.street,
+      city: person.city,
+      state: person.state,
+      zip: person.zip,
+      country: person.country,
+    }
+    setPerson({ ...person, ...newVals, role: values.role as StaffRole, timezone })
+    if (currentUser) {
+      await logAudit({
+        organization_id: person.organization_id,
+        actor_id: currentUser.id,
+        action: 'updated',
+        entity_type: 'staff',
+        entity_id: person.id,
+        details: { name: `${newVals.first_name} ${newVals.last_name}`, fields: 'personal_info' },
+        old_values: oldVals,
+        new_values: newVals,
+      })
+    }
+    toast.success('Personal information has been updated.')
   }
 
-  async function handleCompensationSave(e: FormEvent) {
-    e.preventDefault()
+  async function onSaveCompensation(values: CompensationFormValues) {
     if (!person) return
-    setCompensationMsg(null)
-    setCompensationSaving(true)
 
-    const rateNum = payRate ? parseFloat(payRate) : null
+    const rateNum = values.pay_rate ? parseFloat(values.pay_rate) : null
+    const maxMentees = values.max_active_mentees ? parseInt(values.max_active_mentees) : null
+    const pt = values.pay_type as PayType | ''
+    // Only persist pay_offering_id when the selected pay type actually uses it.
+    const offeringIdToSave = pt && OFFERING_LINKED_PAY_TYPES.includes(pt)
+      ? (values.pay_offering_id || null)
+      : null
+    // Only persist pay_frequency when the pay type is salary.
+    const frequencyToSave: PayFrequency | null = pt === 'salary'
+      ? ((values.pay_frequency as PayFrequency) || null)
+      : null
 
     const { error } = await supabase
       .from('staff')
       .update({
-        pay_type: payType || null,
+        pay_type: pt || null,
         pay_rate: rateNum,
+        pay_offering_id: offeringIdToSave,
+        pay_frequency: frequencyToSave,
+        max_active_mentees: maxMentees,
       })
       .eq('id', person.id)
 
-    setCompensationSaving(false)
-
     if (error) {
-      setCompensationMsg({ type: 'error', text: error.message })
+      reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveCompensation' })
+      toast.error(error.message)
       return
     }
 
-    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate }
-    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum }
+    const oldComp = {
+      pay_type: person.pay_type,
+      pay_rate: person.pay_rate,
+      pay_offering_id: person.pay_offering_id,
+      pay_frequency: person.pay_frequency,
+      max_active_mentees: person.max_active_mentees,
+    }
+    const newComp = {
+      pay_type: (pt || null) as PayType | null,
+      pay_rate: rateNum,
+      pay_offering_id: offeringIdToSave,
+      pay_frequency: frequencyToSave,
+      max_active_mentees: maxMentees,
+    }
     setPerson({ ...person, ...newComp })
-    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
-    setCompensationMsg({ type: 'success', text: 'Compensation has been updated.' })
+    if (currentUser) {
+      await logAudit({
+        organization_id: person.organization_id,
+        actor_id: currentUser.id,
+        action: 'updated',
+        entity_type: 'staff',
+        entity_id: person.id,
+        details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' },
+        old_values: oldComp,
+        new_values: newComp,
+      })
+    }
+    toast.success('Compensation has been updated.')
   }
 
   async function handlePasswordReset() {
     if (!person) return
-    setActionMsg(null)
     setSendingReset(true)
 
     try {
@@ -197,16 +319,18 @@ export default function PersonEditPage() {
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
         const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
-        setActionMsg({ type: 'error', text: msg })
+        reportSupabaseError({ message: msg }, { component: 'PersonEditPage', action: 'passwordReset' })
+        toast.error(msg)
         return
       }
 
-      setActionMsg({ type: 'success', text: `Password reset email sent to ${person.email}.` })
+      toast.success(`Password reset email sent to ${person.email}.`)
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
-      setActionMsg({ type: 'error', text: message })
+      reportSupabaseError({ message }, { component: 'PersonEditPage', action: 'passwordReset' })
+      toast.error(message)
     } finally {
       setSendingReset(false)
     }
@@ -214,7 +338,6 @@ export default function PersonEditPage() {
 
   async function handleInvite() {
     if (!person) return
-    setActionMsg(null)
     setSendingInvite(true)
 
     try {
@@ -238,16 +361,18 @@ export default function PersonEditPage() {
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
         const msg = body.msg || body.message || body.error_description || `Error ${response.status}`
-        setActionMsg({ type: 'error', text: msg })
+        reportSupabaseError({ message: msg }, { component: 'PersonEditPage', action: 'sendInvite' })
+        toast.error(msg)
         return
       }
 
-      setActionMsg({ type: 'success', text: `Invitation sent to ${person.email}.` })
+      toast.success(`Invitation sent to ${person.email}.`)
     } catch (err) {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
         : 'Unknown error'
-      setActionMsg({ type: 'error', text: message })
+      reportSupabaseError({ message }, { component: 'PersonEditPage', action: 'sendInvite' })
+      toast.error(message)
     } finally {
       setSendingInvite(false)
     }
@@ -258,10 +383,10 @@ export default function PersonEditPage() {
     const isArchived = !!person.archived_at
     const now = isArchived ? null : new Date().toISOString()
     const { error } = await supabase.from('staff').update({ archived_at: now }).eq('id', person.id)
-    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'archive' }); toast.error(error.message); return }
     setPerson({ ...person, archived_at: now } as StaffMember)
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: isArchived ? 'unarchived' : 'archived', entity_type: 'staff', entity_id: person.id })
-    setActionMsg({ type: 'success', text: isArchived ? 'Record restored.' : 'Record archived.' })
+    toast.success(isArchived ? 'Record restored.' : 'Record archived.')
   }
 
   async function handleDelete() {
@@ -269,14 +394,12 @@ export default function PersonEditPage() {
     setDeleting(true)
     const { error } = await supabase.from('staff').delete().eq('id', person.id)
     setDeleting(false)
-    if (error) { setActionMsg({ type: 'error', text: error.message }); return }
+    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'delete' }); toast.error(error.message); return }
     await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'deleted', entity_type: 'staff', entity_id: person.id })
     navigate(-1)
   }
 
-  if (loading) {
-    return <div className="text-sm text-gray-500">Loading...</div>
-  }
+  if (loading) return <Skeleton count={6} className="h-11 w-full" gap="gap-3" />
 
   if (fetchError || !person) {
     return (
@@ -288,15 +411,15 @@ export default function PersonEditPage() {
     )
   }
 
-  const inputClass =
-    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
-
+  const { register: personalRegister, handleSubmit: personalHandleSubmit, formState: personalFormState } = personalForm
+  const { register: compRegister, handleSubmit: compHandleSubmit, formState: compFormState } = compForm
+  const personalErrors = personalFormState.errors
   const hasAuthAccount = person.user_id !== null
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-7xl">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-4">
         <button
           onClick={() => navigate(-1)}
           className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
@@ -316,41 +439,30 @@ export default function PersonEditPage() {
         </div>
       </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Row 1 — Personal info + right sidebar (compensation / max mentees / availability) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Left column — Personal Information (2/3 width) */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
-            <h2 className="text-base font-semibold text-gray-900 mb-6">Personal Information</h2>
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Personal Information</h2>
 
-            <form onSubmit={handleSave} className="space-y-5">
-              {profileMsg && (
-                <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm ${
-                  profileMsg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                  <span className="mt-0.5">{profileMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                  {profileMsg.text}
-                </div>
-              )}
-
+            <form onSubmit={personalHandleSubmit(onSavePersonal)} className="space-y-5">
               {/* Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
                     First name
                   </label>
-                  <input id="firstName" type="text" required value={firstName}
-                    onChange={e => setFirstName(e.target.value)} className={inputClass} />
+                  <input id="firstName" type="text" {...personalRegister('first_name')} className={inputClass} />
+                  {personalErrors.first_name && <p className={errorClass}>{personalErrors.first_name.message}</p>}
                 </div>
                 <div>
                   <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Last name
                   </label>
-                  <input id="lastName" type="text" required value={lastName}
-                    onChange={e => setLastName(e.target.value)} className={inputClass} />
+                  <input id="lastName" type="text" {...personalRegister('last_name')} className={inputClass} />
+                  {personalErrors.last_name && <p className={errorClass}>{personalErrors.last_name.message}</p>}
                 </div>
               </div>
 
@@ -360,15 +472,14 @@ export default function PersonEditPage() {
                   <label htmlFor="editEmail" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Email
                   </label>
-                  <input id="editEmail" type="email" required value={email}
-                    onChange={e => setEmail(e.target.value)} className={inputClass} />
+                  <input id="editEmail" type="email" {...personalRegister('email')} className={inputClass} />
+                  {personalErrors.email && <p className={errorClass}>{personalErrors.email.message}</p>}
                 </div>
                 <div>
                   <label htmlFor="editPhone" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Phone
                   </label>
-                  <input id="editPhone" type="tel" value={phone}
-                    onChange={e => setPhone(e.target.value)} placeholder="Optional" className={inputClass} />
+                  <input id="editPhone" type="tel" {...personalRegister('phone')} placeholder="Optional" className={inputClass} />
                 </div>
               </div>
 
@@ -377,8 +488,7 @@ export default function PersonEditPage() {
                 <label htmlFor="editStreet" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Street address
                 </label>
-                <input id="editStreet" type="text" value={street}
-                  onChange={e => setStreet(e.target.value)} placeholder="Optional" className={inputClass} />
+                <input id="editStreet" type="text" {...personalRegister('street')} placeholder="Optional" className={inputClass} />
               </div>
 
               {/* City / State / Zip */}
@@ -387,22 +497,19 @@ export default function PersonEditPage() {
                   <label htmlFor="editCity" className="block text-sm font-medium text-gray-700 mb-1.5">
                     City
                   </label>
-                  <input id="editCity" type="text" value={city}
-                    onChange={e => setCity(e.target.value)} className={inputClass} />
+                  <input id="editCity" type="text" {...personalRegister('city')} className={inputClass} />
                 </div>
                 <div>
                   <label htmlFor="editState" className="block text-sm font-medium text-gray-700 mb-1.5">
                     State
                   </label>
-                  <input id="editState" type="text" value={state}
-                    onChange={e => setState(e.target.value)} className={inputClass} />
+                  <input id="editState" type="text" {...personalRegister('state')} className={inputClass} />
                 </div>
                 <div>
                   <label htmlFor="editZip" className="block text-sm font-medium text-gray-700 mb-1.5">
                     ZIP
                   </label>
-                  <input id="editZip" type="text" value={zip}
-                    onChange={e => setZip(e.target.value)} className={inputClass} />
+                  <input id="editZip" type="text" {...personalRegister('zip')} className={inputClass} />
                 </div>
               </div>
 
@@ -411,48 +518,66 @@ export default function PersonEditPage() {
                 <label htmlFor="editCountry" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Country
                 </label>
-                <input id="editCountry" type="text" value={country}
-                  onChange={e => setCountry(e.target.value)} className={inputClass} />
+                <input id="editCountry" type="text" {...personalRegister('country')} className={inputClass} />
               </div>
 
+              {/* Timezone */}
+              <div>
+                <label htmlFor="editTimezone" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Timezone
+                </label>
+                <TimezoneSelect id="editTimezone" value={timezone} onChange={setTimezone} />
+                <p className="text-[11px] text-gray-400 mt-1">Used to interpret their weekly availability and display meeting times.</p>
+              </div>
+
+              {/* Role — only editable for staff-umbrella roles. Mentors and
+                   Assistant Mentors have their role pinned by the page they
+                   were created from. */}
+              {STAFF_UMBRELLA_ROLES.includes(person.role) && (
+                <div>
+                  <label htmlFor="editRole" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Role
+                  </label>
+                  <select id="editRole" {...personalRegister('role')}
+                    className={inputClass + ' bg-white'}>
+                    {STAFF_UMBRELLA_ROLES.map(r => (
+                      <option key={r} value={r}>
+                        {STAFF_ROLE_LABELS[r]}
+                        {r === 'staff' ? ' (legacy)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Admin grants full access. Operations and Course Creator are starting templates — fine-tune individual module access below.
+                  </p>
+                </div>
+              )}
+
               <div className="pt-2">
-                <button type="submit" disabled={saving}
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                <Button type="submit" disabled={personalFormState.isSubmitting}>
+                  {personalFormState.isSubmitting ? 'Saving…' : 'Save changes'}
+                </Button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* Right column — System Actions (1/3 width) */}
-        <div className="space-y-6">
+        {/* Right column — Compensation / Max Mentees / Availability */}
+        <div className="space-y-4">
 
           {/* Compensation */}
           {person.role !== 'admin' && availablePayTypes.length > 0 && (
-            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Compensation</h2>
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">Compensation</h2>
 
-              <form onSubmit={handleCompensationSave} className="space-y-4">
-                {compensationMsg && (
-                  <div className={`flex items-start gap-3 rounded border px-3 py-2 text-xs ${
-                    compensationMsg.type === 'success'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
-                    <span>{compensationMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                    {compensationMsg.text}
-                  </div>
-                )}
-
+              <form onSubmit={compHandleSubmit(onSaveCompensation)} className="space-y-4">
                 <div>
                   <label htmlFor="payType" className="block text-xs font-medium text-gray-700 mb-1">
                     Pay type
                   </label>
                   <select
                     id="payType"
-                    value={payType}
-                    onChange={e => setPayType(e.target.value as PayType | '')}
+                    {...compRegister('pay_type')}
                     className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
                   >
                     <option value="">Not set</option>
@@ -463,40 +588,132 @@ export default function PersonEditPage() {
                 </div>
 
                 {payType && (
-                  <div>
-                    <label htmlFor="payRate" className="block text-xs font-medium text-gray-700 mb-1">
-                      {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit'
-                        ? 'Percentage (%)'
-                        : 'Rate ($)'}
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                        {payType === 'pct_monthly_profit' || payType === 'pct_engagement_profit' ? '%' : '$'}
-                      </span>
-                      <input
-                        id="payRate"
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={payRate}
-                        onChange={e => setPayRate(e.target.value)}
-                        placeholder="0"
-                        className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
-                      />
+                  <>
+                    <p className="text-[11px] text-gray-400 -mt-2">{PAY_TYPE_HINTS[payType as PayType]}</p>
+                    <div>
+                      <label htmlFor="payRate" className="block text-xs font-medium text-gray-700 mb-1">
+                        {PERCENTAGE_PAY_TYPES.includes(payType as PayType) ? 'Percentage (%)' : 'Rate ($)'}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                          {PERCENTAGE_PAY_TYPES.includes(payType as PayType) ? '%' : '$'}
+                        </span>
+                        <input
+                          id="payRate"
+                          type="number"
+                          step="any"
+                          min="0"
+                          {...compRegister('pay_rate')}
+                          placeholder="0"
+                          className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+                        />
+                      </div>
                     </div>
+                  </>
+                )}
+
+                {/* Salary frequency — only for salary */}
+                {payType === 'salary' && (
+                  <div>
+                    <label htmlFor="payFrequency" className="block text-xs font-medium text-gray-700 mb-1">
+                      Pay frequency
+                    </label>
+                    <select
+                      id="payFrequency"
+                      {...compRegister('pay_frequency')}
+                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                    >
+                      <option value="">Select frequency...</option>
+                      {(Object.keys(PAY_FREQUENCY_LABELS) as PayFrequency[]).map(f => (
+                        <option key={f} value={f}>{PAY_FREQUENCY_LABELS[f]}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-1">How often the salary amount is paid out.</p>
                   </div>
                 )}
 
-                <button type="submit" disabled={compensationSaving}
-                  className="w-full rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 disabled:cursor-not-allowed transition">
-                  {compensationSaving ? 'Saving…' : 'Save compensation'}
-                </button>
+                {/* Linked offering — only for pct_engagement_profit / pct_course_profit */}
+                {payType && OFFERING_LINKED_PAY_TYPES.includes(payType as PayType) && (() => {
+                  const wantedType = payType === 'pct_engagement_profit' ? 'engagement' : 'course'
+                  const filtered = orgOfferings.filter(o => o.type === wantedType)
+                  return (
+                    <div>
+                      <label htmlFor="payOffering" className="block text-xs font-medium text-gray-700 mb-1">
+                        Paid from
+                      </label>
+                      <select
+                        id="payOffering"
+                        {...compRegister('pay_offering_id')}
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
+                      >
+                        <option value="">Select {wantedType}...</option>
+                        {filtered.map(o => (
+                          <option key={o.id} value={o.id}>{o.name}</option>
+                        ))}
+                      </select>
+                      {filtered.length === 0 && (
+                        <p className="text-[11px] text-amber-600 mt-1">
+                          No {wantedType}s exist yet. Create one before assigning this pay type.
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                <Button type="submit" disabled={compFormState.isSubmitting} block>
+                  {compFormState.isSubmitting ? 'Saving…' : 'Save'}
+                </Button>
               </form>
             </div>
           )}
 
+          {/* Max active mentees — standalone card for mentors / assistant mentors */}
+          {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">Max Active Mentees</h2>
+              <form onSubmit={compHandleSubmit(onSaveCompensation)} className="space-y-3">
+                <input
+                  id="maxMentees"
+                  type="number"
+                  min="1"
+                  {...compRegister('max_active_mentees')}
+                  placeholder="No limit"
+                  className={inputClass}
+                />
+                <p className="text-[11px] text-gray-400">
+                  Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
+                </p>
+                <Button type="submit" disabled={compFormState.isSubmitting} block>
+                  {compFormState.isSubmitting ? 'Saving…' : 'Save'}
+                </Button>
+              </form>
+            </div>
+          )}
+
+          {/* Availability — mentors and assistant mentors only */}
+          {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
+            <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+              <h2 className="text-base font-semibold text-gray-900 mb-2">Availability Schedule</h2>
+              <p className="text-xs text-gray-500 mb-3">Manage when {person.first_name} is available for mentee sessions.</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/people/${person.id}/availability`)}
+                className="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors flex items-center justify-between"
+              >
+                <span>Edit Availability</span>
+                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* Row 2 — utility cards (Account / System Emails / Danger Zone) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
           {/* Account status */}
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Account</h2>
 
             <div className="flex items-center gap-2 mb-4">
@@ -510,24 +727,13 @@ export default function PersonEditPage() {
               Role: <span className="font-medium text-gray-700">{person.role}</span>
             </p>
             <p className="text-xs text-gray-500">
-              Added: {new Date(person.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              Added: {formatDate(person.created_at)}
             </p>
           </div>
 
           {/* System emails */}
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">System Emails</h2>
-
-            {actionMsg && (
-              <div className={`flex items-start gap-3 rounded border px-3 py-2.5 text-sm mb-4 ${
-                actionMsg.type === 'success'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              }`}>
-                <span className="mt-0.5">{actionMsg.type === 'success' ? '\u2713' : '\u2717'}</span>
-                {actionMsg.text}
-              </div>
-            )}
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">System Emails</h2>
 
             <div className="space-y-3">
               {/* Password reset */}
@@ -565,8 +771,8 @@ export default function PersonEditPage() {
           </div>
 
           {/* Danger Zone */}
-          <div className="bg-white rounded-md border border-red-200 px-6 py-6">
-            <h2 className="text-base font-semibold text-red-600 mb-4">Danger Zone</h2>
+          <div className="bg-white rounded-md border border-red-200 px-6 py-5">
+            <h2 className="text-base font-semibold text-red-600 mb-3">Danger Zone</h2>
             <div className="space-y-3">
               {/* Archive / Restore */}
               <div>
@@ -600,21 +806,18 @@ export default function PersonEditPage() {
                     Would you rather <button type="button" onClick={() => { handleArchive(); setShowDeleteConfirm(false) }} className="text-amber-600 font-medium underline hover:text-amber-700">archive</button> them instead? Archived records can be restored later.
                   </p>
                   <div className="flex items-center gap-2 pt-1">
-                    <button type="button" disabled={deleting} onClick={handleDelete}
-                      className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <Button variant="danger" type="button" disabled={deleting} onClick={handleDelete}>
                       {deleting ? 'Deleting…' : 'Yes, permanently delete'}
-                    </button>
-                    <button type="button" onClick={() => setShowDeleteConfirm(false)}
-                      className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => setShowDeleteConfirm(false)}>
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-        </div>
       </div>
     </div>
   )

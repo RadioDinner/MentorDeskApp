@@ -1,0 +1,6 @@
+SESSION 014 PROMPT HISTORY
+==========================
+
+[Session continued automatically from Session 013 context — no new user
+prompts were needed. The assistant resumed mid-task (Items 6+9) from where
+Session 013 left off and continued working through the polish backlog.]

@@ -1,0 +1,4 @@
+SESSION 016 PROMPT HISTORY
+==========================
+
+1. Start a new session, review the last number of sessions because there was a couple weird things. So let's review the last 5 sessions and see if there is anything we missed. Don't start on any tasks yet, just review for now.

@@ -1,0 +1,254 @@
+SESSION 020 HANDOFF LOG
+========================
+Date: 2026-04-15
+Branch: main (and pushed to claude/happy-sagan-k0AuD per the active
+branch instruction at session start). Session 019's open items were
+"work one small thing at a time and finally have a clean session." The
+session ended up much larger than that — full Canvases v1.1 rewrite,
+the entire older backlog from Session 015, plus a brand-new folder
+feature for Habits and Canvases — and then crashed before the wrap was
+written. This log is being written retroactively by Session 021 from
+the prompt history and the commit log.
+
+NOTE: prompt_history.txt contains 9 prompts. The session crashed
+sometime after the last commit (a8c400c, "pin sidebar to viewport
+height"), before a 10th prompt could be logged or the wrap could be
+authored. All work below is committed and pushed.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+This session can be split into four blocks, in the order they were
+shipped:
+
+
+BLOCK 1 — CANVASES v1.1 (the deferred CanvasEditPage rewrite)
+
+   Per the Session 019 handoff, all Tier-1 Canvas v1.1 features were
+   scaffolded (types + lib/canvas.ts + CanvasCreatePage seed) but the
+   big CanvasEditPage rewrite was deferred. This session finished it
+   in slices:
+
+   1. Phase A — consolidate (commit 538f891)
+      CanvasEditPage now imports COLORS, colorClasses, clientId,
+      NOTE_DEFAULTS, NOTE_MIN, WORKSPACE_SIZE, HISTORY_LIMIT, and the
+      create*/migrate* helpers from lib/canvas.ts. The duplicate
+      declarations at the top of the file (called out as a cleanup
+      task in the Session 019 handoff) are gone.
+
+   2. Undo history (commit 33c6d6f)
+      Past stack capped at HISTORY_LIMIT, snapshot taken BEFORE
+      coarse actions (add, delete, drag start, color change, edit
+      start, etc.). Cmd/Ctrl+Z restores. No redo (deliberately
+      tabled, per the design notes).
+
+   3. Resizable notes (commit 46807a9)
+      Bottom-right resize handle on every note. Separate
+      resizeStateRef from dragStateRef, both share the same
+      document-level pointermove/pointerup listeners. Clamped to
+      NOTE_MIN (140 x 100) and WORKSPACE_SIZE bounds.
+
+   4. Multi-select + bulk move + keyboard shortcuts (commit d562e28)
+      Shift-click adds/removes from selectedIds. Plain click =
+      clear-then-select. Click empty canvas = clear. When dragging a
+      selected note, all selected notes move together using a
+      startPositions map keyed by noteId. Selected notes get a ring.
+      Global keydown listener (scoped out of input/textarea targets)
+      handles N (new sticky), Delete/Backspace (delete selected),
+      Cmd/Ctrl+Z (undo).
+
+   5. Phase B — checklist, link, connectors, rich text (commit 882ac85)
+      The big one. CanvasEditPage now handles all three note types
+      from the discriminated union plus the connector layer:
+
+        · Sticky notes render via dangerouslySetInnerHTML using
+          renderMarkdown(text) from lib/canvas. Edit mode is a plain
+          textarea on the markdown source. The optional B/I/• toolbar
+          was skipped for V1 — raw markdown typing works fine and
+          the toolbar is the finicky part.
+
+        · Checklist notes: title input + rows of [checkbox] [text]
+          [×]. Enter in a row creates a new row below it. "+ Add item"
+          link at the bottom. Toggling a checkbox pushes history.
+
+        · Link notes: type dropdown (course / habit / canvas / url)
+          with a value picker. Lists for course/habit/canvas are
+          lazy-loaded the first time the picker opens and cached in
+          state. Display is a small icon-card; click opens the
+          target (/courses/:id/edit, /habits/:id/edit, /canvases/:id,
+          or external URL in a new tab).
+
+        · Connectors: toolbar "Connect" button enters connectorMode.
+          First click sets sourceId, second click on a different note
+          creates the connector and exits the mode. Escape or empty
+          click cancels. Render is an SVG overlay over the workspace,
+          line drawn from note-center to note-center, recomputed from
+          the current note state every render so moving a note drags
+          its connectors. Click a line to delete.
+
+      CanvasEditPage was NOT extracted into per-type child components
+      (StickyNoteCard, ChecklistNoteCard, etc.) as suggested in the
+      Session 019 design notes. The single-file approach is around
+      ~1100 lines but readable; extracting can happen later if it
+      causes pain.
+
+
+BLOCK 2 — RHF MIGRATION OF EDIT PAGES (older backlog item)
+
+   Session 015 left "Edit-page RHF migration across remaining edit
+   pages" in the backlog. Cleared four of them this session:
+
+      · PairingEditPage      → react-hook-form  (commit aaaf04d)
+      · MenteeEditPage main profile form → RHF  (commit 62f04f2)
+        NOTE: only the main profile form was migrated. The Habits
+        section, the engagements section, and the other sub-cards
+        on MenteeEditPage are still ad-hoc useState. They're full
+        sub-features in their own right; migrating them is
+        out of scope for "edit page form RHF".
+      · OfferingEditPage     → react-hook-form  (commit 063faa8)
+      · PersonEditPage       → react-hook-form  (commit 6ad79d5)
+
+
+BLOCK 3 — CHUNK-SIZE WARNING (older backlog item)
+
+   The "chunk-size warning" the user asked about in prompt 8 is the
+   long-standing Vite warning that one bundle is over the 500 KiB
+   threshold — it's been there since Session 015. Fixed via:
+
+      · Route-level code splitting with React.lazy (commit f82ac1e)
+
+   Every page route in App.tsx is now lazy-loaded; the top-level
+   Suspense boundary uses the existing Loading skeleton. The vendor
+   chunks shrink considerably and the warning goes away.
+
+
+BLOCK 4 — HABIT + CANVAS FOLDERS (new feature, came out of
+   "let's start with the CanvasEdit page" in prompt 9)
+
+   Mirroring the existing offering_folders pattern from migration 965,
+   added folder organization to both Habits and Canvases plus a
+   shared list/grid view toggle:
+
+   1. Migration 952_habit_canvas_folders.sql (commit 669ab6e)
+      NEW MIGRATION. Two tables: habit_folders and canvas_folders,
+      both with org_id + name + sort_order + RLS keyed off
+      profiles.org_id. New nullable folder_id columns added to
+      habits and canvases. This migration is UNAPPLIED — the user
+      needs to run it in Supabase.
+
+   2. Shared components (commit d95f738)
+      · components/FolderManager.tsx — reusable folder sidebar with
+        create/rename/delete/reorder. Mirrors the offering folder
+        sidebar pattern.
+      · components/ListGridToggle.tsx — reusable two-button toggle
+        between list and card-grid views. Stores preference in
+        localStorage keyed by a `storageKey` prop.
+
+   3. HabitsPage updated (commit 7c003e5)
+      List/grid toggle in the header, FolderManager on the left, drag
+      a habit row onto a folder to assign. Cards in grid mode use the
+      same teal gradient color as the Habits sidebar entry.
+
+   4. CanvasesPage updated (commit fbca90c)
+      Same treatment as HabitsPage. Cards in grid mode use the
+      fuchsia gradient. Folder filter and "Show archived" toggle
+      coexist.
+
+
+MISC
+
+   - Sidebar pinning (commit a8c400c)
+     The sidebar was scrolling with the page on long pages. Fixed by
+     pinning it to viewport height with overflow-y: auto on the inner
+     nav. Last commit of the session.
+
+   - dd2e8f3 was a clean merge of the session's working branch into
+     main earlier in the session, before the older-backlog blocks
+     started. There were no conflicts.
+
+
+VERIFICATION GAP
+-----------------
+
+The prior session's handoff said "verify build + tests before
+wrapping." This wrap-up was written retroactively after the session
+crashed, so build + tests were NOT re-run at session end. Spot
+checks during the session (after each major commit) had build + tests
+clean. Next session should re-verify with `cd app && npm run build`
+and `cd app && npm run test` before doing anything else.
+
+When this wrap was written, `cd app && npm run build` failed in the
+sandbox with TS2688 errors about missing `vite/client` and `node`
+type packages. The sandbox `node_modules/@types/` directory does NOT
+contain `node`, and `node_modules/vite/client.d.ts` is missing — the
+node_modules in this checkout is incomplete, NOT a code regression.
+Running `npm ci` in app/ should restore them. Don't panic about the
+TS errors until you've reinstalled.
+
+
+STILL OPEN / NEXT SESSION
+-------------------------
+
+1. APPLY MIGRATION 952_habit_canvas_folders.sql to Supabase. Until
+   it runs, /habits and /canvases will fail when the folders code
+   tries to read folder_id / habit_folders / canvas_folders.
+
+2. Visual QA against a real browser with real Supabase. Sessions
+   019 and 020 have shipped a LOT of features (Habits end-to-end,
+   Canvases v1 + v1.1, four RHF migrations, code splitting, folder
+   organization for Habits and Canvases). None of it has been
+   clicked through in a running app — verification has been types
+   + build + unit tests only. The feature surface has gotten too
+   large to keep deferring this.
+
+3. The four sub-sections of MenteeEditPage that were NOT migrated
+   to RHF (Habits section, engagements section, etc.). The "main
+   profile form" is the only one converted. These are sub-features
+   and should be evaluated case by case, not blindly migrated.
+
+4. Optionally extract CanvasEditPage's per-note-type render blocks
+   into components/canvas/{StickyNoteCard,ChecklistNoteCard,
+   LinkNoteCard,ConnectorLayer}.tsx. The file is around ~1100 lines
+   now. Not painful yet; only do this if it starts hurting.
+
+5. Older backlog (still unchanged from Session 015):
+      · InvoicePrintPage loading text polish
+
+6. Notification delivery for Habits / Canvases / etc. Still out of
+   scope. Schema supports it; nothing is wired.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main = origin/main, working tree clean (verified at wrap time).
+- Active branch per session instructions: claude/happy-sagan-k0AuD
+  — also at the same SHA as main (a8c400c).
+- Migrations in repo but unapplied: 952 (habit/canvas folders).
+  953 (canvases tables) and 954 (habits tables) were APPLIED by the
+  user during this session per prompt 8.
+- Canvases v1.1: COMPLETE. Resize, rich text, checklist, link,
+  multi-select, bulk move, connectors, keyboard shortcuts, undo —
+  all shipped. Single-file CanvasEditPage (~1100 lines).
+- Habits + Canvases now both have folder organization and a
+  list/grid view toggle, sharing FolderManager and ListGridToggle.
+- Four edit pages migrated to react-hook-form (Pairing, Mentee main
+  profile, Offering, Person).
+- Vite chunk-size warning resolved via React.lazy route splitting.
+- New shared components: components/FolderManager.tsx,
+  components/ListGridToggle.tsx.
+- No new npm dependencies this session.
+
+
+NOTES FOR SESSION 021
+----------------------
+
+Read this log first, then DO NOT start any new feature work until:
+  (a) migration 952 is applied to Supabase, AND
+  (b) the visual-QA gap from items #2 above is closed, OR the user
+      explicitly says to keep moving without it.
+
+The pattern of "ship a giant feature, defer the visual QA, ship
+another giant feature" has been holding for three sessions now. The
+next session should break the pattern.

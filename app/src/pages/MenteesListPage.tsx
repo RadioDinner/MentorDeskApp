@@ -1,14 +1,28 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import MenteeManagePanel from '../components/MenteeManageSlideOver'
+import LoadingErrorState from '../components/LoadingErrorState'
 import type { Mentee } from '../types'
+import Button from '../components/ui/Button'
+import { Skeleton, PageBar } from '../components/ui'
+
+const PAGE_SIZE = 25
+
+interface MenteeProgressSummary {
+  activeCourses: number
+  totalLessons: number
+  completedLessons: number
+  activeEngagements: number
+}
 
 export default function MenteesListPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [mentees, setMentees] = useState<Mentee[]>([])
   const [loading, setLoading] = useState(true)
@@ -16,62 +30,153 @@ export default function MenteesListPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
+  const [progressMap, setProgressMap] = useState<Record<string, MenteeProgressSummary>>({})
+  const [page, setPage] = useState(1)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
-    setError('Request timed out. Please refresh the page.')
-  }, []))
+    setError('Request timed out. The server may be slow or unreachable.')
+  }, []), 15000)
 
   const isMentor = profile?.role === 'mentor' || profile?.role === 'assistant_mentor'
   const isCompact = !!selectedMenteeId
+  const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     if (!profile?.organization_id) { console.warn('[MenteesListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    const orgId = profile.organization_id
+    const profileId = profile.id
+    const mentorMode = isMentor
 
-    async function fetchMentees() {
+    async function loadMentees() {
       setLoading(true)
+      setError(null)
       try {
-        if (isMentor) {
-          const { data: pairingsData, error: pairErr } = await withTimeout(
-            supabase.from('pairings').select('mentee_id').eq('mentor_id', profile!.id).in('status', ['active', 'paused']),
-            10000, 'fetchPairings',
+        if (mentorMode) {
+          // Raw REST to avoid SDK auth-lock hangs
+          const pairingsRes = await supabaseRestGet<{ mentee_id: string }>(
+            'pairings',
+            `select=mentee_id&mentor_id=eq.${profileId}&status=in.(active,paused)`,
+            { label: 'mentees:pairings' },
           )
-          if (pairErr) { setError(pairErr.message); return }
-          const menteeIds = (pairingsData ?? []).map((a: { mentee_id: string }) => a.mentee_id)
+          if (pairingsRes.error) { setError(pairingsRes.error.message); return }
+          const menteeIds = (pairingsRes.data ?? []).map(p => p.mentee_id)
           if (menteeIds.length === 0) {
             setMentees([])
-          } else {
-            const { data, error: fetchError } = await withTimeout(
-              supabase.from('mentees').select('*').in('id', menteeIds).order('first_name', { ascending: true }),
-              10000, 'fetchAssignedMentees',
-            )
-            if (fetchError) { setError(fetchError.message); return }
-            setMentees(data as Mentee[])
+            return
           }
-        } else {
-          const { data, error: fetchError } = await withTimeout(
-            supabase.from('mentees').select('*').eq('organization_id', profile!.organization_id).order('first_name', { ascending: true }),
-            10000, 'fetchAllMentees',
+          const idList = menteeIds.join(',')
+          const menteesRes = await supabaseRestGet<Mentee>(
+            'mentees',
+            `select=*&id=in.(${idList})&order=first_name.asc`,
+            { label: 'mentees:assigned' },
           )
-          if (fetchError) { setError(fetchError.message); return }
-          setMentees(data as Mentee[])
+          if (menteesRes.error) { setError(menteesRes.error.message); return }
+          setMentees(menteesRes.data ?? [])
+        } else {
+          const menteesRes = await supabaseRestGet<Mentee>(
+            'mentees',
+            `select=*&organization_id=eq.${orgId}&order=first_name.asc`,
+            { label: 'mentees:all' },
+          )
+          if (menteesRes.error) { setError(menteesRes.error.message); return }
+          setMentees(menteesRes.data ?? [])
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
+        console.error('[MenteesListPage] loadMentees error:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchMentees()
-  }, [profile?.organization_id, profile?.id, profile?.role])
+    fetchRef.current = loadMentees
+    loadMentees()
+  }, [profile?.organization_id, profile?.id, profile?.role, isMentor])
+
+  // Fetch course progress summaries for all mentees
+  useEffect(() => {
+    if (mentees.length === 0 || !profile?.organization_id) return
+
+    async function fetchProgress() {
+      try {
+        const menteeIds = mentees.filter(m => !m.archived_at).map(m => m.id)
+        if (menteeIds.length === 0) return
+
+        // Get active mentee_offerings (courses + engagements)
+        const { data: moData } = await supabase
+          .from('mentee_offerings')
+          .select('id, mentee_id, offering_id, status, offering:offerings(type)')
+          .in('mentee_id', menteeIds)
+          .eq('status', 'active')
+
+        if (!moData || moData.length === 0) return
+
+        // Supabase returns the joined offering as an object for .single()-style joins
+        const menteeOfferings = (moData as unknown as { id: string; mentee_id: string; offering_id: string; status: string; offering: { type: string } | null }[])
+
+        // Count courses/engagements per mentee
+        const summaries: Record<string, MenteeProgressSummary> = {}
+        const courseMoIds: string[] = []
+        const courseOfferingIds = new Set<string>()
+
+        for (const mo of menteeOfferings) {
+          if (!summaries[mo.mentee_id]) {
+            summaries[mo.mentee_id] = { activeCourses: 0, totalLessons: 0, completedLessons: 0, activeEngagements: 0 }
+          }
+          if (mo.offering?.type === 'course') {
+            summaries[mo.mentee_id].activeCourses++
+            courseMoIds.push(mo.id)
+            courseOfferingIds.add(mo.offering_id)
+          } else if (mo.offering?.type === 'engagement') {
+            summaries[mo.mentee_id].activeEngagements++
+          }
+        }
+
+        // Fetch lesson counts + completed progress in parallel
+        const [lessonsRes, progressRes] = await Promise.all([
+          courseOfferingIds.size > 0
+            ? supabase.from('lessons').select('offering_id').in('offering_id', Array.from(courseOfferingIds))
+            : Promise.resolve({ data: [] }),
+          courseMoIds.length > 0
+            ? supabase.from('lesson_progress').select('mentee_offering_id, mentee_id').in('mentee_offering_id', courseMoIds).eq('status', 'completed')
+            : Promise.resolve({ data: [] }),
+        ])
+
+        if (lessonsRes.data) {
+          const lessonCountsByOffering: Record<string, number> = {}
+          for (const l of lessonsRes.data as { offering_id: string }[]) {
+            lessonCountsByOffering[l.offering_id] = (lessonCountsByOffering[l.offering_id] || 0) + 1
+          }
+          for (const mo of menteeOfferings) {
+            if (mo.offering?.type === 'course' && summaries[mo.mentee_id]) {
+              summaries[mo.mentee_id].totalLessons += lessonCountsByOffering[mo.offering_id] ?? 0
+            }
+          }
+        }
+
+        if (progressRes.data) {
+          for (const p of progressRes.data as { mentee_offering_id: string; mentee_id: string }[]) {
+            if (summaries[p.mentee_id]) {
+              summaries[p.mentee_id].completedLessons++
+            }
+          }
+        }
+
+        setProgressMap(summaries)
+      } catch (err) {
+        console.error('[MenteesListPage] fetchProgress error:', err)
+      }
+    }
+
+    fetchProgress()
+  }, [mentees, profile?.organization_id])
 
   async function archiveMentee(id: string) {
     if (!profile) return
     const now = new Date().toISOString()
     const { error: e } = await supabase.from('mentees').update({ archived_at: now }).eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: now } : m))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'archived', entity_type: 'mentee', entity_id: id })
   }
@@ -79,7 +184,7 @@ export default function MenteesListPage() {
   async function unarchiveMentee(id: string) {
     if (!profile) return
     const { error: e } = await supabase.from('mentees').update({ archived_at: null }).eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.map(m => m.id === id ? { ...m, archived_at: null } : m))
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'unarchived', entity_type: 'mentee', entity_id: id })
   }
@@ -87,26 +192,26 @@ export default function MenteesListPage() {
   async function deleteMentee(id: string) {
     if (!profile) return
     const { error: e } = await supabase.from('mentees').delete().eq('id', id)
-    if (e) return
+    if (e) { toast.error(e.message); return }
     setMentees(ms => ms.filter(m => m.id !== id))
     setConfirmDelete(null)
     if (selectedMenteeId === id) setSelectedMenteeId(null)
     await logAudit({ organization_id: profile.organization_id, actor_id: profile.id, action: 'deleted', entity_type: 'mentee', entity_id: id })
   }
 
-  if (loading) return <div className="text-sm text-gray-500">Loading...</div>
+  if (loading) return <div className="py-4"><Skeleton count={8} className="h-11 w-full" gap="gap-2" /></div>
 
   if (error) {
-    return (
-      <div className="rounded border bg-red-50 border-red-200 px-4 py-3 text-sm text-red-700">
-        Failed to load mentees: {error}
-      </div>
-    )
+    return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
   }
 
   const activeMentees = mentees.filter(m => !m.archived_at)
   const archivedMentees = mentees.filter(m => m.archived_at)
   const displayMentees = showArchived ? mentees : activeMentees
+  // Compact mode shows all mentees (side-nav); full-width view paginates
+  const paginatedMentees = isCompact
+    ? displayMentees
+    : displayMentees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const selectedMentee = mentees.find(m => m.id === selectedMenteeId) ?? null
 
   return (
@@ -132,7 +237,7 @@ export default function MenteesListPage() {
             <div className="flex items-center gap-3">
               {!isMentor && archivedMentees.length > 0 && (
                 <button
-                  onClick={() => setShowArchived(!showArchived)}
+                  onClick={() => { setShowArchived(!showArchived); setPage(1) }}
                   className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
                     showArchived
                       ? 'border-brand bg-brand-light text-brand'
@@ -143,12 +248,7 @@ export default function MenteesListPage() {
                 </button>
               )}
               {!isMentor && (
-                <button
-                  onClick={() => navigate('/mentees/new')}
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 transition"
-                >
-                  + Create Mentee Account
-                </button>
+                <Button onClick={() => navigate('/mentees/new')}>+ Create Mentee Account</Button>
               )}
             </div>
           )}
@@ -161,7 +261,7 @@ export default function MenteesListPage() {
           </div>
         ) : (
           <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 160px)' }}>
-            {displayMentees.map(mentee => {
+            {paginatedMentees.map(mentee => {
               const isArchived = !!mentee.archived_at
               const isSelected = selectedMenteeId === mentee.id
               const isConfirming = confirmDelete === mentee.id
@@ -196,6 +296,11 @@ export default function MenteesListPage() {
               }
 
               /* ── Full row (no panel open) ── */
+              const progress = progressMap[mentee.id]
+              const progressPct = progress && progress.totalLessons > 0
+                ? Math.round((progress.completedLessons / progress.totalLessons) * 100)
+                : null
+
               return (
                 <div key={mentee.id} className={`flex items-center justify-between px-5 py-4 ${isArchived ? 'bg-gray-50/50' : ''}`}>
                   <div className="flex items-center gap-4">
@@ -214,57 +319,65 @@ export default function MenteesListPage() {
                         )}
                       </div>
                       <p className="text-xs text-gray-500 truncate">{mentee.email}</p>
+                      {/* Progress summary (visible when not archived) */}
+                      {!isArchived && progress && (progress.activeCourses > 0 || progress.activeEngagements > 0) && (
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {progress.activeCourses > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-400">
+                                {progress.activeCourses} course{progress.activeCourses !== 1 ? 's' : ''}
+                              </span>
+                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-brand rounded-full transition-all"
+                                  style={{ width: `${progressPct ?? 0}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-medium text-gray-500 tabular-nums">
+                                {progress.completedLessons}/{progress.totalLessons}
+                              </span>
+                            </div>
+                          )}
+                          {progress.activeEngagements > 0 && (
+                            <span className="text-[10px] text-gray-400">
+                              {progress.activeEngagements} engagement{progress.activeEngagements !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     {!isArchived && (
-                      <button
-                        onClick={() => setSelectedMenteeId(mentee.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:text-brand hover:border-brand hover:bg-brand-light transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                        </svg>
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedMenteeId(mentee.id)}>
                         Manage
-                      </button>
+                      </Button>
                     )}
                     {isMentor ? (
-                      <button
-                        onClick={() => navigate(`/mentees/${mentee.id}/edit`)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                      >
+                      <Button variant="secondary" size="sm" onClick={() => navigate(`/mentees/${mentee.id}/edit`)}>
                         View
-                      </button>
+                      </Button>
                     ) : isArchived ? (
                       <>
-                        <button onClick={() => unarchiveMentee(mentee.id)} className="px-3 py-1.5 text-xs font-medium text-brand border border-gray-200 rounded hover:bg-brand-light transition-colors">
-                          Re-activate
-                        </button>
+                        <Button variant="secondary" size="sm" onClick={() => unarchiveMentee(mentee.id)}>Re-activate</Button>
                         {isConfirming ? (
                           <div className="flex items-center gap-1.5">
-                            <button onClick={() => deleteMentee(mentee.id)} className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 rounded hover:bg-red-600 transition-colors">Confirm</button>
-                            <button onClick={() => setConfirmDelete(null)} className="px-2 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+                            <Button variant="danger" size="sm" onClick={() => deleteMentee(mentee.id)}>Confirm</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Button>
                           </div>
                         ) : (
-                          <button onClick={() => setConfirmDelete(mentee.id)} className="px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded hover:bg-red-50 transition-colors">Delete</button>
+                          <Button variant="dangerGhost" size="sm" onClick={() => setConfirmDelete(mentee.id)}>Delete</Button>
                         )}
                       </>
                     ) : (
                       <>
-                        <button
-                          onClick={() => navigate(`/mentees/${mentee.id}/edit`)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                          </svg>
+                        <Button variant="secondary" size="sm" onClick={() => navigate(`/mentees/${mentee.id}/edit`)}>
                           Edit
-                        </button>
+                        </Button>
                         <button
                           onClick={() => archiveMentee(mentee.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-colors"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -278,6 +391,9 @@ export default function MenteesListPage() {
               )
             })}
           </div>
+        )}
+        {!isCompact && (
+          <PageBar page={page} pageSize={PAGE_SIZE} total={displayMentees.length} onPage={setPage} className="mt-2" />
         )}
       </div>
 

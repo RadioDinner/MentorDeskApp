@@ -1,0 +1,124 @@
+SESSION 014 HANDOFF LOG
+=======================
+Date: 2026-04-13
+Branch: main (all commits direct to main, no feature branch used)
+Context: Automatic continuation from Session 013 (ran out of context)
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+All items were committed and pushed directly to main.
+
+1. Item 6 — Mobile responsiveness (commit f5efad0)
+   - AppLayout.tsx: Added mobileSidebarOpen state, wired to Sidebar/Topbar
+   - Topbar.tsx: Added hamburger button (lg:hidden), justify-between layout
+   - Sidebar.tsx: Fixed overlay drawer on mobile (translate-x based show/hide),
+     lg:static on desktop; backdrop overlay on mobile; brand close button (lg:hidden);
+     NavLink onClick closes drawer on navigation
+   - InvoicingPage.tsx: Added overflow-x-auto wrapper inside table card
+   - PayrollPage.tsx: Added overflow-x-auto wrapper inside table card
+
+2. Item 9 — Permission gating (commit f5efad0, same commit as Item 6)
+   - App.tsx: Added ProtectedRoute allowedRoles guards on create/edit routes:
+     - /courses/new, /courses/:id/edit, /courses/:id/builder → ['admin','course_creator']
+     - /engagements/new, /engagements/:id/edit → ['admin','course_creator']
+     - /pairings/new → ['admin','operations']
+     - /staff/new, /mentors/new, /assistant-mentors/new → ['admin','operations']
+     - /mentees/new → ['admin','operations']
+   - PairingsGrid.tsx: Added canEdit prop (default false); mentor column shows
+     read-only span when !canEdit instead of select dropdown
+   - PairingsPage.tsx: Added isAdminOrOps guard:
+     - by_mentor tab: mentor-change select wrapped in {isAdminOrOps && ...}
+     - by_offering tab: mentor shown read-only when !isAdminOrOps
+     - unpaired tab: entire quickPair form wrapped in {isAdminOrOps && ...}
+     - by_status tab: mentor select/quickPair form gated by isAdminOrOps
+
+3. Item 4 (continued) — Loading→Skeleton + mutation error toasts (commit 728c39c)
+   Skeleton replacements in 16 pages:
+     PersonEditPage, PairingCreatePage, PairingEditPage, AvailabilityPage,
+     MenteeCourseViewerPage, MenteeCoursesPage, MenteeEngagementDetailPage,
+     MenteeEngagementsPage, OfferingEditPage, CompanySettingsPage,
+     MenteeBillingPage, MenteeEditPage, OfferingsPage, CourseBuilderPage
+     (+ "Loading sections..." inside CourseBuilder)
+   Mutation error handling:
+     - InvoicingPage: setError(mutation) → toast.error in transition/deleteInvoice
+     - MenteesListPage: silent if(e)return → toast.error in archive/unarchive/delete
+     - PeopleListPage: silent if(e)return → toast.error in archive/unarchive/delete
+
+4. Item 7 — Accessibility for raw overlay modals (commit a578686)
+   EngagementManageModal.tsx:
+     - Added role="dialog" aria-modal="true" aria-labelledby="engagement-modal-title"
+     - Added aria-hidden="true" on backdrop, avatar div, and SVG icons
+     - Added aria-label="Close dialog" to close button
+     - Replaced "Loading..." paragraph with Skeleton component
+   MenteeManageSlideOver.tsx:
+     - Added aria-label="Close panel" and aria-hidden="true" on close button SVG
+     - Replaced "Loading..." div with Skeleton component
+     - Added Skeleton import
+
+5. Item 10 — Vitest test scaffolding (commit 6b2dc6c)
+   New files:
+     app/src/lib/format.test.ts — 18 tests covering all formatters
+     app/src/lib/credits.test.ts — 25 tests covering computeCredits,
+       countCyclesElapsed, countGrants, computeAllocations
+     app/src/lib/scheduling.test.ts — 14 tests covering formatTimeDisplay,
+       hasConflict, getAvailableSlots
+   Setup:
+     - vitest installed as dev dependency
+     - vite.config.ts: test config added (vitest/config import, node env)
+     - package.json: "test" and "test:watch" scripts added
+   Result: 57 tests, all passing
+
+
+POLISH BACKLOG STATUS (as of end of Session 014)
+-------------------------------------------------
+
+  [DONE]    1   Extract shared UI primitives (Session 011)
+  [DONE]    1b  Finish migrating remaining pages (Session 012)
+  [DONE]    2   Kill CompanySettingsPage.optionB.tsx (Session 011)
+  [PARTIAL] 4   Toast + Skeleton infrastructure
+                  - ToastProvider + useToast() ✓
+                  - Skeleton primitive ✓
+                  - Loading→Skeleton on all main pages ✓ (Session 014)
+                  - Mutation errors → toast in key pages ✓ (Session 014)
+                  - errorReporter wired into mutations: still open
+  [DONE]    3   Pagination (Sessions 013)
+  [OPEN]    5   Form validation pass — Zod + React Hook Form
+  [DONE]    6   Mobile responsiveness (Session 014)
+  [DONE]    7   Accessibility pass — modals (Session 014)
+  [DONE]    8   Audit logging coverage (Session 013)
+  [DONE]    9   Permission gating audit (Session 014)
+  [DONE]    10  Test scaffolding — vitest + lib/* unit tests (Session 014)
+  [DONE]    11  Dashboard upgrade (Session 013)
+
+
+OPEN ITEMS / UNRESOLVED
+------------------------
+
+1. Item 5 — Form validation (Zod + React Hook Form):
+   Untouched. MenteeCreatePage was flagged as smallest template (~170 LOC).
+   Approach: add zod + react-hook-form packages, build pattern on one page,
+   then propagate to other create/edit pages. Complex refactor, low priority.
+
+2. Item 4 partial — errorReporter:
+   app/src/lib/errorReporter.ts exists but is not wired into mutation catch
+   blocks across pages. Would need a systematic grep + add pattern.
+
+3. Item 4 partial — remaining "Loading..." text:
+   InvoicePrintPage still has a full-screen centered "Loading invoice..."
+   (intentional — print-specific layout, centered spinner is appropriate).
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+- main is up to date (commit 6b2dc6c) and auto-deploying via Vercel.
+- All 5 items completed this session in direct commits to main.
+- Build is clean: tsc + vite build both pass with no TypeScript errors.
+- Tests: 57 passing (npm run test), 0 failing.
+- No migrations added (UI-only changes).
+- No new npm dependencies except vitest (dev dependency).
+- Feature branch claude/polish-backlog-1DnD3 still exists but is in sync
+  with main (was the original branch for Session 013, all commits landed
+  on main).
