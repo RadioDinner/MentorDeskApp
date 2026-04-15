@@ -1,3 +1,11 @@
 1. Ok, session 18 stalled and turned what was supposed to be a follow up session from issues in session 17 into even more issues. Can you get me back on track?
 
 2. Start in the obvious order, Merge your changes to main and continue pushing to main for the rest of the session
+
+3. keep going
+
+4. I dont see the migration file
+
+5. nevermind I found it
+
+6. I also want to build a feature module in the "Offerings" group of modules called "Canvases". These will be intended to be a space of collaboration between mentor and mentee to do things like brainstorm. A copy cat of Coach Accountables whiteboard feature
