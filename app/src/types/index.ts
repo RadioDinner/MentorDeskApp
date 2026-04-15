@@ -411,8 +411,17 @@ export interface Habit {
   goal_successful_days: number | null
   is_active: boolean
   created_by: string | null
+  folder_id: string | null
   created_at: string
   updated_at: string
+}
+
+export interface HabitFolder {
+  id: string
+  organization_id: string
+  name: string
+  order_index: number
+  created_at: string
 }
 
 export interface HabitStep {
@@ -531,10 +540,22 @@ export interface Canvas {
   content: CanvasContent
   created_by: string | null
   updated_by_uid: string | null
+  folder_id: string | null
   archived_at: string | null
   created_at: string
   updated_at: string
 }
+
+export interface CanvasFolder {
+  id: string
+  organization_id: string
+  name: string
+  order_index: number
+  created_at: string
+}
+
+/** Shared list/grid view-mode type used across pages that support the toggle. */
+export type ViewMode = 'list' | 'grid'
 
 
 export interface StaffMember {
