@@ -16,8 +16,11 @@ import {
   colorClasses,
   createStickyNote,
   WORKSPACE_SIZE,
+  HISTORY_LIMIT,
 } from '../lib/canvas'
-import type { Canvas, CanvasNote, CanvasNoteColor } from '../types'
+import type { Canvas, CanvasConnector, CanvasNote, CanvasNoteColor } from '../types'
+
+type HistorySnapshot = { notes: CanvasNote[]; connectors: CanvasConnector[] }
 
 // ── Component ─────────────────────────────────────────────────────────
 
@@ -29,6 +32,8 @@ export default function CanvasEditPage() {
 
   const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [notes, setNotes] = useState<CanvasNote[]>([])
+  const [connectors, setConnectors] = useState<CanvasConnector[]>([])
+  const [past, setPast] = useState<HistorySnapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -50,6 +55,12 @@ export default function CanvasEditPage() {
     startY: number
     noteStartX: number
     noteStartY: number
+    // Snapshot of pre-drag state, pushed onto the undo stack only if the
+    // user actually moves the pointer (so a plain click doesn't consume
+    // an undo slot).
+    prevNotes: CanvasNote[]
+    prevConnectors: CanvasConnector[]
+    historyPushed: boolean
   } | null>(null)
 
   const backRoute = isMenteeMode ? '/my-canvases' : '/canvases'
@@ -74,6 +85,8 @@ export default function CanvasEditPage() {
         const cNormalized: Canvas = { ...c, content: normalized }
         setCanvas(cNormalized)
         setNotes(normalized.notes)
+        setConnectors(normalized.connectors)
+        setPast([])
         setDirty(false)
 
         // Look up last editor name (best effort)
@@ -121,6 +134,16 @@ export default function CanvasEditPage() {
       if (!s) return
       const dx = e.clientX - s.startX
       const dy = e.clientY - s.startY
+      if (dx === 0 && dy === 0) return
+      // First real movement of this drag — snapshot the pre-drag state.
+      if (!s.historyPushed) {
+        setPast(prev => {
+          const next = [...prev, { notes: s.prevNotes, connectors: s.prevConnectors }]
+          if (next.length > HISTORY_LIMIT) next.shift()
+          return next
+        })
+        s.historyPushed = true
+      }
       setNotes(prev => prev.map(n => n.id === s.noteId
         ? {
             ...n,
@@ -155,10 +178,38 @@ export default function CanvasEditPage() {
     return profile.id === canvas.mentor_id
   })()
 
+  // ── History ─────────────────────────────────────────────────────────
+  //
+  // Snapshot the current { notes, connectors } onto the undo stack BEFORE
+  // any coarse action (add, delete, drag start, color change, starting a
+  // text edit, etc.). We deliberately do NOT snapshot on every keystroke
+  // inside a text editor — the "start editing" event already saved the
+  // pre-edit state, so undo walks back to there in one step.
+
+  function pushHistory() {
+    setPast(prev => {
+      const next = [...prev, { notes, connectors }]
+      if (next.length > HISTORY_LIMIT) next.shift()
+      return next
+    })
+  }
+
+  function undo() {
+    if (past.length === 0) return
+    const snapshot = past[past.length - 1]
+    setPast(prev => prev.slice(0, -1))
+    setNotes(snapshot.notes)
+    setConnectors(snapshot.connectors)
+    // Close any in-progress edit so the restored text sticks.
+    setEditingNoteId(null)
+    setDirty(true)
+  }
+
   // ── Mutations (local state only) ────────────────────────────────────
 
   function addNote() {
     if (!canEdit) return
+    pushHistory()
     const topZ = notes.reduce((m, n) => Math.max(m, n.z), 0)
     // Place near top-left of the current viewport
     const scrollLeft = workspaceRef.current?.scrollLeft ?? 0
@@ -176,6 +227,7 @@ export default function CanvasEditPage() {
 
   function deleteNote(noteId: string) {
     if (!canEdit) return
+    pushHistory()
     setNotes(prev => prev.filter(n => n.id !== noteId))
     if (editingNoteId === noteId) setEditingNoteId(null)
     setDirty(true)
@@ -187,6 +239,7 @@ export default function CanvasEditPage() {
   }
 
   function updateNoteColor(noteId: string, color: CanvasNoteColor) {
+    pushHistory()
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, color } : n))
     setDirty(true)
   }
@@ -213,6 +266,9 @@ export default function CanvasEditPage() {
       startY: e.clientY,
       noteStartX: note.x,
       noteStartY: note.y,
+      prevNotes: notes,
+      prevConnectors: connectors,
+      historyPushed: false,
     }
     e.preventDefault()
   }
@@ -226,7 +282,7 @@ export default function CanvasEditPage() {
       const { error: err } = await supabaseRestCall(
         'canvases',
         'PATCH',
-        { content: { notes }, updated_by_uid: actorUserId },
+        { content: { notes, connectors }, updated_by_uid: actorUserId },
         `id=eq.${canvas.id}`,
       )
       if (err) {
@@ -235,7 +291,7 @@ export default function CanvasEditPage() {
         return
       }
       setDirty(false)
-      setCanvas({ ...canvas, content: { notes, connectors: canvas.content?.connectors ?? [] }, updated_at: new Date().toISOString(), updated_by_uid: actorUserId })
+      setCanvas({ ...canvas, content: { notes, connectors }, updated_at: new Date().toISOString(), updated_by_uid: actorUserId })
       if (profile) {
         setLastEditorLabel(`${profile.first_name} ${profile.last_name}`)
       } else if (menteeProfile) {
@@ -387,6 +443,9 @@ export default function CanvasEditPage() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-3">
         <Button type="button" onClick={addNote} disabled={!canEdit}>+ Note</Button>
+        <Button type="button" variant="secondary" onClick={undo} disabled={!canEdit || past.length === 0}>
+          Undo
+        </Button>
         <Button type="button" onClick={saveCanvas} disabled={!canEdit || !dirty || saving}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
@@ -493,7 +552,11 @@ export default function CanvasEditPage() {
                 ) : (
                   <div
                     className="w-full h-[calc(100%-28px)] overflow-auto px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap break-words"
-                    onDoubleClick={() => canEdit && setEditingNoteId(note.id)}
+                    onDoubleClick={() => {
+                      if (!canEdit) return
+                      pushHistory()
+                      setEditingNoteId(note.id)
+                    }}
                   >
                     {note.text || <span className="text-gray-400 italic">Double-click to edit</span>}
                   </div>
