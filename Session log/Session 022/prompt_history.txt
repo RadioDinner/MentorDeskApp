@@ -3,3 +3,5 @@
 2. Let's do one slice of block 0. Can you manage that?
 
 3. slice 2
+
+4. Slice 3

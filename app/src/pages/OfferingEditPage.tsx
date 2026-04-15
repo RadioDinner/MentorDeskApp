@@ -234,6 +234,19 @@ export default function OfferingEditPage() {
           new_values: updates,
         })
       }
+
+      if (values.addToFlow) {
+        const { data: orgData } = await supabase.from('organizations').select('mentee_flow').eq('id', offering.organization_id).single()
+        if (orgData) {
+          const flow = (orgData.mentee_flow as { steps: { offering_id?: string }[] }) ?? { steps: [] }
+          const alreadyInFlow = flow.steps.some(s => s.offering_id === offering.id)
+          if (!alreadyInFlow) {
+            flow.steps.push({ id: crypto.randomUUID(), name: values.name.trim(), type: offering.type, offering_id: offering.id, in_flow: true, order: flow.steps.length } as { offering_id?: string })
+            await supabase.from('organizations').update({ mentee_flow: flow }).eq('id', offering.organization_id)
+          }
+        }
+      }
+
       toast.success('Offering has been updated.')
     } catch (err) {
       toast.error((err as Error).message || 'Failed to save')
