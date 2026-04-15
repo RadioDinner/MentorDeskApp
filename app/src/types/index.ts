@@ -466,6 +466,40 @@ export interface MenteeHabitStepLog {
   completed_at: string
 }
 
+// ── Canvases ───────────────────────────────────────────────────────────
+
+export type CanvasNoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
+
+export interface CanvasNote {
+  id: string        // client-generated uuid
+  x: number         // px offset from canvas origin
+  y: number
+  width: number
+  height: number
+  text: string
+  color: CanvasNoteColor
+  z: number         // stack order; higher = on top
+}
+
+export interface CanvasContent {
+  notes: CanvasNote[]
+}
+
+export interface Canvas {
+  id: string
+  organization_id: string
+  mentor_id: string
+  mentee_id: string
+  title: string
+  description: string | null
+  content: CanvasContent
+  created_by: string | null
+  updated_by_uid: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 
 export interface StaffMember {
   id: string

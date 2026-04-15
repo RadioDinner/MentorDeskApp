@@ -38,6 +38,10 @@ import HabitCreatePage from './pages/HabitCreatePage'
 import HabitEditPage from './pages/HabitEditPage'
 import MenteeHabitsPage from './pages/MenteeHabitsPage'
 import MenteeHabitDetailPage from './pages/MenteeHabitDetailPage'
+import CanvasesPage from './pages/CanvasesPage'
+import CanvasCreatePage from './pages/CanvasCreatePage'
+import CanvasEditPage from './pages/CanvasEditPage'
+import MenteeCanvasesPage from './pages/MenteeCanvasesPage'
 import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
 
@@ -144,6 +148,13 @@ export default function App() {
                 <HabitEditPage />
               </ProtectedRoute>
             } />
+            <Route path="/canvases" element={<CanvasesPage />} />
+            <Route path="/canvases/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations', 'mentor', 'assistant_mentor']}>
+                <CanvasCreatePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/canvases/:id" element={<CanvasEditPage />} />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />
@@ -155,6 +166,8 @@ export default function App() {
             <Route path="/my-courses/:id" element={<MenteeCourseViewerPage />} />
             <Route path="/my-habits" element={<MenteeHabitsPage />} />
             <Route path="/my-habits/:id" element={<MenteeHabitDetailPage />} />
+            <Route path="/my-canvases" element={<MenteeCanvasesPage />} />
+            <Route path="/my-canvases/:id" element={<CanvasEditPage />} />
             <Route path="/my-billing" element={<MenteeBillingPage />} />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
