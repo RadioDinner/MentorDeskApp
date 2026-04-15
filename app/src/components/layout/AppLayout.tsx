@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import { Skeleton } from '../ui'
 
 export default function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -12,7 +13,9 @@ export default function AppLayout() {
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar onMenuClick={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          <Outlet />
+          <Suspense fallback={<Skeleton count={5} className="h-11 w-full" gap="gap-3" />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

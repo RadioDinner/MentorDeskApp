@@ -1,49 +1,59 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './router/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import ProfilePage from './pages/ProfilePage'
-import CompanySettingsPage from './pages/CompanySettingsPage'
-import PeopleListPage from './pages/PeopleListPage'
-import PersonEditPage from './pages/PersonEditPage'
-import PersonCreatePage from './pages/PersonCreatePage'
-import CoursesPage from './pages/CoursesPage'
-import EngagementsPage from './pages/EngagementsPage'
-import OfferingCreatePage from './pages/OfferingCreatePage'
-import OfferingEditPage from './pages/OfferingEditPage'
-import MenteesListPage from './pages/MenteesListPage'
-import MenteeCreatePage from './pages/MenteeCreatePage'
-import MenteeEditPage from './pages/MenteeEditPage'
-import PairingsPage from './pages/PairingsPage'
-import PairingCreatePage from './pages/PairingCreatePage'
-import PairingEditPage from './pages/PairingEditPage'
-import CourseBuilderPage from './pages/CourseBuilderPage'
-import AuditLogPage from './pages/AuditLogPage'
-import MenteeEngagementsPage from './pages/MenteeEngagementsPage'
-import MenteeCoursesPage from './pages/MenteeCoursesPage'
-import MenteeCourseViewerPage from './pages/MenteeCourseViewerPage'
-import MenteeBillingPage from './pages/MenteeBillingPage'
-import AvailabilityPage from './pages/AvailabilityPage'
-import MentorMeetingsPage from './pages/MentorMeetingsPage'
-import InvoicingPage from './pages/InvoicingPage'
-import InvoicePrintPage from './pages/InvoicePrintPage'
-import PayrollPage from './pages/PayrollPage'
-import MenteeEngagementDetailPage from './pages/MenteeEngagementDetailPage'
-import HabitsPage from './pages/HabitsPage'
-import HabitCreatePage from './pages/HabitCreatePage'
-import HabitEditPage from './pages/HabitEditPage'
-import MenteeHabitsPage from './pages/MenteeHabitsPage'
-import MenteeHabitDetailPage from './pages/MenteeHabitDetailPage'
-import CanvasesPage from './pages/CanvasesPage'
-import CanvasCreatePage from './pages/CanvasCreatePage'
-import CanvasEditPage from './pages/CanvasEditPage'
-import MenteeCanvasesPage from './pages/MenteeCanvasesPage'
-import ComingSoonPage from './pages/ComingSoonPage'
 import DebugPanel from './components/DebugPanel'
+import { Skeleton } from './components/ui'
+
+// LoginPage is the unauthenticated landing page and is always needed in the
+// first chunk, so it stays eager. Everything else is route-level code split:
+// Vite will emit one chunk per page and only download it when the route is
+// first visited. AppLayout's <Suspense> boundary handles per-route transitions
+// so the sidebar stays stable; the top-level <Suspense> below covers the
+// brief window between first render and AppLayout mounting.
+import LoginPage from './pages/LoginPage'
+
+const DashboardPage              = lazy(() => import('./pages/DashboardPage'))
+const ProfilePage                = lazy(() => import('./pages/ProfilePage'))
+const CompanySettingsPage        = lazy(() => import('./pages/CompanySettingsPage'))
+const PeopleListPage             = lazy(() => import('./pages/PeopleListPage'))
+const PersonEditPage             = lazy(() => import('./pages/PersonEditPage'))
+const PersonCreatePage           = lazy(() => import('./pages/PersonCreatePage'))
+const CoursesPage                = lazy(() => import('./pages/CoursesPage'))
+const EngagementsPage            = lazy(() => import('./pages/EngagementsPage'))
+const OfferingCreatePage         = lazy(() => import('./pages/OfferingCreatePage'))
+const OfferingEditPage           = lazy(() => import('./pages/OfferingEditPage'))
+const MenteesListPage            = lazy(() => import('./pages/MenteesListPage'))
+const MenteeCreatePage           = lazy(() => import('./pages/MenteeCreatePage'))
+const MenteeEditPage             = lazy(() => import('./pages/MenteeEditPage'))
+const PairingsPage               = lazy(() => import('./pages/PairingsPage'))
+const PairingCreatePage          = lazy(() => import('./pages/PairingCreatePage'))
+const PairingEditPage            = lazy(() => import('./pages/PairingEditPage'))
+const CourseBuilderPage          = lazy(() => import('./pages/CourseBuilderPage'))
+const AuditLogPage               = lazy(() => import('./pages/AuditLogPage'))
+const MenteeEngagementsPage      = lazy(() => import('./pages/MenteeEngagementsPage'))
+const MenteeCoursesPage          = lazy(() => import('./pages/MenteeCoursesPage'))
+const MenteeCourseViewerPage     = lazy(() => import('./pages/MenteeCourseViewerPage'))
+const MenteeBillingPage          = lazy(() => import('./pages/MenteeBillingPage'))
+const AvailabilityPage           = lazy(() => import('./pages/AvailabilityPage'))
+const MentorMeetingsPage         = lazy(() => import('./pages/MentorMeetingsPage'))
+const InvoicingPage              = lazy(() => import('./pages/InvoicingPage'))
+const InvoicePrintPage           = lazy(() => import('./pages/InvoicePrintPage'))
+const PayrollPage                = lazy(() => import('./pages/PayrollPage'))
+const MenteeEngagementDetailPage = lazy(() => import('./pages/MenteeEngagementDetailPage'))
+const HabitsPage                 = lazy(() => import('./pages/HabitsPage'))
+const HabitCreatePage            = lazy(() => import('./pages/HabitCreatePage'))
+const HabitEditPage              = lazy(() => import('./pages/HabitEditPage'))
+const MenteeHabitsPage           = lazy(() => import('./pages/MenteeHabitsPage'))
+const MenteeHabitDetailPage      = lazy(() => import('./pages/MenteeHabitDetailPage'))
+const CanvasesPage               = lazy(() => import('./pages/CanvasesPage'))
+const CanvasCreatePage           = lazy(() => import('./pages/CanvasCreatePage'))
+const CanvasEditPage             = lazy(() => import('./pages/CanvasEditPage'))
+const MenteeCanvasesPage         = lazy(() => import('./pages/MenteeCanvasesPage'))
+const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 
 export default function App() {
   return (
@@ -52,6 +62,13 @@ export default function App() {
         <ThemeProvider>
         <ToastProvider>
         <DebugPanel />
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
+            <div className="w-full max-w-md">
+              <Skeleton count={5} className="h-11 w-full" gap="gap-3" />
+            </div>
+          </div>
+        }>
         <Routes>
 
           {/* Public */}
@@ -193,6 +210,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
         </Routes>
+        </Suspense>
         </ToastProvider>
         </ThemeProvider>
       </AuthProvider>
