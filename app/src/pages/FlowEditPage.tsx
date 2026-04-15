@@ -46,6 +46,7 @@ export default function FlowEditPage() {
   // Undo stack: each entry is the { nodes, connectors } state BEFORE a
   // coarse action. Capped at HISTORY_LIMIT.
   const [past, setPast] = useState<HistorySnapshot[]>([])
+  const [saving, setSaving] = useState(false)
   const [offerings, setOfferings] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -270,6 +271,7 @@ export default function FlowEditPage() {
   // Keyboard shortcuts:
   //   Escape          — cancel connect mode or label editing
   //   Cmd/Ctrl + Z    — undo
+  //   Cmd/Ctrl + S    — save (only if dirty and not already saving)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       // Don't hijack keys while the user is typing in an input/textarea.
@@ -279,6 +281,11 @@ export default function FlowEditPage() {
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       )
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        if (dirty && !saving) void saveFlow()
+        return
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         if (inField) return
         e.preventDefault()
@@ -299,7 +306,7 @@ export default function FlowEditPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectorMode, editingConnectorId, past, nodes, connectors])
+  }, [connectorMode, editingConnectorId, past, nodes, connectors, dirty, saving])
 
   // ── Node actions ───────────────────────────────────────────────────────
   function handleNodePointerDown(e: React.PointerEvent, node: JourneyNode) {
@@ -404,6 +411,44 @@ export default function FlowEditPage() {
     toast.success(nextArchivedAt ? 'Flow archived' : 'Flow unarchived')
   }
 
+  // ── Save flow content ──────────────────────────────────────────────────
+  async function saveFlow() {
+    if (!flow || !canEdit || saving) return
+    setSaving(true)
+    try {
+      const content = { nodes, connectors }
+      const { error: err } = await supabaseRestCall(
+        'journey_flows',
+        'PATCH',
+        { content },
+        `id=eq.${flow.id}`,
+      )
+      if (err) {
+        toast.error(err.message)
+        return
+      }
+      setFlow({ ...flow, content, updated_at: new Date().toISOString() })
+      setDirty(false)
+      if (profile) {
+        await logAudit({
+          organization_id: profile.organization_id,
+          actor_id: profile.id,
+          action: 'updated',
+          entity_type: 'journey_flow',
+          entity_id: flow.id,
+          details: {
+            sub: 'content',
+            node_count: nodes.length,
+            connector_count: connectors.length,
+          },
+        })
+      }
+      toast.success('Saved')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function deleteFlow() {
     if (!flow) return
     if (!window.confirm(`Delete "${flow.name}"? This cannot be undone.`)) return
@@ -488,6 +533,14 @@ export default function FlowEditPage() {
         <div className="flex items-center gap-2">
           {canEdit && (
             <>
+              <Button
+                variant="primary"
+                onClick={saveFlow}
+                disabled={!dirty || saving}
+                title="Save (⌘S)"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
               <Button variant="secondary" onClick={toggleArchive}>
                 {flow.archived_at ? 'Unarchive' : 'Archive'}
               </Button>
