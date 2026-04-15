@@ -1,0 +1,261 @@
+SESSION 024 HANDOFF LOG
+========================
+Date: 2026-04-15
+Branch: claude/resume-stuck-session-5q4Pe (fast-forwarded to main at end of session)
+
+Session 024 picked up the remaining Journeys work from Session 023's
+handoff and shipped Blocks 13 and 14 of the original 69-slice plan.
+The mentee-side glue — assigning a flow to a mentee and advancing
+them through it — is now live. What's left on the plan is Block 15
+(company-setting UI toggle) and Block 16 (verification/wrap-up polish).
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+Two blocks, two commits on the feature branch, then a fast-forward
+merge to main at session wrap.
+
+
+A) BLOCK 13 — ASSIGN A FLOW TO A MENTEE  (commit b292b40)
+
+   Full Journeys section added to MenteeManageSlideOver, rendered as
+   a full-width card beneath the existing 2-column Courses/Engagements
+   grid. Staff can pick any non-archived journey_flow from a dropdown
+   and click Start, which:
+
+     - Snapshots flow.content into a new mentee_journeys row
+     - Sets current_node_id to the flow's start node id
+     - status='active', assigned_by=profile.id
+     - Writes an audit log entry (mentee_journey/created)
+     - Toasts success
+     - Filters the flow out of the picker for this mentee (no dup
+       active journeys per flow)
+
+   Validation: refuses to start a flow that has no start node (toasts
+   an explanatory error). Empty-state link deep-links to /flows when
+   the org has no flows yet.
+
+   Also:
+     - Summary grid bumped from grid-cols-2 to grid-cols-3 with a new
+       "Active Journeys" counter alongside Active Courses and Open
+       Engagements.
+     - New JourneyCard sub-component renders flow name, current-node
+       label (resolves offering node ids against an allOfferings state
+       lookup), node type badge, and started/completed timestamps.
+     - New state: journeyFlows, menteeJourneys, allOfferings,
+       showJourneySelect. The fetchData useEffect now does a
+       5-way Promise.all including journey_flows (non-archived) and
+       mentee_journeys (active + completed) for this mentee.
+     - migrateContent from lib/journeyFlow is used to normalize jsonb
+       blobs loaded from the DB.
+
+   Touched:
+     - app/src/components/MenteeManageSlideOver.tsx (+203 lines)
+     - Session log/Session 024/prompt_history.txt (logged prompt 2)
+
+   MenteesListPage chunk: 67.64 → 73.23 kB (gzip 14.32 → 15.17 kB).
+
+
+B) BLOCK 14 — ADVANCE HANDLER + PENDING ASSIGNMENT  (commit 21290b8)
+
+   This is the bulk of the mentee-side glue. The JourneyCard now
+   renders one button per outgoing connector from the journey's
+   current node, and clicking a button advances the journey. The
+   handler branches on the target node type:
+
+     end      → status='completed', completed_at=now
+     offering → if journey_auto_assign_offerings is ON for the org,
+                call assignOffering(targetNode.offeringId) to create
+                the mentee_offerings row; if OFF, set
+                pending_assignment_node_id so a mentor can manually
+                confirm later. If the offering is already active on
+                this mentee, skip both (no-op advance, no pending
+                flag).
+     decision → just advance (also clears stale pending flag)
+     status   → just advance (also clears stale pending flag)
+
+   assignOffering was lightly refactored:
+     - Template lookup pulled from allOfferings state (was
+       [...availableCourses, ...availableEngagements]) so it works
+       even when the target offering is already filtered out of the
+       pickers.
+     - Returns Promise<string | null> — the inserted mentee_offering
+       id on success, null on failure — so advanceJourney can detect
+       success and decide whether to actually advance the journey.
+     - All of the existing side effects (setup-fee invoice auto-
+       create, engagement auto_send_invoice, mentee_flow step sync)
+       still fire, so journey auto-advance has full parity with a
+       manual Assign click.
+
+   New helper confirmPendingAssignment(journey):
+     - Called from the JourneyCard's amber "Confirm" button.
+     - Calls assignOffering unless the offering is already active.
+     - Clears pending_assignment_node_id on the journey row.
+     - Audits mentee_journey/confirmed_assignment.
+
+   JourneyCard rebuilt:
+     - Outgoing connector buttons, color-tinted by target type
+       (rose=end, violet=offering, amber=decision, gray=status),
+       labeled with conn.label or the target node label as fallback,
+       with a truncating arrow chip.
+     - Amber "Pending assignment" callout with offering name and
+       Confirm button when pending_assignment_node_id is set.
+     - "No outgoing connectors" italic notice for dead-end journeys
+       where the author forgot to wire a path forward.
+     - New busy prop disables all buttons while an advance is in
+       flight (shares the existing `assigning` state).
+     - New nodeLabel() inline helper replaces the old currentLabel
+       IIFE so the same lookup can be reused for target nodes in the
+       connector button labels.
+
+   New migration 948_mentee_journey_pending_assignment.sql adding
+   pending_assignment_node_id text column to mentee_journeys. Per
+   CLAUDE.md rule #6 numbering counts down — previous lowest was
+   949_journey_auto_assign.sql.
+
+   Type update: MenteeJourney gained pending_assignment_node_id:
+   string | null.
+
+   MenteesListPage pending-journey badge (slice 4 of Block 14):
+     - New pendingJourneyMap state loaded in a dedicated useEffect
+       via supabase.from('mentee_journeys').select('mentee_id').
+       eq('status','active').not('pending_assignment_node_id','is',null).
+     - Full row: amber pill "• N pending" next to the mentee name.
+     - Compact row (panel open): small amber dot to keep density high.
+     - Does not affect de-activated mentees.
+
+   Touched:
+     - app/src/components/MenteeManageSlideOver.tsx (+278 lines)
+     - app/src/pages/MenteesListPage.tsx (+62 lines)
+     - app/src/types/index.ts (+8 lines)
+     - supabase/migrations/948_mentee_journey_pending_assignment.sql
+       (new, 23 lines)
+
+   MenteesListPage chunk: 73.23 → 78.88 kB (gzip 15.17 → 16.51 kB).
+
+
+C) HOUSEKEEPING
+
+   - npm ci to restore @types/node + vite/client stubs (sandbox
+     starts without node_modules, same as every recent session).
+   - Session log folder created with prompt_history.txt and this
+     handoff doc.
+   - Feature branch fast-forward merged to main after both commits.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = 21290b8 (after ff merge), pushed
+  - Working tree clean after session log commit
+  - Tests: 57/57 passing
+  - Build: clean
+    MenteesListPage chunk: 78.88 kB (gzip 16.51 kB) — up from
+    67.64 kB (14.32 kB) at session start. The whole Journeys section
+    (both manage-panel UI and the pending badge on the list page)
+    lands in this chunk because MenteeManageSlideOver is imported
+    from MenteesListPage, and tree-shaking keeps the chunks aligned.
+  - One new migration this session:
+      948_mentee_journey_pending_assignment.sql
+    User still needs to apply it in Supabase (same pattern as 949 +
+    950 from Session 022).
+  - Migration numbers unchanged otherwise:
+      lowest (newest):  948_mentee_journey_pending_assignment.sql
+      highest (oldest): 999
+  - No new npm dependencies
+  - Feature branch claude/resume-stuck-session-5q4Pe is at 21290b8 +
+    this session log commit. Still exists on origin; safe to delete
+    after the session wraps.
+
+
+REMAINING JOURNEYS WORK (from Session 023 handoff)
+----------------------------------------------------
+
+Two blocks still unbuilt:
+
+  BLOCK 15 — Company setting toggle  (2 slices)
+    - Add journey_auto_assign_offerings toggle to CompanySettingsPage
+      with helper text. The column already exists on organizations
+      (migration 949_journey_auto_assign). The org type in
+      app/src/types/index.ts already has the field.
+    - Commit
+
+  BLOCK 16 — Verification + wrap  (3 slices)
+    - Build + test, any polish, write session log, commit
+
+
+DELIBERATELY OUT OF SCOPE
+-------------------------
+
+Same list as Session 023's handoff. Not yet built and NOT in the plan:
+  - Per-mentee journey editing (mentor changes the snapshot mid-journey)
+  - Auto-advance on offering completion (when a mentee finishes a
+    course, auto-advance the journey past its offering node)
+  - Mentee-side read-only "My Journey" view
+  - Legacy mentee_flow migration to Journeys
+  - Notification delivery for pending_assignment (email / in-app)
+  - MenteeEditPage RHF holdouts, InvoicePrintPage loading text
+
+
+NOTES FOR SESSION 025
+---------------------
+
+The Journeys feature is now end-to-end functional for any org with
+journey_auto_assign_offerings = true. A mentor can:
+
+  1. Author a flow (/flows, Session 022/023 work)
+  2. Assign the flow to a mentee (Manage → Journeys → Start)
+  3. Advance the mentee along the flow with one click per step
+  4. See real mentee_offerings rows get created when the journey
+     passes through offering nodes
+  5. Watch the journey auto-complete when it reaches an end node
+
+For orgs with auto-assign OFF, the advance flow also works — it just
+leaves a pending_assignment flag that surfaces as an amber badge on
+MenteesListPage and a Confirm button on the JourneyCard itself. Those
+orgs still need Block 15 (the UI toggle to flip the setting); until
+then the toggle can only be flipped via direct SQL.
+
+Before running Block 15, run `npm ci` in app/ if node_modules is
+missing. CompanySettingsPage is already a big file (~32 kB chunk) and
+the toggle should land in whatever tab groups the other org-level
+settings. A grep for `allow_multi_engagement` will find the right
+place quickly.
+
+Block 14 introduced a type-level concern worth noting: advanceJourney
+narrowing of JourneyNode relies on the discriminated union staying
+tight. If a new node type is added in journeyFlow types, both the
+advance handler and the JourneyCard's nodeLabel() helper need to
+handle it — they currently default to node.label || '(unlabeled)'
+which is correct for label-carrying variants but would silently drop
+a new typed variant.
+
+One thing NOT tested end-to-end this session: a journey reaching an
+end node, auto-completing, and the JourneyCard correctly sliding into
+the completed list via the local optimistic state update. The logic
+looks right (status + completed_at + activeJourneys.filter +
+completedJourneys.filter) but there's no integration test. Worth
+smoke testing in Block 16.
+
+
+PROMPTS LOGGED THIS SESSION
+---------------------------
+
+Four prompts captured in Session 024/prompt_history.txt:
+  1. "can you pick up the last stuck session"
+  2. "Just do block 13 for now"
+  3. "build block 14"
+  4. "push to main and wrap"
+
+
+COMMITS
+-------
+
+  d792c39  Session 024: start prompt history
+  b292b40  Session 024 Block 13: assign Journey flow to mentee
+  21290b8  Session 024 Block 14: journey advance handler + pending assignment
+  (plus a fast-forward merge to main and a session_log commit after
+   this file)
+
+========================================================================
