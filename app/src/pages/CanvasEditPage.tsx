@@ -35,6 +35,7 @@ export default function CanvasEditPage() {
   const [notes, setNotes] = useState<CanvasNote[]>([])
   const [connectors, setConnectors] = useState<CanvasConnector[]>([])
   const [past, setPast] = useState<HistorySnapshot[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -51,11 +52,14 @@ export default function CanvasEditPage() {
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const dragStateRef = useRef<{
-    noteId: string
+    // The note the pointer went down on — used for narrow-on-click.
+    clickedNoteId: string
     startX: number
     startY: number
-    noteStartX: number
-    noteStartY: number
+    // Pre-drag positions for EVERY note being moved (one entry per note
+    // in the current multi-selection). Moving many notes at once applies
+    // the same dx/dy to each entry here.
+    noteStartPositions: Record<string, { x: number; y: number }>
     // Snapshot of pre-drag state, pushed onto the undo stack only if the
     // user actually moves the pointer (so a plain click doesn't consume
     // an undo slot).
@@ -73,6 +77,11 @@ export default function CanvasEditPage() {
     prevConnectors: CanvasConnector[]
     historyPushed: boolean
   } | null>(null)
+  // Latest-ref for the keyboard shortcut handler. The document-level
+  // listener is installed once and always calls through this ref, so
+  // every key press sees the most recent closure over component state
+  // without needing a dep array on the effect.
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {})
 
   const backRoute = isMenteeMode ? '/my-canvases' : '/canvases'
 
@@ -98,6 +107,7 @@ export default function CanvasEditPage() {
         setNotes(normalized.notes)
         setConnectors(normalized.connectors)
         setPast([])
+        setSelectedIds(new Set())
         setDirty(false)
 
         // Look up last editor name (best effort)
@@ -158,13 +168,15 @@ export default function CanvasEditPage() {
           })
           drag.historyPushed = true
         }
-        setNotes(prev => prev.map(n => n.id === drag.noteId
-          ? {
-              ...n,
-              x: Math.max(0, Math.min(WORKSPACE_SIZE.width - n.width, drag.noteStartX + dx)),
-              y: Math.max(0, Math.min(WORKSPACE_SIZE.height - n.height, drag.noteStartY + dy)),
-            }
-          : n))
+        setNotes(prev => prev.map(n => {
+          const start = drag.noteStartPositions[n.id]
+          if (!start) return n
+          return {
+            ...n,
+            x: Math.max(0, Math.min(WORKSPACE_SIZE.width - n.width, start.x + dx)),
+            y: Math.max(0, Math.min(WORKSPACE_SIZE.height - n.height, start.y + dy)),
+          }
+        }))
         return
       }
       const rs = resizeStateRef.current
@@ -194,8 +206,17 @@ export default function CanvasEditPage() {
     }
     function handleUp() {
       if (dragStateRef.current) {
+        const ds = dragStateRef.current
         dragStateRef.current = null
-        setDirty(true)
+        if (ds.historyPushed) {
+          // Real drag occurred — persist the new positions.
+          setDirty(true)
+        } else {
+          // No movement: this was a click on a note. Narrow the selection
+          // to just the clicked note. (If the clicked note was already
+          // the sole selection, this is a no-op.)
+          setSelectedIds(new Set([ds.clickedNoteId]))
+        }
       }
       if (resizeStateRef.current) {
         resizeStateRef.current = null
@@ -208,6 +229,13 @@ export default function CanvasEditPage() {
       document.removeEventListener('pointermove', handleMove)
       document.removeEventListener('pointerup', handleUp)
     }
+  }, [])
+
+  // Keyboard shortcuts — installed once, dispatches through keyHandlerRef.
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => keyHandlerRef.current(e)
+    document.addEventListener('keydown', listener)
+    return () => document.removeEventListener('keydown', listener)
   }, [])
 
   // ── Permission check ────────────────────────────────────────────────
@@ -274,7 +302,65 @@ export default function CanvasEditPage() {
     pushHistory()
     setNotes(prev => prev.filter(n => n.id !== noteId))
     if (editingNoteId === noteId) setEditingNoteId(null)
+    setSelectedIds(prev => {
+      if (!prev.has(noteId)) return prev
+      const next = new Set(prev)
+      next.delete(noteId)
+      return next
+    })
     setDirty(true)
+  }
+
+  function deleteSelected() {
+    if (!canEdit || selectedIds.size === 0) return
+    pushHistory()
+    const ids = selectedIds
+    setNotes(prev => prev.filter(n => !ids.has(n.id)))
+    if (editingNoteId !== null && ids.has(editingNoteId)) setEditingNoteId(null)
+    setSelectedIds(new Set())
+    setDirty(true)
+  }
+
+  // Refresh the keyboard handler ref every render so the installed
+  // document-level listener always sees the latest state closure.
+  //
+  //   N                — add a sticky note
+  //   Delete / Backspace — delete the current selection
+  //   Cmd/Ctrl + Z     — undo
+  //
+  // Any keypress whose target is an <input>, <textarea>, or
+  // contenteditable element is ignored so native text editing
+  // (including the browser's own undo inside a textarea) still works.
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    if (!canEdit) return
+    const target = e.target as HTMLElement | null
+    if (target) {
+      const tag = target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+    }
+
+    // Cmd/Ctrl+Z — undo.
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      undo()
+      return
+    }
+
+    // Everything below is plain-key, no modifiers.
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+
+    if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault()
+      addNote()
+      return
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedIds.size === 0) return
+      e.preventDefault()
+      deleteSelected()
+      return
+    }
   }
 
   function updateNoteText(noteId: string, text: string) {
@@ -320,13 +406,42 @@ export default function CanvasEditPage() {
     // Don't start a drag from the textarea or buttons
     const target = e.target as HTMLElement
     if (target.closest('textarea, button, [data-no-drag]')) return
+
+    // Shift-click toggles this note's membership in the selection and
+    // does NOT start a drag. Matches Figma / Miro convention.
+    if (e.shiftKey) {
+      e.preventDefault()
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(note.id)) next.delete(note.id)
+        else next.add(note.id)
+        return next
+      })
+      return
+    }
+
+    // If the note is already part of the selection, preserve the whole
+    // selection so the drag moves every selected note together. If it
+    // is NOT in the selection, narrow to just this note now.
+    const preserveSelection = selectedIds.has(note.id)
+    const dragIds: Set<string> = preserveSelection
+      ? selectedIds
+      : new Set([note.id])
+    if (!preserveSelection) {
+      setSelectedIds(new Set([note.id]))
+    }
+
     bringToFront(note.id)
+
+    const noteStartPositions: Record<string, { x: number; y: number }> = {}
+    for (const n of notes) {
+      if (dragIds.has(n.id)) noteStartPositions[n.id] = { x: n.x, y: n.y }
+    }
     dragStateRef.current = {
-      noteId: note.id,
+      clickedNoteId: note.id,
       startX: e.clientX,
       startY: e.clientY,
-      noteStartX: note.x,
-      noteStartY: note.y,
+      noteStartPositions,
       prevNotes: notes,
       prevConnectors: connectors,
       historyPushed: false,
@@ -546,6 +661,13 @@ export default function CanvasEditPage() {
       >
         <div
           className="relative"
+          onPointerDown={e => {
+            // Clicking empty workspace clears the selection. Ignore clicks
+            // that bubble up from notes (target !== currentTarget).
+            if (e.target === e.currentTarget) {
+              setSelectedIds(new Set())
+            }
+          }}
           style={{
             width: WORKSPACE_SIZE.width,
             height: WORKSPACE_SIZE.height,
@@ -561,12 +683,12 @@ export default function CanvasEditPage() {
             if (note.type !== 'sticky') return null
             const cc = colorClasses(note.color)
             const isEditing = editingNoteId === note.id
+            const isSelected = selectedIds.has(note.id)
             return (
               <div
                 key={note.id}
                 onPointerDown={e => handleNotePointerDown(e, note)}
-                onClick={() => bringToFront(note.id)}
-                className={`absolute rounded shadow-md border ${cc.bg} ${cc.border} select-none ${isEditing ? 'ring-2 ' + cc.ring : ''}`}
+                className={`absolute rounded shadow-md border ${cc.bg} ${cc.border} select-none ${isEditing || isSelected ? 'ring-2 ' + cc.ring : ''}`}
                 style={{
                   left: note.x,
                   top: note.y,

@@ -3,3 +3,9 @@
 2. merge changes to main and continue pushing to main, then I'll apply the migration. Then lets work on 4. CanvasEditPage
 
 3. Phase A is fine. Just do the 1. Consolidate task
+
+4. go to the next slice
+
+5. lets build another slice
+
+6. lets take bigger chunks, lets keep going. Finish Phase A
