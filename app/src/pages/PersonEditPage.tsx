@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import type { FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
@@ -12,6 +14,35 @@ import { Skeleton } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
 import { reportSupabaseError } from '../lib/errorReporter'
+
+const personalSchema = z.object({
+  first_name: z.string().min(1, 'First name is required'),
+  last_name:  z.string().min(1, 'Last name is required'),
+  email:      z.string().email('Enter a valid email'),
+  phone:      z.string(),
+  role:       z.string(),   // StaffRole at runtime; looser here
+  street:     z.string(),
+  city:       z.string(),
+  state:      z.string(),
+  zip:        z.string(),
+  country:    z.string(),
+})
+
+type PersonalFormValues = z.infer<typeof personalSchema>
+
+const compensationSchema = z.object({
+  pay_type:           z.string(),
+  pay_rate:           z.string(),
+  pay_offering_id:    z.string(),
+  pay_frequency:      z.string(),
+  max_active_mentees: z.string(),
+})
+
+type CompensationFormValues = z.infer<typeof compensationSchema>
+
+const inputClass =
+  'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+const errorClass = 'mt-1 text-xs text-red-500'
 
 const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -48,30 +79,12 @@ export default function PersonEditPage() {
   const [person, setPerson] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
-
-  // Personal info form
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [role, setRole] = useState<StaffRole>('staff')
+  // Timezone is edited via the custom TimezoneSelect (value/onChange props),
+  // so it stays in local state rather than the RHF form.
   const [timezone, setTimezone] = useState<string | null>(null)
-  const [street, setStreet] = useState('')
-  const [city, setCity] = useState('')
-  const [state, setState] = useState('')
-  const [zip, setZip] = useState('')
-  const [country, setCountry] = useState('')
-  const [saving, setSaving] = useState(false)
 
-  // Compensation
-  const [payType, setPayType] = useState<PayType | ''>('')
-  const [payRate, setPayRate] = useState('')
-  const [payOfferingId, setPayOfferingId] = useState<string | null>(null)
-  const [payFrequency, setPayFrequency] = useState<PayFrequency | ''>('')
   const [orgOfferings, setOrgOfferings] = useState<Offering[]>([])
   const [availablePayTypes, setAvailablePayTypes] = useState<PayType[]>([])
-  const [maxActiveMentees, setMaxActiveMentees] = useState('')
-  const [compensationSaving, setCompensationSaving] = useState(false)
 
   // System actions
   const [sendingReset, setSendingReset] = useState(false)
@@ -80,6 +93,28 @@ export default function PersonEditPage() {
   // Archive / Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const personalForm = useForm<PersonalFormValues>({
+    resolver: zodResolver(personalSchema),
+    defaultValues: {
+      first_name: '', last_name: '', email: '', phone: '',
+      role: 'staff',
+      street: '', city: '', state: '', zip: '', country: '',
+    },
+  })
+
+  const compForm = useForm<CompensationFormValues>({
+    resolver: zodResolver(compensationSchema),
+    defaultValues: {
+      pay_type: '',
+      pay_rate: '',
+      pay_offering_id: '',
+      pay_frequency: '',
+      max_active_mentees: '',
+    },
+  })
+
+  const payType = compForm.watch('pay_type') as PayType | ''
 
   useEffect(() => {
     if (!id) return
@@ -99,22 +134,27 @@ export default function PersonEditPage() {
 
       const p = data as StaffMember
       setPerson(p)
-      setFirstName(p.first_name)
-      setLastName(p.last_name)
-      setEmail(p.email)
-      setPhone(p.phone ?? '')
-      setRole(p.role)
       setTimezone(p.timezone ?? null)
-      setStreet(p.street ?? '')
-      setCity(p.city ?? '')
-      setState(p.state ?? '')
-      setZip(p.zip ?? '')
-      setCountry(p.country ?? '')
-      setPayType(p.pay_type ?? '')
-      setPayRate(p.pay_rate != null ? String(p.pay_rate) : '')
-      setPayOfferingId(p.pay_offering_id ?? null)
-      setPayFrequency(p.pay_frequency ?? '')
-      setMaxActiveMentees(p.max_active_mentees != null ? String(p.max_active_mentees) : '')
+
+      personalForm.reset({
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
+        phone: p.phone ?? '',
+        role: p.role,
+        street: p.street ?? '',
+        city: p.city ?? '',
+        state: p.state ?? '',
+        zip: p.zip ?? '',
+        country: p.country ?? '',
+      })
+      compForm.reset({
+        pay_type: p.pay_type ?? '',
+        pay_rate: p.pay_rate != null ? String(p.pay_rate) : '',
+        pay_offering_id: p.pay_offering_id ?? '',
+        pay_frequency: p.pay_frequency ?? '',
+        max_active_mentees: p.max_active_mentees != null ? String(p.max_active_mentees) : '',
+      })
 
       // Fetch org pay settings + offerings (for pay_offering_id dropdown) in parallel
       const [orgRes, offeringsRes] = await Promise.all([
@@ -134,60 +174,84 @@ export default function PersonEditPage() {
     }
 
     fetchPerson()
-  }, [id])
+  }, [id, personalForm, compForm])
 
-  async function handleSave(e: FormEvent) {
-    e.preventDefault()
+  async function onSavePersonal(values: PersonalFormValues) {
     if (!person) return
-    setSaving(true)
+
+    const newVals = {
+      first_name: values.first_name.trim(),
+      last_name: values.last_name.trim(),
+      email: values.email.trim(),
+      phone: values.phone.trim() || null,
+      street: values.street.trim() || null,
+      city: values.city.trim() || null,
+      state: values.state.trim() || null,
+      zip: values.zip.trim() || null,
+      country: values.country.trim() || null,
+    }
 
     const { error } = await supabase
       .from('staff')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        street: street.trim() || null,
-        city: city.trim() || null,
-        state: state.trim() || null,
-        zip: zip.trim() || null,
-        country: country.trim() || null,
+        ...newVals,
         timezone: timezone,
-        role: role,
+        role: values.role as StaffRole,
       })
       .eq('id', person.id)
 
-    setSaving(false)
+    if (error) {
+      reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveProfile' })
+      toast.error(error.message)
+      return
+    }
 
-    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveProfile' }); toast.error(error.message); return }
-
-    const oldVals = { first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, street: person.street, city: person.city, state: person.state, zip: person.zip, country: person.country }
-    const newVals = { first_name: firstName.trim(), last_name: lastName.trim(), email: email.trim(), phone: phone.trim() || null, street: street.trim() || null, city: city.trim() || null, state: state.trim() || null, zip: zip.trim() || null, country: country.trim() || null }
-
-    setPerson({ ...person, ...newVals })
-    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${firstName.trim()} ${lastName.trim()}`, fields: 'personal_info' }, old_values: oldVals, new_values: newVals })
+    const oldVals = {
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      phone: person.phone,
+      street: person.street,
+      city: person.city,
+      state: person.state,
+      zip: person.zip,
+      country: person.country,
+    }
+    setPerson({ ...person, ...newVals, role: values.role as StaffRole, timezone })
+    if (currentUser) {
+      await logAudit({
+        organization_id: person.organization_id,
+        actor_id: currentUser.id,
+        action: 'updated',
+        entity_type: 'staff',
+        entity_id: person.id,
+        details: { name: `${newVals.first_name} ${newVals.last_name}`, fields: 'personal_info' },
+        old_values: oldVals,
+        new_values: newVals,
+      })
+    }
     toast.success('Personal information has been updated.')
   }
 
-  async function handleCompensationSave(e: FormEvent) {
-    e.preventDefault()
+  async function onSaveCompensation(values: CompensationFormValues) {
     if (!person) return
-    setCompensationSaving(true)
 
-    const rateNum = payRate ? parseFloat(payRate) : null
-    const maxMentees = maxActiveMentees ? parseInt(maxActiveMentees) : null
+    const rateNum = values.pay_rate ? parseFloat(values.pay_rate) : null
+    const maxMentees = values.max_active_mentees ? parseInt(values.max_active_mentees) : null
+    const pt = values.pay_type as PayType | ''
     // Only persist pay_offering_id when the selected pay type actually uses it.
-    const offeringIdToSave = payType && OFFERING_LINKED_PAY_TYPES.includes(payType as PayType)
-      ? (payOfferingId || null)
+    const offeringIdToSave = pt && OFFERING_LINKED_PAY_TYPES.includes(pt)
+      ? (values.pay_offering_id || null)
       : null
     // Only persist pay_frequency when the pay type is salary.
-    const frequencyToSave: PayFrequency | null = payType === 'salary' ? (payFrequency || null) : null
+    const frequencyToSave: PayFrequency | null = pt === 'salary'
+      ? ((values.pay_frequency as PayFrequency) || null)
+      : null
 
     const { error } = await supabase
       .from('staff')
       .update({
-        pay_type: payType || null,
+        pay_type: pt || null,
         pay_rate: rateNum,
         pay_offering_id: offeringIdToSave,
         pay_frequency: frequencyToSave,
@@ -195,14 +259,39 @@ export default function PersonEditPage() {
       })
       .eq('id', person.id)
 
-    setCompensationSaving(false)
+    if (error) {
+      reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveCompensation' })
+      toast.error(error.message)
+      return
+    }
 
-    if (error) { reportSupabaseError(error, { component: 'PersonEditPage', action: 'saveCompensation' }); toast.error(error.message); return }
-
-    const oldComp = { pay_type: person.pay_type, pay_rate: person.pay_rate, pay_offering_id: person.pay_offering_id, pay_frequency: person.pay_frequency, max_active_mentees: person.max_active_mentees }
-    const newComp = { pay_type: (payType as PayType) || null, pay_rate: rateNum, pay_offering_id: offeringIdToSave, pay_frequency: frequencyToSave, max_active_mentees: maxMentees }
+    const oldComp = {
+      pay_type: person.pay_type,
+      pay_rate: person.pay_rate,
+      pay_offering_id: person.pay_offering_id,
+      pay_frequency: person.pay_frequency,
+      max_active_mentees: person.max_active_mentees,
+    }
+    const newComp = {
+      pay_type: (pt || null) as PayType | null,
+      pay_rate: rateNum,
+      pay_offering_id: offeringIdToSave,
+      pay_frequency: frequencyToSave,
+      max_active_mentees: maxMentees,
+    }
     setPerson({ ...person, ...newComp })
-    if (currentUser) await logAudit({ organization_id: person.organization_id, actor_id: currentUser.id, action: 'updated', entity_type: 'staff', entity_id: person.id, details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' }, old_values: oldComp, new_values: newComp })
+    if (currentUser) {
+      await logAudit({
+        organization_id: person.organization_id,
+        actor_id: currentUser.id,
+        action: 'updated',
+        entity_type: 'staff',
+        entity_id: person.id,
+        details: { name: `${person.first_name} ${person.last_name}`, fields: 'compensation' },
+        old_values: oldComp,
+        new_values: newComp,
+      })
+    }
     toast.success('Compensation has been updated.')
   }
 
@@ -322,9 +411,9 @@ export default function PersonEditPage() {
     )
   }
 
-  const inputClass =
-    'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
-
+  const { register: personalRegister, handleSubmit: personalHandleSubmit, formState: personalFormState } = personalForm
+  const { register: compRegister, handleSubmit: compHandleSubmit, formState: compFormState } = compForm
+  const personalErrors = personalFormState.errors
   const hasAuthAccount = person.user_id !== null
 
   return (
@@ -358,22 +447,22 @@ export default function PersonEditPage() {
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Personal Information</h2>
 
-            <form onSubmit={handleSave} className="space-y-5">
+            <form onSubmit={personalHandleSubmit(onSavePersonal)} className="space-y-5">
               {/* Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
                     First name
                   </label>
-                  <input id="firstName" type="text" required value={firstName}
-                    onChange={e => setFirstName(e.target.value)} className={inputClass} />
+                  <input id="firstName" type="text" {...personalRegister('first_name')} className={inputClass} />
+                  {personalErrors.first_name && <p className={errorClass}>{personalErrors.first_name.message}</p>}
                 </div>
                 <div>
                   <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Last name
                   </label>
-                  <input id="lastName" type="text" required value={lastName}
-                    onChange={e => setLastName(e.target.value)} className={inputClass} />
+                  <input id="lastName" type="text" {...personalRegister('last_name')} className={inputClass} />
+                  {personalErrors.last_name && <p className={errorClass}>{personalErrors.last_name.message}</p>}
                 </div>
               </div>
 
@@ -383,15 +472,14 @@ export default function PersonEditPage() {
                   <label htmlFor="editEmail" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Email
                   </label>
-                  <input id="editEmail" type="email" required value={email}
-                    onChange={e => setEmail(e.target.value)} className={inputClass} />
+                  <input id="editEmail" type="email" {...personalRegister('email')} className={inputClass} />
+                  {personalErrors.email && <p className={errorClass}>{personalErrors.email.message}</p>}
                 </div>
                 <div>
                   <label htmlFor="editPhone" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Phone
                   </label>
-                  <input id="editPhone" type="tel" value={phone}
-                    onChange={e => setPhone(e.target.value)} placeholder="Optional" className={inputClass} />
+                  <input id="editPhone" type="tel" {...personalRegister('phone')} placeholder="Optional" className={inputClass} />
                 </div>
               </div>
 
@@ -400,8 +488,7 @@ export default function PersonEditPage() {
                 <label htmlFor="editStreet" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Street address
                 </label>
-                <input id="editStreet" type="text" value={street}
-                  onChange={e => setStreet(e.target.value)} placeholder="Optional" className={inputClass} />
+                <input id="editStreet" type="text" {...personalRegister('street')} placeholder="Optional" className={inputClass} />
               </div>
 
               {/* City / State / Zip */}
@@ -410,22 +497,19 @@ export default function PersonEditPage() {
                   <label htmlFor="editCity" className="block text-sm font-medium text-gray-700 mb-1.5">
                     City
                   </label>
-                  <input id="editCity" type="text" value={city}
-                    onChange={e => setCity(e.target.value)} className={inputClass} />
+                  <input id="editCity" type="text" {...personalRegister('city')} className={inputClass} />
                 </div>
                 <div>
                   <label htmlFor="editState" className="block text-sm font-medium text-gray-700 mb-1.5">
                     State
                   </label>
-                  <input id="editState" type="text" value={state}
-                    onChange={e => setState(e.target.value)} className={inputClass} />
+                  <input id="editState" type="text" {...personalRegister('state')} className={inputClass} />
                 </div>
                 <div>
                   <label htmlFor="editZip" className="block text-sm font-medium text-gray-700 mb-1.5">
                     ZIP
                   </label>
-                  <input id="editZip" type="text" value={zip}
-                    onChange={e => setZip(e.target.value)} className={inputClass} />
+                  <input id="editZip" type="text" {...personalRegister('zip')} className={inputClass} />
                 </div>
               </div>
 
@@ -434,8 +518,7 @@ export default function PersonEditPage() {
                 <label htmlFor="editCountry" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Country
                 </label>
-                <input id="editCountry" type="text" value={country}
-                  onChange={e => setCountry(e.target.value)} className={inputClass} />
+                <input id="editCountry" type="text" {...personalRegister('country')} className={inputClass} />
               </div>
 
               {/* Timezone */}
@@ -455,8 +538,7 @@ export default function PersonEditPage() {
                   <label htmlFor="editRole" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Role
                   </label>
-                  <select id="editRole" value={role}
-                    onChange={e => setRole(e.target.value as StaffRole)}
+                  <select id="editRole" {...personalRegister('role')}
                     className={inputClass + ' bg-white'}>
                     {STAFF_UMBRELLA_ROLES.map(r => (
                       <option key={r} value={r}>
@@ -472,8 +554,8 @@ export default function PersonEditPage() {
               )}
 
               <div className="pt-2">
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save changes'}
+                <Button type="submit" disabled={personalFormState.isSubmitting}>
+                  {personalFormState.isSubmitting ? 'Saving…' : 'Save changes'}
                 </Button>
               </div>
             </form>
@@ -488,15 +570,14 @@ export default function PersonEditPage() {
             <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
               <h2 className="text-base font-semibold text-gray-900 mb-3">Compensation</h2>
 
-              <form onSubmit={handleCompensationSave} className="space-y-4">
+              <form onSubmit={compHandleSubmit(onSaveCompensation)} className="space-y-4">
                 <div>
                   <label htmlFor="payType" className="block text-xs font-medium text-gray-700 mb-1">
                     Pay type
                   </label>
                   <select
                     id="payType"
-                    value={payType}
-                    onChange={e => setPayType(e.target.value as PayType | '')}
+                    {...compRegister('pay_type')}
                     className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
                   >
                     <option value="">Not set</option>
@@ -522,8 +603,7 @@ export default function PersonEditPage() {
                           type="number"
                           step="any"
                           min="0"
-                          value={payRate}
-                          onChange={e => setPayRate(e.target.value)}
+                          {...compRegister('pay_rate')}
                           placeholder="0"
                           className="w-full rounded border border-gray-300 pl-8 pr-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
                         />
@@ -540,8 +620,7 @@ export default function PersonEditPage() {
                     </label>
                     <select
                       id="payFrequency"
-                      value={payFrequency}
-                      onChange={e => setPayFrequency(e.target.value as PayFrequency | '')}
+                      {...compRegister('pay_frequency')}
                       className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
                     >
                       <option value="">Select frequency...</option>
@@ -564,8 +643,7 @@ export default function PersonEditPage() {
                       </label>
                       <select
                         id="payOffering"
-                        value={payOfferingId ?? ''}
-                        onChange={e => setPayOfferingId(e.target.value || null)}
+                        {...compRegister('pay_offering_id')}
                         className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white"
                       >
                         <option value="">Select {wantedType}...</option>
@@ -582,8 +660,8 @@ export default function PersonEditPage() {
                   )
                 })()}
 
-                <Button type="submit" disabled={compensationSaving} block>
-                  {compensationSaving ? 'Saving…' : 'Save'}
+                <Button type="submit" disabled={compFormState.isSubmitting} block>
+                  {compFormState.isSubmitting ? 'Saving…' : 'Save'}
                 </Button>
               </form>
             </div>
@@ -593,21 +671,20 @@ export default function PersonEditPage() {
           {(person.role === 'mentor' || person.role === 'assistant_mentor') && (
             <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
               <h2 className="text-base font-semibold text-gray-900 mb-3">Max Active Mentees</h2>
-              <form onSubmit={handleCompensationSave} className="space-y-3">
+              <form onSubmit={compHandleSubmit(onSaveCompensation)} className="space-y-3">
                 <input
                   id="maxMentees"
                   type="number"
                   min="1"
-                  value={maxActiveMentees}
-                  onChange={e => setMaxActiveMentees(e.target.value)}
+                  {...compRegister('max_active_mentees')}
                   placeholder="No limit"
                   className={inputClass}
                 />
                 <p className="text-[11px] text-gray-400">
                   Leave blank for no limit. When this mentor reaches their cap, they'll be greyed out in the pairing screen.
                 </p>
-                <Button type="submit" disabled={compensationSaving} block>
-                  {compensationSaving ? 'Saving…' : 'Save'}
+                <Button type="submit" disabled={compFormState.isSubmitting} block>
+                  {compFormState.isSubmitting ? 'Saving…' : 'Save'}
                 </Button>
               </form>
             </div>
