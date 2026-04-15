@@ -10,6 +10,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import LoadingErrorState from '../components/LoadingErrorState'
 import { formatDateTime } from '../lib/format'
+import { migrateContent } from '../lib/canvas'
 import type { Canvas, CanvasNote, CanvasNoteColor } from '../types'
 
 // ── Color palette ──────────────────────────────────────────────────────
@@ -86,8 +87,12 @@ export default function CanvasEditPage() {
           .single()
         if (err) { setError(err.message); return }
         const c = data as Canvas
-        setCanvas(c)
-        setNotes(c.content?.notes ?? [])
+        // Normalize content through migrateContent so legacy rows (pre-
+        // Session 019 note-type union) get sticky notes upgraded in memory.
+        const normalized = migrateContent(c.content)
+        const cNormalized: Canvas = { ...c, content: normalized }
+        setCanvas(cNormalized)
+        setNotes(normalized.notes)
         setDirty(false)
 
         // Look up last editor name (best effort)
@@ -179,6 +184,7 @@ export default function CanvasEditPage() {
     const scrollTop = workspaceRef.current?.scrollTop ?? 0
     const newNote: CanvasNote = {
       id: clientId(),
+      type: 'sticky',
       x: scrollLeft + 40 + (notes.length % 5) * 20,
       y: scrollTop + 40 + (notes.length % 5) * 20,
       width: NOTE_DEFAULTS.width,
@@ -253,7 +259,7 @@ export default function CanvasEditPage() {
         return
       }
       setDirty(false)
-      setCanvas({ ...canvas, content: { notes }, updated_at: new Date().toISOString(), updated_by_uid: actorUserId })
+      setCanvas({ ...canvas, content: { notes, connectors: canvas.content?.connectors ?? [] }, updated_at: new Date().toISOString(), updated_by_uid: actorUserId })
       if (profile) {
         setLastEditorLabel(`${profile.first_name} ${profile.last_name}`)
       } else if (menteeProfile) {
@@ -452,6 +458,11 @@ export default function CanvasEditPage() {
           }}
         >
           {notes.map(note => {
+            // V1 only supports sticky notes. Checklist and link variants
+            // exist in the type union (Session 019 scaffolding) but the
+            // editor UI for them ships next session. Skip any non-sticky
+            // note defensively — there shouldn't be any in practice yet.
+            if (note.type !== 'sticky') return null
             const cc = colorClasses(note.color)
             const isEditing = editingNoteId === note.id
             return (

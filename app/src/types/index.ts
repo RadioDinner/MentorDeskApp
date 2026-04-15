@@ -470,19 +470,55 @@ export interface MenteeHabitStepLog {
 
 export type CanvasNoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
 
-export interface CanvasNote {
-  id: string        // client-generated uuid
+export interface CanvasBaseNote {
+  id: string        // client-generated id
   x: number         // px offset from canvas origin
   y: number
   width: number
   height: number
-  text: string
   color: CanvasNoteColor
   z: number         // stack order; higher = on top
 }
 
+export interface CanvasStickyNote extends CanvasBaseNote {
+  type: 'sticky'
+  text: string      // markdown: **bold**, *italic*, - bullets
+}
+
+export interface CanvasChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+export interface CanvasChecklistNote extends CanvasBaseNote {
+  type: 'checklist'
+  title: string
+  items: CanvasChecklistItem[]
+}
+
+export type CanvasLinkType = 'course' | 'habit' | 'canvas' | 'url'
+
+export interface CanvasLinkNote extends CanvasBaseNote {
+  type: 'link'
+  label: string
+  linkType: CanvasLinkType
+  linkId: string | null   // id of the target entity (null for external url)
+  linkUrl: string | null  // external URL if linkType === 'url'
+}
+
+export type CanvasNote = CanvasStickyNote | CanvasChecklistNote | CanvasLinkNote
+
+export interface CanvasConnector {
+  id: string
+  fromNoteId: string
+  toNoteId: string
+  label: string
+}
+
 export interface CanvasContent {
   notes: CanvasNote[]
+  connectors: CanvasConnector[]
 }
 
 export interface Canvas {

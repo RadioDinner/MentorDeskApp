@@ -93,7 +93,7 @@ export default function CanvasCreatePage() {
       mentee_id: pairing.mentee_id,
       title: values.title.trim(),
       description: values.description.trim() || null,
-      content: { notes: [] },
+      content: { notes: [], connectors: [] },
       created_by: profile.id,
       updated_by_uid: uid,
     })

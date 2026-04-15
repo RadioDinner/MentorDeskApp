@@ -9,3 +9,13 @@
 5. nevermind I found it
 
 6. I also want to build a feature module in the "Offerings" group of modules called "Canvases". These will be intended to be a space of collaboration between mentor and mentee to do things like brainstorm. A copy cat of Coach Accountables whiteboard feature
+
+7. 1. A  2. D  3. F  4. Good  5. sticky-note-ish is fine for now
+
+8. What would be some features we could add to it beyond sticky notes
+
+9. Do all the things in tier 1
+
+10. Do all the things in Tier 1
+
+11. do your best to wrap the session. Write the handoff doc, merge to main and we'll pick it up tomorrow when you're feeling better
