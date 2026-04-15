@@ -20,6 +20,9 @@ interface MenteeProgressSummary {
   activeEngagements: number
 }
 
+/** Count of journeys with pending_assignment_node_id set, per mentee. */
+type PendingJourneyMap = Record<string, number>
+
 export default function MenteesListPage() {
   const { profile } = useAuth()
   const toast = useToast()
@@ -31,6 +34,7 @@ export default function MenteesListPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
   const [progressMap, setProgressMap] = useState<Record<string, MenteeProgressSummary>>({})
+  const [pendingJourneyMap, setPendingJourneyMap] = useState<PendingJourneyMap>({})
   const [page, setPage] = useState(1)
 
   useLoadingGuard(loading, useCallback(() => {
@@ -172,6 +176,37 @@ export default function MenteesListPage() {
     fetchProgress()
   }, [mentees, profile?.organization_id])
 
+  // Fetch count of pending-assignment journeys per mentee so the list
+  // can surface a badge when a mentor needs to manually confirm an
+  // offering that a journey advance wants to open.
+  useEffect(() => {
+    if (mentees.length === 0) return
+
+    async function fetchPendingJourneys() {
+      try {
+        const menteeIds = mentees.filter(m => !m.archived_at).map(m => m.id)
+        if (menteeIds.length === 0) { setPendingJourneyMap({}); return }
+
+        const { data } = await supabase
+          .from('mentee_journeys')
+          .select('mentee_id')
+          .in('mentee_id', menteeIds)
+          .eq('status', 'active')
+          .not('pending_assignment_node_id', 'is', null)
+
+        const map: PendingJourneyMap = {}
+        for (const row of (data ?? []) as { mentee_id: string }[]) {
+          map[row.mentee_id] = (map[row.mentee_id] || 0) + 1
+        }
+        setPendingJourneyMap(map)
+      } catch (err) {
+        console.error('[MenteesListPage] fetchPendingJourneys error:', err)
+      }
+    }
+
+    fetchPendingJourneys()
+  }, [mentees, profile?.organization_id])
+
   async function archiveMentee(id: string) {
     if (!profile) return
     const now = new Date().toISOString()
@@ -266,6 +301,8 @@ export default function MenteesListPage() {
               const isSelected = selectedMenteeId === mentee.id
               const isConfirming = confirmDelete === mentee.id
 
+              const pendingCount = pendingJourneyMap[mentee.id] ?? 0
+
               /* ── Compact row (when panel is open) ── */
               if (isCompact) {
                 return (
@@ -285,10 +322,18 @@ export default function MenteesListPage() {
                     }`}>
                       {mentee.first_name[0]}{mentee.last_name[0]}
                     </div>
-                    <div className="min-w-0">
-                      <p className={`text-xs font-medium truncate ${isSelected ? 'text-brand' : isArchived ? 'text-gray-400' : 'text-gray-900'}`}>
-                        {mentee.first_name} {mentee.last_name}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className={`text-xs font-medium truncate ${isSelected ? 'text-brand' : isArchived ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {mentee.first_name} {mentee.last_name}
+                        </p>
+                        {pendingCount > 0 && !isArchived && (
+                          <span
+                            title={`${pendingCount} pending journey assignment${pendingCount !== 1 ? 's' : ''}`}
+                            className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500"
+                          />
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-400 truncate">{mentee.email}</p>
                     </div>
                   </button>
@@ -316,6 +361,15 @@ export default function MenteesListPage() {
                         </p>
                         {isArchived && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium shrink-0">De-activated</span>
+                        )}
+                        {!isArchived && pendingCount > 0 && (
+                          <span
+                            title={`${pendingCount} journey assignment${pendingCount !== 1 ? 's' : ''} pending your confirmation. Open Manage to confirm.`}
+                            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium shrink-0"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            {pendingCount} pending
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-gray-500 truncate">{mentee.email}</p>

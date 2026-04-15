@@ -648,6 +648,14 @@ export interface MenteeJourney {
   flow_id: string | null          // null if the source flow was later deleted
   content: JourneyContent         // snapshot copy — edits do not affect the source flow
   current_node_id: string | null  // which node the mentee is currently on
+  /**
+   * When the journey advances into an offering node AND the org has
+   * journey_auto_assign_offerings = false, this is set to that node's
+   * id so the mentor can manually confirm the offering assignment
+   * later. Cleared once the offering is confirmed or the journey
+   * advances past the offering node.
+   */
+  pending_assignment_node_id: string | null
   status: MenteeJourneyStatus
   assigned_by: string | null
   started_at: string

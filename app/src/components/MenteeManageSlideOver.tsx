@@ -36,6 +36,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
+  const [journeyAutoAssign, setJourneyAutoAssign] = useState(true)
 
   const [showCourseSelect, setShowCourseSelect] = useState(false)
   const [showEngagementSelect, setShowEngagementSelect] = useState(false)
@@ -62,7 +63,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       try {
         // Round 1: Fire all independent queries in parallel
         const [orgRes, moRes, offeringsRes, flowsRes, mjRes] = await Promise.all([
-          supabase.from('organizations').select('allow_multi_engagement').eq('id', profile.organization_id).single(),
+          supabase.from('organizations').select('allow_multi_engagement, journey_auto_assign_offerings').eq('id', profile.organization_id).single(),
           supabase.from('mentee_offerings').select('*, offering:offerings(*)').eq('mentee_id', mentee.id).in('status', ['active', 'completed']).order('assigned_at', { ascending: false }),
           supabase.from('offerings').select('*').eq('organization_id', profile.organization_id).order('name'),
           supabase.from('journey_flows').select('*').eq('organization_id', profile.organization_id).is('archived_at', null).order('name'),
@@ -70,6 +71,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         ])
 
         setAllowMultiEngagement(orgRes.data?.allow_multi_engagement ?? false)
+        setJourneyAutoAssign(orgRes.data?.journey_auto_assign_offerings ?? true)
 
         const menteeOfferings = (moRes.data ?? []) as (MenteeOffering & { offering: Offering })[]
         const offerings = (offeringsRes.data ?? []) as Offering[]
@@ -127,11 +129,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     fetchData()
   }, [mentee.id, profile.organization_id])
 
-  async function assignOffering(offeringId: string) {
+  async function assignOffering(offeringId: string): Promise<string | null> {
     setAssigning(true)
     try {
-      // Find the offering template to copy pricing/settings
-      const allOfferings = [...availableCourses, ...availableEngagements]
+      // Find the offering template to copy pricing/settings. Pulled from
+      // allOfferings (not availableCourses/Engagements) so this is reusable
+      // from the journey auto-advance path, where the target offering may
+      // already be in an active assignment filtered out of the pickers.
       const template = allOfferings.find(o => o.id === offeringId)
 
       const { data: insertedArr, error: insertErr } = await supabase
@@ -148,8 +152,8 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         })
         .select('id')
 
-      if (insertErr) { toast.error(insertErr.message); return }
-      const insertedId = insertedArr?.[0]?.id
+      if (insertErr) { toast.error(insertErr.message); return null }
+      const insertedId = insertedArr?.[0]?.id as string | undefined
 
       const { data } = await supabase
         .from('mentee_offerings')
@@ -241,9 +245,12 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           due_date: dueDate,
         })
       }
+
+      return insertedId ?? null
     } catch (err) {
       toast.error((err as Error).message || 'Failed to assign')
       console.error(err)
+      return null
     } finally {
       setAssigning(false)
     }
@@ -301,6 +308,156 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     } finally {
       setAssigning(false)
     }
+  }
+
+  /**
+   * Advance a journey along one of its outgoing connectors.
+   *
+   * Behavior by target node type:
+   *   - end       → mark the journey completed (status + completed_at)
+   *   - offering  → if the org has journey_auto_assign_offerings ON, call
+   *                 assignOffering to create the mentee_offerings row; if
+   *                 OFF, set pending_assignment_node_id so a mentor can
+   *                 manually confirm later. Skip offering creation if the
+   *                 mentee already has an active assignment for it.
+   *   - decision  → just advance; any stale pending flag is cleared
+   *   - status    → just advance; any stale pending flag is cleared
+   */
+  async function advanceJourney(journey: MenteeJourney, targetNodeId: string, connectorLabel: string) {
+    const targetNode = journey.content.nodes.find(n => n.id === targetNodeId)
+    if (!targetNode) {
+      toast.error('Target node not found in journey content.')
+      return
+    }
+
+    const now = new Date().toISOString()
+    const updates: Record<string, unknown> = { current_node_id: targetNodeId }
+    let nextStatus: MenteeJourney['status'] = journey.status
+    let nextCompletedAt: string | null = journey.completed_at
+    let nextPendingNodeId: string | null = null
+    let auditAction: 'advanced' | 'completed' = 'advanced'
+
+    if (targetNode.type === 'end') {
+      updates.status = 'completed'
+      updates.completed_at = now
+      updates.pending_assignment_node_id = null
+      nextStatus = 'completed'
+      nextCompletedAt = now
+      auditAction = 'completed'
+    } else if (targetNode.type === 'offering') {
+      const alreadyActive = assignments.some(
+        a => a.offering?.id === targetNode.offeringId && a.status === 'active',
+      )
+      if (alreadyActive) {
+        // Offering already assigned — advance past it without creating a
+        // duplicate and without flagging pending.
+        updates.pending_assignment_node_id = null
+      } else if (journeyAutoAssign) {
+        const created = await assignOffering(targetNode.offeringId)
+        if (!created) {
+          // assignOffering toasted the error; don't advance.
+          return
+        }
+        updates.pending_assignment_node_id = null
+      } else {
+        updates.pending_assignment_node_id = targetNodeId
+        nextPendingNodeId = targetNodeId
+      }
+    } else {
+      // decision / status / start — just advance
+      updates.pending_assignment_node_id = null
+    }
+
+    const { error } = await supabase
+      .from('mentee_journeys')
+      .update(updates)
+      .eq('id', journey.id)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setMenteeJourneys(prev => prev.map(j =>
+      j.id === journey.id
+        ? {
+            ...j,
+            current_node_id: targetNodeId,
+            status: nextStatus,
+            completed_at: nextCompletedAt,
+            pending_assignment_node_id: nextPendingNodeId,
+            updated_at: now,
+          }
+        : j,
+    ))
+
+    if (targetNode.type === 'end') {
+      toast.success('Journey completed!')
+    } else if (nextPendingNodeId) {
+      toast.success('Advanced — offering flagged for manual assignment.')
+    } else if (targetNode.type !== 'offering') {
+      toast.success('Advanced.')
+    }
+    // For auto-assigned offering path, assignOffering already toasted.
+
+    await logAudit({
+      organization_id: profile.organization_id,
+      actor_id: profile.id,
+      action: auditAction,
+      entity_type: 'mentee_journey',
+      entity_id: journey.id,
+      details: {
+        mentee: `${mentee.first_name} ${mentee.last_name}`,
+        connector_label: connectorLabel || null,
+        target_node_type: targetNode.type,
+        target_node_id: targetNodeId,
+        pending: !!nextPendingNodeId,
+      },
+    })
+  }
+
+  /**
+   * Manually confirm a pending offering assignment. Called from the
+   * JourneyCard when journey_auto_assign_offerings is off and the mentor
+   * is ready to actually create the mentee_offerings row.
+   */
+  async function confirmPendingAssignment(journey: MenteeJourney) {
+    if (!journey.pending_assignment_node_id) return
+    const node = journey.content.nodes.find(n => n.id === journey.pending_assignment_node_id)
+    if (!node || node.type !== 'offering') {
+      toast.error('Pending node is not an offering.')
+      return
+    }
+
+    const alreadyActive = assignments.some(
+      a => a.offering?.id === node.offeringId && a.status === 'active',
+    )
+    if (!alreadyActive) {
+      const created = await assignOffering(node.offeringId)
+      if (!created) return
+    }
+
+    const { error } = await supabase
+      .from('mentee_journeys')
+      .update({ pending_assignment_node_id: null })
+      .eq('id', journey.id)
+    if (error) { toast.error(error.message); return }
+
+    setMenteeJourneys(prev => prev.map(j =>
+      j.id === journey.id ? { ...j, pending_assignment_node_id: null } : j,
+    ))
+
+    await logAudit({
+      organization_id: profile.organization_id,
+      actor_id: profile.id,
+      action: 'confirmed_assignment',
+      entity_type: 'mentee_journey',
+      entity_id: journey.id,
+      details: {
+        mentee: `${mentee.first_name} ${mentee.last_name}`,
+        offering_id: node.offeringId,
+      },
+    })
   }
 
   async function updateAssignment(assignmentId: string, updates: Record<string, unknown>) {
@@ -574,6 +731,9 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                           journey={j}
                           flow={journeyFlows.find(f => f.id === j.flow_id) ?? null}
                           offerings={allOfferings}
+                          onAdvance={advanceJourney}
+                          onConfirmPending={confirmPendingAssignment}
+                          busy={assigning}
                         />
                       ))}
                       {completedJourneys.length > 0 && activeJourneys.length > 0 && (
@@ -587,6 +747,9 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                           journey={j}
                           flow={journeyFlows.find(f => f.id === j.flow_id) ?? null}
                           offerings={allOfferings}
+                          onAdvance={advanceJourney}
+                          onConfirmPending={confirmPendingAssignment}
+                          busy={assigning}
                         />
                       ))}
                     </div>
@@ -1008,24 +1171,43 @@ function LessonDetailRow({
   )
 }
 
-function JourneyCard({ journey, flow, offerings }: {
+function JourneyCard({ journey, flow, offerings, onAdvance, onConfirmPending, busy }: {
   journey: MenteeJourney
   flow: JourneyFlow | null
   offerings: Offering[]
+  onAdvance: (journey: MenteeJourney, targetNodeId: string, connectorLabel: string) => Promise<void>
+  onConfirmPending: (journey: MenteeJourney) => Promise<void>
+  busy: boolean
 }) {
   const isCompleted = journey.status === 'completed'
   const currentNode = journey.content.nodes.find(n => n.id === journey.current_node_id)
 
-  const currentLabel = (() => {
-    if (!currentNode) return 'Unknown'
-    if (currentNode.type === 'start') return 'Start'
-    if (currentNode.type === 'end') return 'End'
-    if (currentNode.type === 'offering') {
-      const o = offerings.find(off => off.id === currentNode.offeringId)
+  // Node label helper — resolves offering nodes against the offerings list.
+  function nodeLabel(node: typeof currentNode): string {
+    if (!node) return 'Unknown'
+    if (node.type === 'start') return 'Start'
+    if (node.type === 'end') return 'End'
+    if (node.type === 'offering') {
+      const o = offerings.find(off => off.id === node.offeringId)
       return o?.name ?? 'Unknown offering'
     }
-    return currentNode.label || '(unlabeled)'
-  })()
+    return node.label || '(unlabeled)'
+  }
+
+  const currentLabel = nodeLabel(currentNode)
+
+  // Outgoing connectors from the current node — the advance options.
+  const outgoing = currentNode
+    ? journey.content.connectors.filter(c => c.fromNodeId === currentNode.id)
+    : []
+
+  // Pending assignment state
+  const pendingNode = journey.pending_assignment_node_id
+    ? journey.content.nodes.find(n => n.id === journey.pending_assignment_node_id)
+    : null
+  const pendingOffering = pendingNode && pendingNode.type === 'offering'
+    ? offerings.find(o => o.id === pendingNode.offeringId)
+    : null
 
   return (
     <div className={`rounded-lg border ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}`}>
@@ -1044,6 +1226,72 @@ function JourneyCard({ journey, flow, offerings }: {
           <span className="font-medium text-gray-700">{currentLabel}</span>
           {currentNode && <span className="text-[10px] text-gray-400">({currentNode.type})</span>}
         </div>
+
+        {/* Pending assignment callout */}
+        {!isCompleted && pendingNode && (
+          <div className="mt-2.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-amber-800">Pending assignment</p>
+                <p className="text-[11px] text-amber-700 truncate">
+                  {pendingOffering?.name ?? 'Unknown offering'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onConfirmPending(journey)}
+                disabled={busy}
+                className="shrink-0 px-2.5 py-1 text-[11px] font-medium rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Advance options (outgoing connectors from the current node) */}
+        {!isCompleted && outgoing.length > 0 && (
+          <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Advance to</p>
+            <div className="flex flex-wrap gap-1.5">
+              {outgoing.map(conn => {
+                const target = journey.content.nodes.find(n => n.id === conn.toNodeId)
+                const targetLabel = nodeLabel(target)
+                const connLabel = conn.label || targetLabel
+                const typeBadge = target?.type === 'end'
+                  ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                  : target?.type === 'offering'
+                    ? 'border-violet-200 text-violet-600 hover:bg-violet-50'
+                    : target?.type === 'decision'
+                      ? 'border-amber-200 text-amber-600 hover:bg-amber-50'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                return (
+                  <button
+                    key={conn.id}
+                    type="button"
+                    onClick={() => onAdvance(journey, conn.toNodeId, conn.label)}
+                    disabled={busy}
+                    title={`→ ${targetLabel}`}
+                    className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border disabled:opacity-50 transition-colors ${typeBadge}`}
+                  >
+                    <span className="truncate max-w-[140px]">{connLabel}</span>
+                    <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Dead-end notice: active journey with no outgoing connectors and
+            not on an end node — the flow author forgot to connect this. */}
+        {!isCompleted && currentNode && currentNode.type !== 'end' && outgoing.length === 0 && (
+          <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 italic">No outgoing connectors — this journey has nowhere to advance.</p>
+          </div>
+        )}
 
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
           <span>Started {new Date(journey.started_at).toLocaleDateString()}</span>
