@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
-import type { StaffMember } from '../types'
+import type { StaffMember, MentorTask } from '../types'
 import { Skeleton } from '../components/ui'
 
 function getGreeting(): string {
@@ -333,6 +333,8 @@ interface MentorMentee {
 function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate: (path: string) => void }) {
   const [mentees, setMentees] = useState<MentorMentee[]>([])
   const [loading, setLoading] = useState(true)
+  const [pendingTasks, setPendingTasks] = useState<MentorTask[]>([])
+  const [tasksLoading, setTasksLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
@@ -391,7 +393,27 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
       }
     }
 
+    async function fetchTasks() {
+      setTasksLoading(true)
+      try {
+        const { data } = await supabase
+          .from('mentor_tasks')
+          .select('*')
+          .eq('mentor_id', profile.id)
+          .eq('status', 'pending')
+          .order('priority', { ascending: true }) // urgent first (alphabetical: normal > urgent, so asc puts urgent... wait, 'n' < 'u', so desc)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        setPendingTasks((data ?? []) as MentorTask[])
+      } catch (err) {
+        console.error('[MentorDashboard] fetchTasks error:', err)
+      } finally {
+        setTasksLoading(false)
+      }
+    }
+
     fetchData()
+    fetchTasks()
   }, [profile.id])
 
   return (
@@ -401,7 +423,7 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
         <p className="text-sm text-gray-500 mt-1">{formatDate()}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
           <p className="text-3xl font-bold text-gray-900 tabular-nums">{mentees.length}</p>
           <p className="text-xs text-gray-500 mt-1">Active mentees</p>
@@ -412,6 +434,60 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
           </p>
           <p className="text-xs text-gray-500 mt-1">Active pairings</p>
         </div>
+        <div className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
+          <p className="text-3xl font-bold text-gray-900 tabular-nums">{pendingTasks.length}{pendingTasks.length === 5 ? '+' : ''}</p>
+          <p className="text-xs text-gray-500 mt-1">Pending tasks</p>
+        </div>
+      </div>
+
+      {/* Tasks widget */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tasks</h3>
+          <button
+            onClick={() => navigate('/my-tasks')}
+            className="text-xs font-medium text-brand hover:text-brand-hover transition-colors"
+          >
+            View all →
+          </button>
+        </div>
+        {tasksLoading ? (
+          <Skeleton count={2} className="h-14 w-full" gap="gap-2" />
+        ) : pendingTasks.length === 0 ? (
+          <div className="bg-white rounded-md border border-gray-200/80 px-5 py-6 text-center">
+            <p className="text-sm text-gray-400">No pending tasks.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {pendingTasks.map(t => (
+              <div
+                key={t.id}
+                onClick={() => navigate('/my-tasks')}
+                className={`bg-white rounded-md border px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-gray-300 transition-colors ${
+                  t.priority === 'urgent' ? 'border-amber-300' : 'border-gray-200/80'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full shrink-0 ${t.priority === 'urgent' ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {t.source === 'journey_decision' && (
+                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600">Journey</span>
+                    )}
+                    {t.due_date && (
+                      <span className={`text-[10px] ${t.due_date <= new Date().toISOString().slice(0, 10) ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                        Due {new Date(t.due_date + 'T00:00:00').toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>

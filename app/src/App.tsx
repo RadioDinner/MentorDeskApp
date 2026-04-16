@@ -56,6 +56,7 @@ const MenteeCanvasesPage         = lazy(() => import('./pages/MenteeCanvasesPage
 const JourneysPage               = lazy(() => import('./pages/JourneysPage'))
 const JourneyCreatePage          = lazy(() => import('./pages/JourneyCreatePage'))
 const JourneyEditPage            = lazy(() => import('./pages/JourneyEditPage'))
+const MentorTasksPage            = lazy(() => import('./pages/MentorTasksPage'))
 const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 
 export default function App() {
@@ -189,6 +190,7 @@ export default function App() {
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />
             <Route path="/meetings" element={<MentorMeetingsPage />} />
+            <Route path="/my-tasks" element={<MentorTasksPage />} />
             {/* Mentee-specific routes */}
             <Route path="/my-engagements" element={<MenteeEngagementsPage />} />
             <Route path="/my-engagements/:id" element={<MenteeEngagementDetailPage />} />

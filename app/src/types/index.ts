@@ -667,6 +667,30 @@ export interface MenteeJourney {
   updated_at: string
 }
 
+// ── Mentor Tasks ─────────────────────────────────────────────────────
+
+export type MentorTaskPriority = 'normal' | 'urgent'
+export type MentorTaskStatus   = 'pending' | 'done'
+export type MentorTaskSource   = 'manual' | 'journey_decision'
+
+export interface MentorTask {
+  id: string
+  organization_id: string
+  mentor_id: string
+  title: string
+  notes: string | null
+  priority: MentorTaskPriority
+  status: MentorTaskStatus
+  due_date: string | null
+  mentee_id: string | null
+  mentee_journey_id: string | null
+  decision_node_id: string | null
+  source: MentorTaskSource
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 /** Shared list/grid view-mode type used across pages that support the toggle. */
 export type ViewMode = 'list' | 'grid'
 

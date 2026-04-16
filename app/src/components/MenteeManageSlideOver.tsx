@@ -414,6 +414,34 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         pending: !!nextPendingNodeId,
       },
     })
+
+    // Auto-create a mentor task when the journey reaches a decision node
+    if (targetNode.type === 'decision') {
+      try {
+        // Find the mentor(s) paired with this mentee
+        const { data: pairings } = await supabase
+          .from('pairings')
+          .select('mentor_id')
+          .eq('mentee_id', mentee.id)
+          .in('status', ['active', 'paused'])
+        const mentorIds = [...new Set((pairings ?? []).map(p => p.mentor_id))]
+        const decLabel = 'label' in targetNode ? (targetNode as { label?: string }).label || 'Decision' : 'Decision'
+        for (const mentorId of mentorIds) {
+          await supabase.from('mentor_tasks').insert({
+            organization_id: profile.organization_id,
+            mentor_id: mentorId,
+            title: `Decision needed: ${mentee.first_name} ${mentee.last_name} — ${decLabel}`,
+            mentee_id: mentee.id,
+            mentee_journey_id: journey.id,
+            decision_node_id: targetNodeId,
+            source: 'journey_decision',
+            priority: 'urgent',
+          })
+        }
+      } catch (err) {
+        console.error('[MenteeManageSlideOver] auto-task creation error:', err)
+      }
+    }
   }
 
   /**
