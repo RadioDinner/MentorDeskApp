@@ -18,6 +18,7 @@ import {
   migrateContent,
   createOfferingNode,
   createDecisionNode,
+  createStatusNode,
   createConnector,
   nodeSize,
   snapToGrid,
@@ -514,6 +515,16 @@ export default function JourneyEditPage() {
     relayoutIfAuto(nextNodes, connectors)
   }
 
+  function addStatusNode() {
+    pushHistory()
+    const { x, y } = spawnPosition('status')
+    const newNode = createStatusNode(x, y, 'Status')
+    const nextNodes = [...nodes, newNode]
+    setNodes(nextNodes)
+    setDirty(true)
+    relayoutIfAuto(nextNodes, connectors)
+  }
+
   function toggleEndNode(nodeId: string) {
     pushHistory()
     setNodes(prev => prev.map(n =>
@@ -742,6 +753,7 @@ export default function JourneyEditPage() {
             )}
           </div>
           <Button variant="secondary" onClick={addDecisionNode}>+ Decision</Button>
+          <Button variant="secondary" onClick={addStatusNode}>+ Status</Button>
           <div className="w-px h-5 bg-gray-200 mx-1" />
           <Button
             variant="secondary"
@@ -1009,7 +1021,7 @@ export default function JourneyEditPage() {
                     {sublabel && (
                       <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>{sublabel}</div>
                     )}
-                    {isDecisionType && editingNodeId === n.id ? (
+                    {(isDecisionType || n.type === 'status') && editingNodeId === n.id ? (
                       <input
                         autoFocus
                         data-no-drag
@@ -1020,10 +1032,10 @@ export default function JourneyEditPage() {
                           if (e.key === 'Enter') { e.preventDefault(); saveNodeLabel(n.id) }
                           if (e.key === 'Escape') { e.preventDefault(); setEditingNodeId(null); setEditingNodeLabel('') }
                         }}
-                        placeholder="Decision label..."
-                        className="text-sm font-medium text-gray-900 bg-transparent border-b border-amber-400 outline-none w-full"
+                        placeholder={isDecisionType ? 'Decision label...' : 'Status label...'}
+                        className={`text-sm font-medium text-gray-900 bg-transparent border-b outline-none w-full ${isDecisionType ? 'border-amber-400' : 'border-gray-400'}`}
                       />
-                    ) : isDecisionType ? (
+                    ) : (isDecisionType || n.type === 'status') ? (
                       <div
                         data-no-drag
                         onClick={e => { e.stopPropagation(); beginEditNodeLabel(n) }}
