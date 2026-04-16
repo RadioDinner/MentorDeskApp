@@ -572,6 +572,7 @@ export interface JourneyBaseNode {
   id: string     // client-generated id
   x: number      // px offset from workspace origin
   y: number
+  isEnd?: boolean // when true, reaching this node completes the journey
 }
 
 export interface JourneyStartNode extends JourneyBaseNode {

@@ -17,3 +17,5 @@
 9. phase 2
 
 10. Phase 3 and 4
+
+11. The decision block, should have the ability to have 2 or more outcomes, maybe with a button within a button on the decision node? Also, I don't want the +Status or +End buttons or nodes on the flow creation page. I want a node to be selectable as the "end" and I want the ability to update status on the nodes. So if the new person joins the flow, they start at "Get to know us" and then go to 1 of 2 things, a course or an engagement. The engagement, when opened on the mentee, should auto update the status. Also, the decision block looks stupid goofy being sideways like that. Dont ever do that.

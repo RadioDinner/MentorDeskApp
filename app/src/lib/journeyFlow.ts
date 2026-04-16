@@ -90,19 +90,21 @@ function migrateNode(raw: unknown): JourneyNode | null {
   if (typeof o.id !== 'string') return null
   const x = typeof o.x === 'number' ? o.x : 0
   const y = typeof o.y === 'number' ? o.y : 0
+  const isEnd = o.isEnd === true ? true : undefined
   const type = o.type as string
   switch (type) {
     case 'start':
-      return { id: o.id, x, y, type: 'start' }
+      return { id: o.id, x, y, type: 'start', isEnd }
     case 'offering':
       if (typeof o.offeringId !== 'string') return null
-      return { id: o.id, x, y, type: 'offering', offeringId: o.offeringId }
+      return { id: o.id, x, y, type: 'offering', offeringId: o.offeringId, isEnd }
     case 'decision':
-      return { id: o.id, x, y, type: 'decision', label: typeof o.label === 'string' ? o.label : '' }
+      return { id: o.id, x, y, type: 'decision', label: typeof o.label === 'string' ? o.label : '', isEnd }
     case 'status':
-      return { id: o.id, x, y, type: 'status', label: typeof o.label === 'string' ? o.label : '' }
+      return { id: o.id, x, y, type: 'status', label: typeof o.label === 'string' ? o.label : '', isEnd }
     case 'end':
-      return { id: o.id, x, y, type: 'end' }
+      // Legacy end nodes: treat as isEnd=true for backwards compat.
+      return { id: o.id, x, y, type: 'end', isEnd: true }
     default:
       return null
   }

@@ -17,8 +17,6 @@ import {
   migrateContent,
   createOfferingNode,
   createDecisionNode,
-  createStatusNode,
-  createEndNode,
   createConnector,
   nodeSize,
   snapToGrid,
@@ -33,7 +31,6 @@ import type {
   JourneyConnector,
   JourneyOfferingNode,
   JourneyDecisionNode,
-  JourneyStatusNode,
   Offering,
   FlowLayoutMode,
 } from '../types'
@@ -435,24 +432,12 @@ export default function FlowEditPage() {
     relayoutIfAuto(nextNodes, connectors)
   }
 
-  function addStatusNode() {
+  function toggleEndNode(nodeId: string) {
     pushHistory()
-    const { x, y } = spawnPosition('status')
-    const newNode = createStatusNode(x, y, 'Status')
-    const nextNodes = [...nodes, newNode]
-    setNodes(nextNodes)
+    setNodes(prev => prev.map(n =>
+      n.id === nodeId ? { ...n, isEnd: !n.isEnd } : n,
+    ))
     setDirty(true)
-    relayoutIfAuto(nextNodes, connectors)
-  }
-
-  function addEndNode() {
-    pushHistory()
-    const { x, y } = spawnPosition('end')
-    const newNode = createEndNode(x, y)
-    const nextNodes = [...nodes, newNode]
-    setNodes(nextNodes)
-    setDirty(true)
-    relayoutIfAuto(nextNodes, connectors)
   }
 
   function handleAutoLayout() {
@@ -675,8 +660,6 @@ export default function FlowEditPage() {
             )}
           </div>
           <Button variant="secondary" onClick={addDecisionNode}>+ Decision</Button>
-          <Button variant="secondary" onClick={addStatusNode}>+ Status</Button>
-          <Button variant="secondary" onClick={addEndNode}>+ End</Button>
           <div className="w-px h-5 bg-gray-200 mx-1" />
           <Button
             variant="secondary"
@@ -877,9 +860,12 @@ export default function FlowEditPage() {
               key={n.id}
               node={n}
               offerings={offerings}
+              connectors={connectors}
+              canEdit={canEdit}
               isConnectSource={connectorMode?.sourceId === n.id}
               connectorMode={!!connectorMode}
               onPointerDown={e => handleNodePointerDown(e, n)}
+              onToggleEnd={() => toggleEndNode(n.id)}
             />
           ))}
         </div>
@@ -890,29 +876,45 @@ export default function FlowEditPage() {
 
 // ── Node renderers ───────────────────────────────────────────────────────
 
+/** Small badge shown when a node is marked as the end of the flow. */
+function EndBadge() {
+  return (
+    <span className="absolute -top-2 -right-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 border border-rose-200 shadow-sm z-10">
+      End
+    </span>
+  )
+}
+
 function NodeView({
   node,
   offerings,
+  connectors,
+  canEdit,
   isConnectSource,
   connectorMode,
   onPointerDown,
+  onToggleEnd,
 }: {
   node: JourneyNode
   offerings: Offering[]
+  connectors: JourneyConnector[]
+  canEdit: boolean
   isConnectSource: boolean
   connectorMode: boolean
   onPointerDown: (e: React.PointerEvent) => void
+  onToggleEnd: () => void
 }) {
   const size = NODE_DEFAULTS[node.type]
   const common: React.CSSProperties = {
     left: node.x,
     top: node.y,
     width: size.width,
-    height: size.height,
+    minHeight: size.height,
     cursor: connectorMode ? 'crosshair' : 'grab',
     zIndex: 1,
   }
   const ringClass = isConnectSource ? `ring-2 ${COLORS[node.type].ring}` : ''
+  const endBorder = node.isEnd ? 'border-rose-400' : ''
 
   if (node.type === 'start') {
     const c = COLORS.start
@@ -927,6 +929,7 @@ function NodeView({
     )
   }
 
+  // Legacy end nodes — still renderable for old flows.
   if (node.type === 'end') {
     const c = COLORS.end
     return (
@@ -940,68 +943,91 @@ function NodeView({
     )
   }
 
+  // Legacy status nodes — still renderable for old flows.
   if (node.type === 'status') {
-    return <StatusNodeView node={node} common={common} ringClass={ringClass} onPointerDown={onPointerDown} />
+    const c = COLORS.status
+    return (
+      <div
+        onPointerDown={onPointerDown}
+        className={`absolute rounded-md border-2 shadow-sm flex items-center justify-center px-3 select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
+        style={common}
+      >
+        {node.isEnd && <EndBadge />}
+        <span className={`text-sm font-medium truncate ${c.text}`}>{node.label || 'Status'}</span>
+        {canEdit && !connectorMode && (
+          <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
+            className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
+            title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
+          >{node.isEnd ? 'End ✓' : 'Set end'}</button>
+        )}
+      </div>
+    )
   }
 
   if (node.type === 'decision') {
-    return <DecisionNodeView node={node} common={common} ringClass={ringClass} onPointerDown={onPointerDown} />
+    return (
+      <DecisionNodeView node={node} connectors={connectors} canEdit={canEdit}
+        common={common} ringClass={ringClass} endBorder={endBorder}
+        connectorMode={connectorMode} onPointerDown={onPointerDown} onToggleEnd={onToggleEnd} />
+    )
   }
 
   // offering
-  return <OfferingNodeView node={node} offerings={offerings} common={common} ringClass={ringClass} onPointerDown={onPointerDown} />
-}
-
-function StatusNodeView({
-  node,
-  common,
-  ringClass,
-  onPointerDown,
-}: {
-  node: JourneyStatusNode
-  common: React.CSSProperties
-  ringClass: string
-  onPointerDown: (e: React.PointerEvent) => void
-}) {
-  const c = COLORS.status
   return (
-    <div
-      onPointerDown={onPointerDown}
-      className={`absolute rounded-md border-2 shadow-sm flex items-center justify-center px-3 select-none ${c.bg} ${c.border} ${ringClass}`}
-      style={common}
-    >
-      <span className={`text-sm font-medium truncate ${c.text}`}>{node.label || 'Status'}</span>
-    </div>
+    <OfferingNodeView node={node} offerings={offerings} canEdit={canEdit}
+      common={common} ringClass={ringClass} endBorder={endBorder}
+      connectorMode={connectorMode} onPointerDown={onPointerDown} onToggleEnd={onToggleEnd} />
   )
 }
 
 function DecisionNodeView({
   node,
+  connectors,
+  canEdit,
   common,
   ringClass,
+  endBorder,
+  connectorMode,
   onPointerDown,
+  onToggleEnd,
 }: {
   node: JourneyDecisionNode
+  connectors: JourneyConnector[]
+  canEdit: boolean
   common: React.CSSProperties
   ringClass: string
+  endBorder: string
+  connectorMode: boolean
   onPointerDown: (e: React.PointerEvent) => void
+  onToggleEnd: () => void
 }) {
   const c = COLORS.decision
-  // A rotated square approximates a diamond. Inside it we counter-rotate
-  // a label wrapper so the text stays upright.
+  // Outgoing connectors from this decision node.
+  const outcomes = connectors.filter(cn => cn.fromNodeId === node.id)
   return (
     <div
       onPointerDown={onPointerDown}
-      className={`absolute flex items-center justify-center select-none ${ringClass}`}
+      className={`absolute rounded-md border-2 shadow-sm px-3 py-2 flex flex-col justify-center select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
       style={common}
     >
-      <div
-        className={`absolute inset-0 border-2 shadow-sm ${c.bg} ${c.border}`}
-        style={{ transform: 'rotate(45deg) scale(0.72)', transformOrigin: 'center' }}
-      />
-      <span className={`relative text-xs font-medium text-center px-3 ${c.text}`}>
-        {node.label || 'Decision'}
-      </span>
+      {node.isEnd && <EndBadge />}
+      <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>Decision</div>
+      <div className="text-sm font-medium text-gray-900 truncate">{node.label || 'Untitled'}</div>
+      {outcomes.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5" data-no-drag>
+          {outcomes.map(o => (
+            <span key={o.id} className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[90px]">
+              {o.label || '...'}
+            </span>
+          ))}
+        </div>
+      )}
+      {canEdit && !connectorMode && (
+        <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
+          className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
+          title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
+        >{node.isEnd ? 'End ✓' : 'Set end'}</button>
+      )}
     </div>
   )
 }
@@ -1009,15 +1035,23 @@ function DecisionNodeView({
 function OfferingNodeView({
   node,
   offerings,
+  canEdit,
   common,
   ringClass,
+  endBorder,
+  connectorMode,
   onPointerDown,
+  onToggleEnd,
 }: {
   node: JourneyOfferingNode
   offerings: Offering[]
+  canEdit: boolean
   common: React.CSSProperties
   ringClass: string
+  endBorder: string
+  connectorMode: boolean
   onPointerDown: (e: React.PointerEvent) => void
+  onToggleEnd: () => void
 }) {
   const c = COLORS.offering
   const offering = offerings.find(o => o.id === node.offeringId)
@@ -1028,11 +1062,18 @@ function OfferingNodeView({
   return (
     <div
       onPointerDown={onPointerDown}
-      className={`absolute rounded-md border-2 shadow-sm px-3 py-2 flex flex-col justify-center select-none ${c.bg} ${c.border} ${ringClass}`}
+      className={`absolute rounded-md border-2 shadow-sm px-3 py-2 flex flex-col justify-center select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
       style={common}
     >
+      {node.isEnd && <EndBadge />}
       <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>{kind}</div>
       <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
+      {canEdit && !connectorMode && (
+        <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
+          className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
+          title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
+        >{node.isEnd ? 'End ✓' : 'Set end'}</button>
+      )}
     </div>
   )
 }

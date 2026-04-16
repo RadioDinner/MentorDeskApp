@@ -337,7 +337,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     let nextPendingNodeId: string | null = null
     let auditAction: 'advanced' | 'completed' = 'advanced'
 
-    if (targetNode.type === 'end') {
+    if (targetNode.type === 'end' || targetNode.isEnd) {
       updates.status = 'completed'
       updates.completed_at = now
       updates.pending_assignment_node_id = null
@@ -391,7 +391,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
         : j,
     ))
 
-    if (targetNode.type === 'end') {
+    if (targetNode.type === 'end' || targetNode.isEnd) {
       toast.success('Journey completed!')
     } else if (nextPendingNodeId) {
       toast.success('Advanced — offering flagged for manual assignment.')
@@ -1186,7 +1186,7 @@ function JourneyCard({ journey, flow, offerings, onAdvance, onConfirmPending, bu
   function nodeLabel(node: typeof currentNode): string {
     if (!node) return 'Unknown'
     if (node.type === 'start') return 'Start'
-    if (node.type === 'end') return 'End'
+    if (node.type === 'end' || node.isEnd) return node.isEnd && 'label' in node && node.label ? `${node.label} (End)` : 'End'
     if (node.type === 'offering') {
       const o = offerings.find(off => off.id === node.offeringId)
       return o?.name ?? 'Unknown offering'
@@ -1258,7 +1258,7 @@ function JourneyCard({ journey, flow, offerings, onAdvance, onConfirmPending, bu
                 const target = journey.content.nodes.find(n => n.id === conn.toNodeId)
                 const targetLabel = nodeLabel(target)
                 const connLabel = conn.label || targetLabel
-                const typeBadge = target?.type === 'end'
+                const typeBadge = (target?.type === 'end' || target?.isEnd)
                   ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
                   : target?.type === 'offering'
                     ? 'border-violet-200 text-violet-600 hover:bg-violet-50'
