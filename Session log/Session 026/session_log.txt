@@ -1,0 +1,231 @@
+SESSION 026 HANDOFF LOG
+========================
+Date: 2026-04-16
+Branch: main (all work committed directly)
+
+Session 026 renamed Flows to Journeys across the entire UI, built the
+Mentor Tasks system, overhauled the journey flow editor with port-based
+connections and a node settings sidebar, and fixed a meeting cancellation
+FK bug.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+A) RENAME FLOWS → JOURNEYS  (commit ac72f49)
+
+   Renamed the entire "Flows" feature to "Journeys" in all user-facing
+   text, routes, file names, and navigation.
+
+   Files renamed:
+   - FlowsPage.tsx → JourneysPage.tsx
+   - FlowCreatePage.tsx → JourneyCreatePage.tsx
+   - FlowEditPage.tsx → JourneyEditPage.tsx
+
+   Routes: /flows → /journeys (with /flows legacy redirects)
+   Sidebar: module key 'flows' → 'journeys', label 'Journeys'
+   All UI strings updated: page titles, buttons, toasts, empty states,
+   placeholders, error messages.
+
+   Backwards compat: Sidebar + ModuleAccessControl normalize old 'flows'
+   key in allowed_modules to 'journeys' so existing staff access works.
+
+   KEPT AS-IS: "Mentee Flow" in Company Settings per user request.
+   Database table/column names unchanged (journey_flows, flow_folders, etc.)
+
+
+B) MENTOR TASKS SYSTEM  (commit b12f412)
+
+   New persistent to-do system for mentors with auto-generated journey
+   decision tasks.
+
+   Database: migration 946_mentor_tasks.sql
+   - mentor_tasks table with RLS policies
+   - Fields: title, notes, priority (normal/urgent), due_date,
+     mentee_id, mentee_journey_id, decision_node_id,
+     source (manual/journey_decision), status (pending/done)
+
+   MentorTasksPage (/my-tasks):
+   - Full task list with pending/done/all filter tabs
+   - Manual task creation (title, notes, due date, priority)
+   - Journey decision tasks show advance buttons inline
+   - Click a decision button → journey advances + task auto-completes
+   - Stale detection for decisions already handled
+
+   Mentor Dashboard:
+   - 3-column KPI grid with "Pending tasks" count
+   - Tasks widget showing up to 5 pending tasks with click-through
+
+   Mentor Sidebar: new "Tasks" nav item
+
+   Auto-task creation:
+   - When journey advances to a decision node (MenteeManageSlideOver),
+     system auto-creates urgent task for each paired mentor
+   - Title: "Decision needed: [Mentee] — [Decision Label]"
+
+
+C) JOURNEY EDITOR OVERHAUL — PORT-BASED CONNECTIONS  (commit f1dfff9)
+
+   Complete rewrite of the journey flow editor interaction model.
+
+   Port circles (draw.io / Whimsical style):
+   - Input port: circle at top center of each node (except Start)
+   - Output port(s): circle(s) at bottom of each node
+   - Decision nodes: N+1 output ports (one per existing connector + one
+     dashed "new connection" port)
+
+   Drag-to-connect:
+   - Drag from any output port → dashed indigo preview line follows
+     cursor → drop on a node's input port to create connector
+   - Removed old "Connect" button from toolbar
+
+   Connector rendering:
+   - Lines draw from output port to input port (not center-to-center)
+   - Clean vertical bezier curves for top-to-bottom flow
+   - Arrow markers at target end
+
+   Delete node:
+   - × button appears on hover (top-left of each node)
+   - Removes node + all its connectors
+
+   journeyFlow.ts additions:
+   - PORT_RADIUS, inputPortPos(), outputPortPos(), decisionOutputPorts()
+   - Updated connectorPath() for port-to-port vertical S-curves
+
+
+D) MEETINGS CANCELLED_BY FK FIX  (commit c8c4418)
+
+   Bug: meetings.cancelled_by had FK to staff(id), but mentees cancel
+   their own meetings (writing mentee ID). Caused FK violation.
+
+   Fix: migration 945_meetings_cancelled_by_fix.sql drops the FK
+   constraint so cancelled_by accepts any UUID.
+
+
+E) JOURNEY EDITOR — SINGLE SCREEN + DECISION EDITING  (commit 7876f22)
+
+   - Workspace shrunk from 2400×1800 to 1200×800 (fits one screen)
+   - Decision nodes: click-to-edit label inline, removed outcome chips
+   - Decision node size increased to 220×96 for editable area
+   - Status nodes also click-to-edit
+
+
+F) STATUS NODE BUTTON RESTORED  (commit 0f8f744)
+
+   Re-added "+ Status" button to the journey editor toolbar.
+   Status node labels are click-to-edit (same as decision nodes).
+
+
+G) NODE SETTINGS SIDEBAR  (commit 18878a6)
+
+   Click any node → settings sidebar opens on the right side.
+
+   Offering nodes:
+   - Shows linked offering name/type
+   - "After completion" trigger with 3 modes:
+     - Auto-advance immediately
+     - Auto-advance after delay (configurable hours/days)
+     - Manual review (creates mentor task)
+   - Delay value + unit controls
+
+   Decision nodes:
+   - Editable label field
+   - Description textarea
+   - Lists outgoing paths
+
+   Start node:
+   - Entry trigger: Manual or Webhook
+
+   Status/End nodes:
+   - Label editing or info display
+
+   Data model (types/index.ts):
+   - JourneyStartNode: entryTrigger field
+   - JourneyOfferingNode: advanceTrigger, delayValue, delayUnit
+   - JourneyDecisionNode: description field
+   - New types: AdvanceTrigger, DelayUnit
+   All fields optional — existing data unaffected.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = 18878a6, pushed
+  - Working tree clean after session log commit
+  - Tests: 57/57 passing
+  - Build: clean
+  - New migrations this session:
+      946_mentor_tasks.sql
+      945_meetings_cancelled_by_fix.sql
+    User needs to apply both in Supabase.
+  - Migration numbers:
+      lowest (newest):  945_meetings_cancelled_by_fix.sql
+      highest (oldest): 999
+  - No new npm dependencies
+
+
+DELIBERATE DESIGN DECISIONS
+----------------------------
+
+  - advanceTrigger / delayValue / delayUnit are stored per-node in the
+    journey template JSON (not in a separate DB table). This means the
+    settings travel with the flow and are snapshot-copied into mentee
+    journeys. The actual automation that reads these settings and
+    triggers advances is not yet built — the settings are the data
+    model prep for it.
+
+  - The node settings sidebar is inside JourneyEditPage (not a separate
+    component file) because it's tightly coupled to the editor state
+    (nodes, connectors, updateNode).
+
+  - Mentor Tasks use the pairings table to determine which mentor(s) to
+    notify when a journey hits a decision node. If a mentee has multiple
+    mentors (via multiple pairings), all get a task.
+
+  - cancelled_by FK was dropped entirely rather than changed to a
+    polymorphic reference. The column is a UUID that can hold either a
+    staff or mentee ID — the app layer knows which based on context.
+
+  - Module key rename from 'flows' to 'journeys' is handled in the
+    frontend only (Sidebar + ModuleAccessControl normalize). No DB
+    migration to update existing allowed_modules arrays — the frontend
+    mapping handles it transparently.
+
+
+OPEN ITEMS / FUTURE WORK
+--------------------------
+
+  - Auto-advance automation: the advanceTrigger settings are stored
+    but not yet wired to actual triggers. Needs a backend process
+    (or Supabase edge function) that watches meeting completions and
+    advances journeys based on the trigger mode + delay.
+
+  - Webhook entry trigger: the Start node's entryTrigger='webhook'
+    setting exists but no endpoint is built. Future: a Supabase edge
+    function or API endpoint that creates a mentee + assigns the
+    journey when called from the website.
+
+  - Auto-status-on-entry: when a mentee enters a journey via webhook,
+    auto-set their status to "Lead" (discussed but not implemented).
+
+  - The MentorTasksPage has full advance-from-task functionality, but
+    the auto_delay trigger mode doesn't yet auto-create delayed tasks.
+
+  - Per-mentee journey editing, auto-advance on offering completion,
+    mentee-side "My Journey" view — still out of scope from prior
+    sessions.
+
+
+COMMITS THIS SESSION
+---------------------
+
+  ac72f49  Rename Flows to Journeys throughout the UI
+  b12f412  Mentor Tasks: persistent to-do system with journey decision integration
+  f1dfff9  Journey editor: port-based connections (draw.io style)
+  c8c4418  Fix: drop meetings.cancelled_by FK to staff
+  7876f22  Journey editor: single-screen workspace, editable decision labels
+  0f8f744  Journey editor: add Status node button back to toolbar
+  18878a6  Journey editor: node settings sidebar with advance trigger controls
+  (plus prompt history and session log commits)
+
+========================================================================
