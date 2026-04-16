@@ -1,0 +1,161 @@
+SESSION 025 HANDOFF LOG
+========================
+Date: 2026-04-16
+Branch: claude/build-block-15-QXgEG (fast-forwarded to main)
+
+Session 025 shipped the final two blocks of the Journeys 69-slice plan:
+Block 15 (company setting toggle) and Block 16 (verification + wrap).
+The Journeys feature is now complete.
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+A) BLOCK 15 — COMPANY SETTING TOGGLE  (commit f92750d)
+
+   Added journey_auto_assign_offerings toggle to CompanySettingsPage in
+   the Offerings card, placed after "Multiple open engagements". Three
+   touch points in the component:
+
+     1. State: journeyAutoAssign boolean, default false
+     2. Load: read from org.journey_auto_assign_offerings in fetchOrg
+     3. Save: included in the updates object in handleSave
+
+   UI: standard toggle row matching the existing pattern, with:
+     - Label: "Auto-assign offerings from Journeys"
+     - Helper: "When a mentee's journey reaches an offering node,
+       automatically create the course or engagement assignment. When
+       off, the journey pauses and a mentor must manually confirm the
+       assignment."
+
+   No new migration needed — the DB column already existed from
+   migration 949_journey_auto_assign.sql (Session 022).
+
+   Touched:
+     - app/src/pages/CompanySettingsPage.tsx (+12 lines)
+
+   CompanySettingsPage chunk: 33.03 kB (gzip 7.73 kB) — unchanged
+   from Session 024 (the toggle adds negligible weight).
+
+
+B) BLOCK 16 — VERIFICATION + WRAP
+
+   Full verification pass:
+
+     - Build: clean (tsc -b + vite build), 845ms
+     - Tests: 57/57 passing
+     - Code audit of all Journeys files found no issues:
+       * journey_auto_assign_offerings correctly read in
+         MenteeManageSlideOver (defaults to true on the mentee side)
+       * advanceJourney handler covers all node types (end, offering,
+         decision, status) with proper branching
+       * No TODO/FIXME comments or placeholder code
+       * FlowEditPage correctly uses migrateContent from journeyFlow
+       * No unused imports or missing null checks
+       * Pending assignment flow properly wired end-to-end
+       * Type safety is solid across the discriminated union
+
+   No polish changes needed — the feature is production-ready.
+
+   Touched:
+     - Session log/Session 025/prompt_history.txt
+     - Session log/Session 025/session_log.txt (this file)
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = f92750d (after ff merge) + this session log commit
+  - Working tree clean after session log commit
+  - Tests: 57/57 passing
+  - Build: clean
+    CompanySettingsPage chunk: 33.03 kB (gzip 7.73 kB)
+    MenteesListPage chunk: 78.88 kB (gzip 16.51 kB)
+  - No new migrations this session
+  - Migration numbers unchanged:
+      lowest (newest):  948_mentee_journey_pending_assignment.sql
+      highest (oldest): 999
+  - No new npm dependencies
+  - Feature branch claude/build-block-15-QXgEG is at the same commit
+    as main. Safe to delete.
+
+
+JOURNEYS FEATURE — COMPLETE
+-----------------------------
+
+All 16 blocks of the 69-slice Journeys plan are now shipped:
+
+  Block 0:  Bug fix (Session 022)
+  Block 1:  Migration 950 — journey_flows + mentee_journeys tables
+  Block 2:  Migration 949 — journey_auto_assign_offerings column
+  Block 3:  TypeScript types
+  Block 4:  journeyFlow lib (migrateContent, node factories)
+  Block 5:  Sidebar "Flows" link
+  Block 6:  FlowsPage — list + folder management
+  Block 7:  FlowCreatePage — create + initial editor shell
+  Block 8:  FlowEditPage — node rendering + drag
+  Block 9:  FlowEditPage — toolbar (add nodes)
+  Block 10: FlowEditPage — connectors (SVG + connect mode + labels)
+  Block 11: FlowEditPage — undo history
+  Block 12: FlowEditPage — save flow content
+  Block 13: MenteeManageSlideOver — assign flow to mentee
+  Block 14: MenteeManageSlideOver — advance handler + pending assignment
+  Block 15: CompanySettingsPage — journey_auto_assign_offerings toggle
+  Block 16: Verification + wrap (this block)
+
+
+DELIBERATELY OUT OF SCOPE
+-------------------------
+
+Same list from Sessions 021-024. Not built and NOT in the plan:
+  - Per-mentee journey editing (mentor changes the snapshot mid-journey)
+  - Auto-advance on offering completion (when a mentee finishes a
+    course, auto-advance the journey past its offering node)
+  - Mentee-side read-only "My Journey" view
+  - Legacy mentee_flow migration to Journeys
+  - Notification delivery for pending_assignment (email / in-app)
+  - MenteeEditPage RHF holdouts, InvoicePrintPage loading text
+
+
+NOTES FOR SESSION 026
+---------------------
+
+The Journeys feature is fully complete. An admin can now:
+
+  1. Author a journey flow (/flows) with nodes and connectors
+  2. Assign the flow to a mentee (Manage → Journeys → Start)
+  3. Advance the mentee through the flow one step at a time
+  4. See offerings auto-assigned (or pend for manual confirmation)
+  5. Toggle auto-assign behavior in Company Settings → Offerings
+  6. Watch journeys auto-complete when they reach an end node
+
+Migrations the user needs to have applied (from Sessions 022/024):
+  - 950_journey_tables.sql
+  - 949_journey_auto_assign.sql
+  - 948_mentee_journey_pending_assignment.sql
+
+One thing NOT tested end-to-end (noted in Session 024 handoff): a
+journey reaching an end node, auto-completing, and the JourneyCard
+correctly sliding into the completed list via local optimistic state.
+The logic looks correct but there's no integration test. Worth a quick
+manual smoke test when time allows.
+
+The next feature work is up to the user — there are no remaining
+planned blocks.
+
+
+PROMPTS LOGGED THIS SESSION
+---------------------------
+
+Two prompts captured in Session 025/prompt_history.txt:
+  1. "Can you build block 15 and commit it to main"
+  2. "Now build block 16"
+
+
+COMMITS
+-------
+
+  f92750d  Session 025 Block 15: journey auto-assign offerings toggle
+  (plus this session log commit after this file)
+
+========================================================================
