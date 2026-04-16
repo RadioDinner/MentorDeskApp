@@ -2,3 +2,5 @@ SESSION 026 — PROMPT HISTORY
 =============================
 
 1. Let's start a new session. In this session we'll do this task "Rename the whole system to "Journeys" rather than Flows. KEEP the Mentee Flow in Company options for now. "
+
+2. Ok push these changes to main and keep pushing to main for the remainder of the session
