@@ -1,11 +1,14 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabaseRestGet } from '../lib/supabase'
+import { supabase, supabaseRestGet } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
+import { useToast } from '../context/ToastContext'
 import LoadingErrorState from '../components/LoadingErrorState'
-import { Skeleton } from '../components/ui'
-import type { Offering, MenteeOffering, Meeting } from '../types'
+import { Skeleton, Modal } from '../components/ui'
+import Button from '../components/ui/Button'
+import type { Offering, MenteeOffering, Meeting, CancellationPolicy } from '../types'
+import { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 type Tab = 'engagements' | 'upcoming' | 'past'
 
@@ -16,7 +19,12 @@ interface MenteeEngagement extends MenteeOffering {
 interface MeetingWithContext extends Meeting {
   mentee_offering: {
     id: string
-    offering: { id: string; name: string } | null
+    offering: {
+      id: string
+      name: string
+      use_org_default_cancellation: boolean
+      cancellation_policy: CancellationPolicy | null
+    } | null
   } | null
   mentor: { id: string; first_name: string; last_name: string } | null
 }
@@ -27,11 +35,16 @@ const JOIN_WINDOW_MINUTES = 15
 export default function MenteeEngagementsPage() {
   const { menteeProfile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [engagements, setEngagements] = useState<MenteeEngagement[]>([])
   const [meetings, setMeetings] = useState<MeetingWithContext[]>([])
   const [tab, setTab] = useState<Tab>('engagements')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [orgCancelPolicy, setOrgCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [cancelTarget, setCancelTarget] = useState<MeetingWithContext | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -49,7 +62,7 @@ export default function MenteeEngagementsPage() {
       setError(null)
       try {
         // Engagements + meetings (with engagement + mentor joined) in parallel.
-        const [engRes, meetingsRes] = await Promise.all([
+        const [engRes, meetingsRes, orgRes] = await Promise.all([
           supabaseRestGet<MenteeOffering & { offering: Offering | null }>(
             'mentee_offerings',
             `select=*,offering:offerings(*)&mentee_id=eq.${menteeId}&status=in.(active,completed)&order=assigned_at.desc`,
@@ -57,14 +70,23 @@ export default function MenteeEngagementsPage() {
           ),
           supabaseRestGet<MeetingWithContext>(
             'meetings',
-            `select=*,mentee_offering:mentee_offerings(id,offering:offerings(id,name)),mentor:staff!meetings_mentor_id_fkey(id,first_name,last_name)` +
+            `select=*,mentee_offering:mentee_offerings(id,offering:offerings(id,name,use_org_default_cancellation,cancellation_policy)),mentor:staff!meetings_mentor_id_fkey(id,first_name,last_name)` +
               `&mentee_id=eq.${menteeId}` +
               `&order=starts_at.asc`,
             { label: 'mentee:engagements:meetings' },
           ),
+          supabaseRestGet<{ default_cancellation_policy: CancellationPolicy }>(
+            'organizations',
+            `select=default_cancellation_policy&id=eq.${menteeProfile!.organization_id}`,
+            { label: 'mentee:engagements:orgPolicy' },
+          ),
         ])
         if (engRes.error) { setError(engRes.error.message); return }
         if (meetingsRes.error) { setError(meetingsRes.error.message); return }
+
+        if (orgRes.data?.[0]?.default_cancellation_policy) {
+          setOrgCancelPolicy(orgRes.data[0].default_cancellation_policy)
+        }
 
         const all = engRes.data ?? []
         setEngagements(all
@@ -99,6 +121,42 @@ export default function MenteeEngagementsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [meetings],
   )
+
+  function getEffectivePolicy(m: MeetingWithContext): CancellationPolicy {
+    const off = m.mentee_offering?.offering
+    if (!off || off.use_org_default_cancellation || !off.cancellation_policy) return orgCancelPolicy
+    return off.cancellation_policy
+  }
+
+  function isWithinCancelWindow(m: MeetingWithContext): boolean {
+    const policy = getEffectivePolicy(m)
+    const windowMs = policy.cancel_window_unit === 'days'
+      ? policy.cancel_window_value * 86400000
+      : policy.cancel_window_value * 3600000
+    return new Date(m.starts_at).getTime() - Date.now() >= windowMs
+  }
+
+  async function handleCancelMeeting() {
+    if (!cancelTarget || !menteeProfile) return
+    setCancelling(true)
+    try {
+      const { error: updateErr } = await supabase.from('meetings').update({
+        status: 'cancelled' as const,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: menteeProfile.id,
+        cancellation_reason: cancelReason.trim() || null,
+      }).eq('id', cancelTarget.id)
+      if (updateErr) { toast.error(updateErr.message); return }
+      setMeetings(prev => prev.map(m => m.id === cancelTarget.id ? { ...m, status: 'cancelled' as const, cancelled_at: new Date().toISOString() } : m))
+      toast.success('Meeting cancelled.')
+      setCancelTarget(null)
+      setCancelReason('')
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to cancel meeting')
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   if (loading) return <Skeleton count={5} className="h-16 w-full" gap="gap-3" />
   if (error) return <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
@@ -162,7 +220,7 @@ export default function MenteeEngagementsPage() {
             <p className="text-xs text-gray-400 mt-1">Schedule a meeting from one of your active engagements.</p>
           </div>
         ) : (
-          <MeetingsByDay meetings={upcomingMeetings} onViewEngagement={id => navigate(`/my-engagements/${id}`)} />
+          <MeetingsByDay meetings={upcomingMeetings} onViewEngagement={id => navigate(`/my-engagements/${id}`)} onCancel={setCancelTarget} />
         )
       )}
 
@@ -176,6 +234,53 @@ export default function MenteeEngagementsPage() {
           <PastMeetingsByMonth meetings={pastMeetings} onViewEngagement={id => navigate(`/my-engagements/${id}`)} />
         )
       )}
+
+      {/* Cancel meeting confirmation modal */}
+      <Modal
+        open={!!cancelTarget}
+        onClose={() => { setCancelTarget(null); setCancelReason('') }}
+        title="Cancel Meeting"
+        subtitle={cancelTarget ? `${new Date(cancelTarget.starts_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · ${new Date(cancelTarget.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : undefined}
+        size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => { setCancelTarget(null); setCancelReason('') }}>Keep Meeting</Button>
+          <Button variant="danger" onClick={handleCancelMeeting} disabled={cancelling}>
+            {cancelling ? 'Cancelling...' : 'Cancel Meeting'}
+          </Button>
+        </>}
+      >
+        {cancelTarget && (() => {
+          const withinWindow = isWithinCancelWindow(cancelTarget)
+          const outcome = withinWindow
+            ? getEffectivePolicy(cancelTarget).cancelled_in_window
+            : getEffectivePolicy(cancelTarget).cancelled_outside_window
+          return (
+            <div className="space-y-4">
+              {outcome === 'keep_credit' ? (
+                <div className="flex items-start gap-2.5 rounded-md bg-green-50 border border-green-200 px-3 py-2.5">
+                  <svg className="w-4 h-4 text-green-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-sm text-green-700">Your meeting credit will be returned and you can reschedule.</p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 rounded-md bg-amber-50 border border-amber-200 px-3 py-2.5">
+                  <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <p className="text-sm text-amber-700">{withinWindow ? 'This meeting credit will not be re-allocated.' : 'This is a late cancellation. Your meeting credit will not be re-allocated.'}</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  placeholder="Let your mentor know why you're cancelling..."
+                  rows={2}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
+                />
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
     </div>
   )
 }
@@ -200,7 +305,7 @@ function TabButton({
 
 // ─────────── Upcoming meetings grouped by day ───────────
 
-function MeetingsByDay({ meetings, onViewEngagement }: { meetings: MeetingWithContext[]; onViewEngagement: (id: string) => void }) {
+function MeetingsByDay({ meetings, onViewEngagement, onCancel }: { meetings: MeetingWithContext[]; onViewEngagement: (id: string) => void; onCancel: (m: MeetingWithContext) => void }) {
   const byDay = useMemo(() => {
     const groups: Record<string, MeetingWithContext[]> = {}
     for (const m of meetings) {
@@ -228,7 +333,7 @@ function MeetingsByDay({ meetings, onViewEngagement }: { meetings: MeetingWithCo
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{label}</h3>
             <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
               {byDay[key].map(m => (
-                <MeetingRow key={m.id} meeting={m} onViewEngagement={onViewEngagement} />
+                <MeetingRow key={m.id} meeting={m} onViewEngagement={onViewEngagement} onCancel={onCancel} />
               ))}
             </div>
           </div>
@@ -279,10 +384,12 @@ function MeetingRow({
   meeting,
   past,
   onViewEngagement,
+  onCancel,
 }: {
   meeting: MeetingWithContext
   past?: boolean
   onViewEngagement: (id: string) => void
+  onCancel?: (m: MeetingWithContext) => void
 }) {
   const start = new Date(meeting.starts_at)
   const end = new Date(meeting.ends_at)
@@ -351,6 +458,14 @@ function MeetingRow({
           className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
         >
           Join meeting
+        </button>
+      )}
+      {!past && onCancel && meeting.status === 'scheduled' && (
+        <button
+          onClick={e => { e.stopPropagation(); onCancel(meeting) }}
+          className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-red-600 transition-colors"
+        >
+          Cancel
         </button>
       )}
       <button

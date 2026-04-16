@@ -1,3 +1,7 @@
 1. Can you build block 15 and commit it to main
 
 2. Now build block 16
+
+3. I want mentees to have the option to cancel an upcoming meeting IF the cancellation policy would allow it. If the cancellation policy does NOT allow it, grey out the button and show a tooltip on hover that the appointment cannot be cancelled. Or maybe we should give them an option to cancel, knowing that the meeting credit will not be re-allocated.
+
+4. Option B

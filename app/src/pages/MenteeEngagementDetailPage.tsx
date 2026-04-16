@@ -7,7 +7,9 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
-import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode } from '../types'
+import { Modal } from '../components/ui'
+import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode, CancellationPolicy } from '../types'
+import { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
 interface MentorInfo { id: string; first_name: string; last_name: string }
 
@@ -38,6 +40,10 @@ export default function MenteeEngagementDetailPage() {
   const [selectedEnd, setSelectedEnd] = useState('')
   const [scheduling, setScheduling] = useState(false)
   const [conflictError, setConflictError] = useState<string | null>(null)
+  const [orgCancelPolicy, setOrgCancelPolicy] = useState<CancellationPolicy>(DEFAULT_CANCELLATION_POLICY)
+  const [cancelTarget, setCancelTarget] = useState<Meeting | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
 
   const menteeId = menteeProfile?.id
   const orgId = menteeProfile?.organization_id ?? profile?.organization_id
@@ -58,7 +64,7 @@ export default function MenteeEngagementDetailPage() {
         if (engagement.organization_id) {
           const { data: orgData } = await supabase
             .from('organizations')
-            .select('show_all_days_in_scheduler, allocation_grant_mode, allocation_refresh_mode, scheduler_max_days_ahead')
+            .select('show_all_days_in_scheduler, allocation_grant_mode, allocation_refresh_mode, scheduler_max_days_ahead, default_cancellation_policy')
             .eq('id', engagement.organization_id)
             .single()
           if (orgData) {
@@ -67,6 +73,7 @@ export default function MenteeEngagementDetailPage() {
               allocation_grant_mode?: AllocationGrantMode
               allocation_refresh_mode?: AllocationRefreshMode
               scheduler_max_days_ahead?: number
+              default_cancellation_policy?: CancellationPolicy
             }
             if (typeof o.show_all_days_in_scheduler === 'boolean') setShowAllDays(o.show_all_days_in_scheduler)
             if (o.allocation_grant_mode) setGrantMode(o.allocation_grant_mode)
@@ -74,6 +81,7 @@ export default function MenteeEngagementDetailPage() {
             if (typeof o.scheduler_max_days_ahead === 'number' && o.scheduler_max_days_ahead > 0) {
               setMaxDaysAhead(o.scheduler_max_days_ahead)
             }
+            if (o.default_cancellation_policy) setOrgCancelPolicy(o.default_cancellation_policy)
           }
         }
 
@@ -221,6 +229,42 @@ export default function MenteeEngagementDetailPage() {
       toast.error((err as Error).message || 'Failed to schedule')
     } finally {
       setScheduling(false)
+    }
+  }
+
+  function getEffectivePolicy(): CancellationPolicy {
+    const off = mo?.offering
+    if (!off || off.use_org_default_cancellation || !off.cancellation_policy) return orgCancelPolicy
+    return off.cancellation_policy
+  }
+
+  function isWithinCancelWindow(m: Meeting): boolean {
+    const policy = getEffectivePolicy()
+    const windowMs = policy.cancel_window_unit === 'days'
+      ? policy.cancel_window_value * 86400000
+      : policy.cancel_window_value * 3600000
+    return new Date(m.starts_at).getTime() - Date.now() >= windowMs
+  }
+
+  async function handleCancelMeeting() {
+    if (!cancelTarget || !menteeId) return
+    setCancelling(true)
+    try {
+      const { error: updateErr } = await supabase.from('meetings').update({
+        status: 'cancelled' as const,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: menteeId,
+        cancellation_reason: cancelReason.trim() || null,
+      }).eq('id', cancelTarget.id)
+      if (updateErr) { toast.error(updateErr.message); return }
+      setMyMeetings(prev => prev.map(m => m.id === cancelTarget.id ? { ...m, status: 'cancelled' as const, cancelled_at: new Date().toISOString() } : m))
+      toast.success('Meeting cancelled.')
+      setCancelTarget(null)
+      setCancelReason('')
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to cancel meeting')
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -481,6 +525,14 @@ export default function MenteeEngagementDetailPage() {
                 {m.meeting_link && (
                   <a href={m.meeting_link} target="_blank" rel="noreferrer" className="text-sm text-brand hover:text-brand-hover transition-colors shrink-0">Join</a>
                 )}
+                {m.status === 'scheduled' && (
+                  <button
+                    onClick={() => setCancelTarget(m)}
+                    className="text-xs text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -525,6 +577,53 @@ export default function MenteeEngagementDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Cancel meeting confirmation modal */}
+      <Modal
+        open={!!cancelTarget}
+        onClose={() => { setCancelTarget(null); setCancelReason('') }}
+        title="Cancel Meeting"
+        subtitle={cancelTarget ? `${new Date(cancelTarget.starts_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · ${new Date(cancelTarget.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : undefined}
+        size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => { setCancelTarget(null); setCancelReason('') }}>Keep Meeting</Button>
+          <Button variant="danger" onClick={handleCancelMeeting} disabled={cancelling}>
+            {cancelling ? 'Cancelling...' : 'Cancel Meeting'}
+          </Button>
+        </>}
+      >
+        {cancelTarget && (() => {
+          const withinWindow = isWithinCancelWindow(cancelTarget)
+          const outcome = withinWindow
+            ? getEffectivePolicy().cancelled_in_window
+            : getEffectivePolicy().cancelled_outside_window
+          return (
+            <div className="space-y-4">
+              {outcome === 'keep_credit' ? (
+                <div className="flex items-start gap-2.5 rounded-md bg-green-50 border border-green-200 px-3 py-2.5">
+                  <svg className="w-4 h-4 text-green-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-sm text-green-700">Your meeting credit will be returned and you can reschedule.</p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 rounded-md bg-amber-50 border border-amber-200 px-3 py-2.5">
+                  <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <p className="text-sm text-amber-700">{withinWindow ? 'This meeting credit will not be re-allocated.' : 'This is a late cancellation. Your meeting credit will not be re-allocated.'}</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  placeholder="Let your mentor know why you're cancelling..."
+                  rows={2}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
+                />
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
     </div>
   )
 }
