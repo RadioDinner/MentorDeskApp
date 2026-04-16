@@ -63,6 +63,9 @@ export default function JourneyEditPage() {
   // Inline label edit state for connectors.
   const [editingConnectorId, setEditingConnectorId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState('')
+  // Inline label edit state for node labels (decision nodes).
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [editingNodeLabel, setEditingNodeLabel] = useState('')
   const [layoutMode, setLayoutMode] = useState<FlowLayoutMode>('freeform')
 
   // Drag-to-connect: when the user drags from an output port, we track
@@ -379,6 +382,25 @@ export default function JourneyEditPage() {
     }
     setEditingConnectorId(null)
     setEditingLabelValue('')
+  }
+
+  function beginEditNodeLabel(node: JourneyNode) {
+    if (!canEdit) return
+    if (node.type !== 'decision' && node.type !== 'status') return
+    setEditingNodeId(node.id)
+    setEditingNodeLabel('label' in node ? (node as { label: string }).label : '')
+  }
+
+  function saveNodeLabel(nodeId: string) {
+    const trimmed = editingNodeLabel.trim()
+    const existing = nodes.find(n => n.id === nodeId)
+    if (existing && 'label' in existing && (existing as { label: string }).label !== trimmed) {
+      pushHistory()
+      setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, label: trimmed } : n))
+      setDirty(true)
+    }
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
   }
 
   // Keyboard shortcuts:
@@ -983,20 +1005,36 @@ export default function JourneyEditPage() {
                     >{n.isEnd ? 'End \u2713' : 'Set end'}</button>
                   )}
 
-                  <div className={`flex flex-col justify-center items-center h-full px-3 py-2 ${isRound ? 'text-center' : ''}`}>
+                  <div className={`flex flex-col justify-center ${isRound ? 'items-center text-center' : 'items-start'} h-full px-3 py-2`}>
                     {sublabel && (
                       <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>{sublabel}</div>
                     )}
-                    <div className={`text-sm font-${isRound ? 'semibold' : 'medium'} ${isRound ? c.text : 'text-gray-900'} truncate max-w-full`}>
-                      {label}
-                    </div>
-                    {isDecisionType && outgoing.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1" data-no-drag>
-                        {outgoing.map(o => (
-                          <span key={o.id} className="text-[8px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[80px]">
-                            {o.label || '...'}
-                          </span>
-                        ))}
+                    {isDecisionType && editingNodeId === n.id ? (
+                      <input
+                        autoFocus
+                        data-no-drag
+                        value={editingNodeLabel}
+                        onChange={e => setEditingNodeLabel(e.target.value)}
+                        onBlur={() => saveNodeLabel(n.id)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); saveNodeLabel(n.id) }
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingNodeId(null); setEditingNodeLabel('') }
+                        }}
+                        placeholder="Decision label..."
+                        className="text-sm font-medium text-gray-900 bg-transparent border-b border-amber-400 outline-none w-full"
+                      />
+                    ) : isDecisionType ? (
+                      <div
+                        data-no-drag
+                        onClick={e => { e.stopPropagation(); beginEditNodeLabel(n) }}
+                        className="text-sm font-medium text-gray-900 truncate max-w-full cursor-text hover:underline decoration-dotted"
+                        title="Click to edit"
+                      >
+                        {label}
+                      </div>
+                    ) : (
+                      <div className={`text-sm ${isRound ? 'font-semibold' : 'font-medium'} ${isRound ? c.text : 'text-gray-900'} truncate max-w-full`}>
+                        {label}
                       </div>
                     )}
                   </div>

@@ -20,7 +20,7 @@ export function clientId(prefix = 'jn'): string {
 
 // ── Constants ───────────────────────────────────────────────────────────
 
-export const WORKSPACE_SIZE = { width: 2400, height: 1800 } as const
+export const WORKSPACE_SIZE = { width: 1200, height: 800 } as const
 export const GRID_SIZE = 48
 export const HISTORY_LIMIT = 50
 
@@ -34,7 +34,7 @@ export type NodeType = JourneyNode['type']
 export const NODE_DEFAULTS: Record<NodeType, { width: number; height: number }> = {
   start:    { width: 140, height: 56 },
   offering: { width: 220, height: 88 },
-  decision: { width: 200, height: 72 },
+  decision: { width: 220, height: 96 },
   status:   { width: 180, height: 56 },
   end:      { width: 140, height: 56 },
 }
