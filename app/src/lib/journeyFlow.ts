@@ -149,6 +149,41 @@ export function snapToGrid(val: number): number {
   return Math.round(val / GRID_SIZE) * GRID_SIZE
 }
 
+// ── Port positions (draw.io-style anchor points) ──────────────────────
+
+export const PORT_RADIUS = 5
+
+/** Input port — top center of a node. */
+export function inputPortPos(node: { x: number; y: number; type: NodeType }): { x: number; y: number } {
+  const s = NODE_DEFAULTS[node.type]
+  return { x: node.x + s.width / 2, y: node.y }
+}
+
+/** Single output port — bottom center of a node. */
+export function outputPortPos(node: { x: number; y: number; type: NodeType }): { x: number; y: number } {
+  const s = NODE_DEFAULTS[node.type]
+  return { x: node.x + s.width / 2, y: node.y + s.height }
+}
+
+/**
+ * For decision nodes: spread N output ports evenly along the bottom edge.
+ * Returns an array of { x, y } positions.
+ */
+export function decisionOutputPorts(
+  node: { x: number; y: number; type: NodeType },
+  count: number,
+): { x: number; y: number }[] {
+  const s = NODE_DEFAULTS[node.type]
+  const y = node.y + s.height
+  if (count <= 1) return [{ x: node.x + s.width / 2, y }]
+  const padding = 20 // inset from edges
+  const usable = s.width - padding * 2
+  return Array.from({ length: count }, (_, i) => ({
+    x: node.x + padding + (usable * i) / (count - 1),
+    y,
+  }))
+}
+
 // ── Auto-layout ────────────────────────────────────────────────────────
 
 /** Vertical gap between rows (in grid units). */
@@ -273,29 +308,19 @@ export function autoLayout(
 }
 
 /**
- * Compute an SVG cubic bezier path string between two node centers.
- * The curve bows vertically — the control point offset scales with
- * the vertical distance between nodes so the arc looks natural for
- * both short and long connections. When nodes are roughly horizontal,
- * the curve pushes downward slightly to avoid a flat line.
+ * Compute an SVG cubic bezier path string between two port positions
+ * (source output port → target input port). The curve flows downward
+ * with vertical control point offsets that produce smooth, natural arcs
+ * similar to draw.io / Whimsical style connectors.
  */
 export function connectorPath(
   x1: number, y1: number,
   x2: number, y2: number,
 ): string {
-  const dx = x2 - x1
   const dy = y2 - y1
-  // The control-point offset is proportional to the distance, clamped
-  // so very short connections don't get wild curves and very long ones
-  // don't overshoot.
-  const dist = Math.sqrt(dx * dx + dy * dy)
-  const offset = Math.min(Math.max(Math.abs(dy) * 0.5, 40), dist * 0.4)
-  // When the target is below the source, push control points downward
-  // for a smooth downward arc. When above, flip.
-  const cpY = dy >= 0 ? offset : -offset
-  const cp1x = x1 + dx * 0.25
-  const cp1y = y1 + cpY
-  const cp2x = x1 + dx * 0.75
-  const cp2y = y2 - cpY
-  return `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`
+  // Control point vertical offset: proportional to distance but clamped.
+  // For downward flow (normal case), control points push straight down
+  // from source and straight up from target for a clean S-curve.
+  const offset = Math.max(Math.abs(dy) * 0.4, 50)
+  return `M ${x1} ${y1} C ${x1} ${y1 + offset}, ${x2} ${y2 - offset}, ${x2} ${y2}`
 }

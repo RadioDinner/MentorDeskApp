@@ -14,6 +14,7 @@ import {
   NODE_DEFAULTS,
   HISTORY_LIMIT,
   COLORS,
+  PORT_RADIUS,
   migrateContent,
   createOfferingNode,
   createDecisionNode,
@@ -23,6 +24,9 @@ import {
   connectorPath,
   autoLayout,
   computeDepths,
+  inputPortPos,
+  outputPortPos,
+  decisionOutputPorts,
   type NodeType,
 } from '../lib/journeyFlow'
 import type {
@@ -56,14 +60,21 @@ export default function JourneyEditPage() {
   const [dirty, setDirty] = useState(false)
   const [editingTitleValue, setEditingTitleValue] = useState<string | null>(null)
   const [showOfferingPicker, setShowOfferingPicker] = useState(false)
-  // Connect mode: null when off. sourceId is the first clicked node id
-  // (null until the user picks one). Second click picks target and creates
-  // the connector.
-  const [connectorMode, setConnectorMode] = useState<{ sourceId: string | null } | null>(null)
   // Inline label edit state for connectors.
   const [editingConnectorId, setEditingConnectorId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState('')
   const [layoutMode, setLayoutMode] = useState<FlowLayoutMode>('freeform')
+
+  // Drag-to-connect: when the user drags from an output port, we track
+  // the source node id and the current mouse position for the temp wire.
+  const [drawingWire, setDrawingWire] = useState<{
+    sourceNodeId: string
+    mouseX: number
+    mouseY: number
+    portX: number   // origin port position
+    portY: number
+  } | null>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -212,6 +223,58 @@ export default function JourneyEditPage() {
     }
   }, [])
 
+  // ── Wire-drawing mouse tracking ───────────────────────────────────────
+  useEffect(() => {
+    if (!drawingWire) return
+    function handleWireMove(e: PointerEvent) {
+      const ws = workspaceRef.current
+      if (!ws) return
+      const rect = ws.getBoundingClientRect()
+      setDrawingWire(prev => prev ? {
+        ...prev,
+        mouseX: e.clientX - rect.left + ws.scrollLeft,
+        mouseY: e.clientY - rect.top + ws.scrollTop,
+      } : null)
+    }
+    function handleWireUp(e: PointerEvent) {
+      // Check if we landed on a node's input port area (top half of node)
+      const ws = workspaceRef.current
+      if (!ws) { setDrawingWire(null); return }
+      const rect = ws.getBoundingClientRect()
+      const mx = e.clientX - rect.left + ws.scrollLeft
+      const my = e.clientY - rect.top + ws.scrollTop
+      // Find the nearest node whose input port is within range
+      const HIT_RADIUS = 24
+      let bestNode: string | null = null
+      let bestDist = HIT_RADIUS
+      for (const n of nodesRef.current) {
+        const ip = inputPortPos(n)
+        const dx = mx - ip.x
+        const dy = my - ip.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestNode = n.id
+        }
+      }
+      if (bestNode) {
+        handlePortDragEnd(bestNode)
+      } else {
+        setDrawingWire(null)
+      }
+    }
+    document.addEventListener('pointermove', handleWireMove)
+    document.addEventListener('pointerup', handleWireUp)
+    return () => {
+      document.removeEventListener('pointermove', handleWireMove)
+      document.removeEventListener('pointerup', handleWireUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingWire])
+
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+
   // ── Permission ─────────────────────────────────────────────────────────
   const canEdit = profile?.role === 'admin'
     || profile?.role === 'operations'
@@ -236,48 +299,39 @@ export default function JourneyEditPage() {
     // restored content sticks.
     setEditingConnectorId(null)
     setEditingLabelValue('')
-    setConnectorMode(null)
+    setDrawingWire(null)
     setDirty(true)
   }
 
-  // ── Connector mode ─────────────────────────────────────────────────────
-  function startConnectMode() {
+  // ── Port-based drag-to-connect ──────────────────────────────────────
+  function handlePortDragStart(nodeId: string, portX: number, portY: number, e: React.PointerEvent) {
     if (!canEdit) return
-    setConnectorMode({ sourceId: null })
-    setEditingConnectorId(null)
+    e.stopPropagation()
+    e.preventDefault()
+    setDrawingWire({ sourceNodeId: nodeId, mouseX: portX, mouseY: portY, portX, portY })
   }
 
-  function handleConnectClick(nodeId: string) {
-    if (!connectorMode) return
-    const node = nodes.find(n => n.id === nodeId)
-    if (!node) return
-    if (!connectorMode.sourceId) {
-      // An 'end' node cannot be a source.
-      if (node.type === 'end') return
-      setConnectorMode({ sourceId: nodeId })
-      return
-    }
-    // Clicking the source again cancels the in-progress connector.
-    if (connectorMode.sourceId === nodeId) {
-      setConnectorMode(null)
-      return
-    }
-    // A 'start' node cannot be a target.
-    if (node.type === 'start') return
-    const src = connectorMode.sourceId
-    // Directed dedup: don't add A→B if one already exists.
+  function handlePortDragEnd(targetNodeId: string) {
+    if (!drawingWire) return
+    const srcId = drawingWire.sourceNodeId
+    // Can't connect to self
+    if (srcId === targetNodeId) { setDrawingWire(null); return }
+    // Start node can't be a target
+    const target = nodes.find(n => n.id === targetNodeId)
+    if (target?.type === 'start') { setDrawingWire(null); return }
+    // Dedup
     const alreadyExists = connectors.some(
-      c => c.fromNodeId === src && c.toNodeId === nodeId,
+      c => c.fromNodeId === srcId && c.toNodeId === targetNodeId,
     )
     if (!alreadyExists) {
       pushHistory()
-      const newConn = createConnector(src, nodeId)
+      const newConn = createConnector(srcId, targetNodeId)
       const nextConnectors = [...connectors, newConn]
       setConnectors(nextConnectors)
       setDirty(true)
       relayoutIfAuto(nodes, nextConnectors)
     }
-    setConnectorMode(null)
+    setDrawingWire(null)
   }
 
   function deleteConnector(connectorId: string) {
@@ -293,9 +347,22 @@ export default function JourneyEditPage() {
     relayoutIfAuto(nodes, nextConnectors)
   }
 
+  function deleteNode(nodeId: string) {
+    if (!canEdit) return
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node || node.type === 'start') return // never delete start
+    pushHistory()
+    const nextNodes = nodes.filter(n => n.id !== nodeId)
+    const nextConnectors = connectors.filter(c => c.fromNodeId !== nodeId && c.toNodeId !== nodeId)
+    setNodes(nextNodes)
+    setConnectors(nextConnectors)
+    setDirty(true)
+    relayoutIfAuto(nextNodes, nextConnectors)
+  }
+
   function beginEditLabel(connector: JourneyConnector) {
     if (!canEdit) return
-    if (connectorMode) return
+    if (drawingWire) return
     setEditingConnectorId(connector.id)
     setEditingLabelValue(connector.label)
   }
@@ -339,8 +406,8 @@ export default function JourneyEditPage() {
         return
       }
       if (e.key === 'Escape') {
-        if (connectorMode) {
-          setConnectorMode(null)
+        if (drawingWire) {
+          setDrawingWire(null)
           return
         }
         if (editingConnectorId) {
@@ -352,20 +419,13 @@ export default function JourneyEditPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectorMode, editingConnectorId, past, nodes, connectors, dirty, saving])
+  }, [drawingWire, editingConnectorId, past, nodes, connectors, dirty, saving])
 
   // ── Node actions ───────────────────────────────────────────────────────
   function handleNodePointerDown(e: React.PointerEvent, node: JourneyNode) {
     if (!canEdit) return
     const target = e.target as HTMLElement
-    if (target.closest('button, [data-no-drag]')) return
-    // In connect mode a pointerdown on a node is interpreted as a click
-    // for building the connector, NOT as a drag.
-    if (connectorMode) {
-      handleConnectClick(node.id)
-      e.preventDefault()
-      return
-    }
+    if (target.closest('button, [data-no-drag], [data-port]')) return
     dragStateRef.current = {
       nodeId: node.id,
       startPointerX: e.clientX,
@@ -628,6 +688,7 @@ export default function JourneyEditPage() {
         </div>
       </div>
 
+
       {/* Add-node toolbar */}
       {canEdit && (
         <div className="flex items-center gap-2 mb-3 relative">
@@ -661,30 +722,13 @@ export default function JourneyEditPage() {
           </div>
           <Button variant="secondary" onClick={addDecisionNode}>+ Decision</Button>
           <div className="w-px h-5 bg-gray-200 mx-1" />
-          <Button
-            variant="secondary"
-            onClick={connectorMode ? () => setConnectorMode(null) : startConnectMode}
-            className={connectorMode ? 'ring-2 ring-brand' : ''}
-          >
-            {connectorMode ? 'Cancel connect' : 'Connect'}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={undo}
-            disabled={past.length === 0}
-            title="Undo (⌘Z)"
-          >
+          <Button variant="secondary" onClick={undo} disabled={past.length === 0} title="Undo (Cmd+Z)">
             Undo
           </Button>
           {layoutMode === 'freeform' && (
             <>
               <div className="w-px h-5 bg-gray-200 mx-1" />
-              <Button
-                variant="secondary"
-                onClick={handleAutoLayout}
-                disabled={nodes.length === 0}
-                title="Auto-arrange nodes by graph depth"
-              >
+              <Button variant="secondary" onClick={handleAutoLayout} disabled={nodes.length === 0} title="Auto-arrange nodes by graph depth">
                 Auto-arrange
               </Button>
             </>
@@ -692,16 +736,15 @@ export default function JourneyEditPage() {
         </div>
       )}
 
-      {connectorMode && (
+      {drawingWire && (
         <div className="mb-2 text-xs text-brand bg-brand/5 border border-brand/20 rounded px-3 py-1.5">
-          {connectorMode.sourceId
-            ? 'Click a target node to create the connector — Esc to cancel.'
-            : 'Click the source node to start a connector — Esc to cancel.'}
+          Drag to a node&apos;s input port (top circle) to connect. Release elsewhere or press Esc to cancel.
         </div>
       )}
 
       {/* Workspace */}
       <div
+        ref={workspaceRef}
         className="flex-1 overflow-auto rounded-md border border-gray-200 bg-gray-50 relative"
         style={{ minHeight: 400 }}
       >
@@ -712,12 +755,9 @@ export default function JourneyEditPage() {
             height: WORKSPACE_SIZE.height,
             backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
             backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-            cursor: connectorMode ? 'crosshair' : undefined,
           }}
         >
-          {/* Connector SVG layer — lives beneath nodes (z-index 0) so nodes
-              stay clickable. The SVG itself has pointer-events: none; only
-              the invisible wide hit-lines opt back in for click-to-delete. */}
+          {/* SVG layer for connectors + drawing wire */}
           <svg
             className="absolute inset-0 pointer-events-none"
             width={WORKSPACE_SIZE.width}
@@ -725,355 +765,180 @@ export default function JourneyEditPage() {
             style={{ zIndex: 0 }}
           >
             <defs>
-              <marker
-                id="journey-arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+              <marker id="journey-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+              </marker>
+              <marker id="journey-arrow-draw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
               </marker>
             </defs>
+
             {connectors.map(c => {
               const from = nodes.find(n => n.id === c.fromNodeId)
               const to = nodes.find(n => n.id === c.toNodeId)
               if (!from || !to) return null
-              const fs = nodeSize(from.type)
-              const ts = nodeSize(to.type)
-              const x1 = from.x + fs.width / 2
-              const y1 = from.y + fs.height / 2
-              const x2 = to.x + ts.width / 2
-              const y2 = to.y + ts.height / 2
-              const d = connectorPath(x1, y1, x2, y2)
+              let srcPort: { x: number; y: number }
+              if (from.type === 'decision') {
+                const outgoing = connectors.filter(cn => cn.fromNodeId === from.id)
+                const idx = outgoing.indexOf(c)
+                const ports = decisionOutputPorts(from, outgoing.length)
+                srcPort = ports[idx] ?? outputPortPos(from)
+              } else {
+                srcPort = outputPortPos(from)
+              }
+              const tgtPort = inputPortPos(to)
+              const d = connectorPath(srcPort.x, srcPort.y, tgtPort.x, tgtPort.y)
               return (
                 <g key={c.id}>
-                  <path
-                    d={d}
-                    stroke="#64748b"
-                    strokeWidth={2}
-                    fill="none"
-                    markerEnd="url(#journey-arrow)"
-                  />
-                  {canEdit && !connectorMode && (
-                    <path
-                      d={d}
-                      stroke="transparent"
-                      strokeWidth={14}
-                      fill="none"
+                  <path d={d} stroke="#94a3b8" strokeWidth={2} fill="none" markerEnd="url(#journey-arrow)" />
+                  {canEdit && (
+                    <path d={d} stroke="transparent" strokeWidth={14} fill="none"
                       className="pointer-events-auto cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
-                    >
+                      onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}>
                       <title>Click to delete connector</title>
                     </path>
                   )}
                 </g>
               )
             })}
+
+            {drawingWire && (
+              <path
+                d={connectorPath(drawingWire.portX, drawingWire.portY, drawingWire.mouseX, drawingWire.mouseY)}
+                stroke="#6366f1" strokeWidth={2} strokeDasharray="6 4" fill="none" markerEnd="url(#journey-arrow-draw)"
+              />
+            )}
           </svg>
 
-          {/* Connector label layer — HTML (not SVG) so we can reuse inputs
-              and hover affordances. Hidden while connect mode is active so
-              clicks reach the underlying nodes. */}
-          {!connectorMode && connectors.map(c => {
+          {/* Connector labels */}
+          {connectors.map(c => {
             const from = nodes.find(n => n.id === c.fromNodeId)
             const to = nodes.find(n => n.id === c.toNodeId)
             if (!from || !to) return null
-            const fs = nodeSize(from.type)
-            const ts = nodeSize(to.type)
-            const mx = ((from.x + fs.width / 2) + (to.x + ts.width / 2)) / 2
-            const my = ((from.y + fs.height / 2) + (to.y + ts.height / 2)) / 2
+            let srcPort: { x: number; y: number }
+            if (from.type === 'decision') {
+              const outgoing = connectors.filter(cn => cn.fromNodeId === from.id)
+              const idx = outgoing.indexOf(c)
+              const ports = decisionOutputPorts(from, outgoing.length)
+              srcPort = ports[idx] ?? outputPortPos(from)
+            } else {
+              srcPort = outputPortPos(from)
+            }
+            const tgtPort = inputPortPos(to)
+            const mx = (srcPort.x + tgtPort.x) / 2
+            const my = (srcPort.y + tgtPort.y) / 2
             const isEditing = editingConnectorId === c.id
             if (isEditing) {
               return (
-                <input
-                  key={c.id}
-                  autoFocus
-                  data-no-drag
-                  value={editingLabelValue}
+                <input key={c.id} autoFocus data-no-drag value={editingLabelValue}
                   onChange={e => setEditingLabelValue(e.target.value)}
                   onBlur={() => saveConnectorLabel(c.id)}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); saveConnectorLabel(c.id) }
-                    if (e.key === 'Escape') {
-                      e.preventDefault()
-                      setEditingConnectorId(null)
-                      setEditingLabelValue('')
-                    }
+                    if (e.key === 'Escape') { e.preventDefault(); setEditingConnectorId(null); setEditingLabelValue('') }
                   }}
                   placeholder="label"
                   className="absolute text-xs px-1.5 py-0.5 bg-white border border-brand rounded shadow-sm outline-none"
-                  style={{
-                    left: mx,
-                    top: my,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 2,
-                    width: 140,
-                  }}
+                  style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5, width: 140 }}
                 />
               )
             }
             return (
-              <div
-                key={c.id}
-                className="absolute flex items-center gap-1"
-                style={{
-                  left: mx,
-                  top: my,
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 2,
-                }}
-                data-no-drag
-              >
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); beginEditLabel(c) }}
-                  disabled={!canEdit}
-                  className={
-                    'text-[11px] px-1.5 py-0.5 rounded border shadow-sm max-w-[160px] truncate ' +
-                    (c.label
-                      ? 'bg-white border-gray-300 text-gray-700 hover:border-brand'
-                      : 'bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-brand')
-                  }
-                  title={canEdit ? 'Click to edit label' : undefined}
-                >
+              <div key={c.id} className="absolute flex items-center gap-1"
+                style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5 }} data-no-drag>
+                <button type="button" onClick={(e) => { e.stopPropagation(); beginEditLabel(c) }} disabled={!canEdit}
+                  className={'text-[11px] px-1.5 py-0.5 rounded border shadow-sm max-w-[160px] truncate ' +
+                    (c.label ? 'bg-white border-gray-300 text-gray-700 hover:border-brand' : 'bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-brand')}
+                  title={canEdit ? 'Click to edit label' : undefined}>
                   {c.label || 'label'}
                 </button>
                 {canEdit && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
                     className="text-[11px] leading-none w-4 h-4 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-500 hover:border-rose-400 hover:text-rose-600 shadow-sm"
-                    title="Delete connector"
-                  >
-                    &times;
-                  </button>
+                    title="Delete connector">&times;</button>
                 )}
               </div>
             )
           })}
 
-          {nodes.map(n => (
-            <NodeView
-              key={n.id}
-              node={n}
-              offerings={offerings}
-              connectors={connectors}
-              canEdit={canEdit}
-              isConnectSource={connectorMode?.sourceId === n.id}
-              connectorMode={!!connectorMode}
-              onPointerDown={e => handleNodePointerDown(e, n)}
-              onToggleEnd={() => toggleEndNode(n.id)}
-            />
-          ))}
+          {/* Nodes with port circles */}
+          {nodes.map(n => {
+            const size = NODE_DEFAULTS[n.type]
+            const col = COLORS[n.type]
+            const endBorder = n.isEnd ? 'border-rose-400' : ''
+            const hasInput = n.type !== 'start'
+            const isDec = n.type === 'decision'
+            const outgoing = connectors.filter(cn => cn.fromNodeId === n.id)
+            const outPortCount = isDec ? outgoing.length + 1 : 1
+            const outPorts = isDec ? decisionOutputPorts(n, outPortCount) : [outputPortPos(n)]
+
+            let label: string
+            let sublabel: string | null = null
+            if (n.type === 'start') { label = 'Start' }
+            else if (n.type === 'end') { label = 'End' }
+            else if (n.type === 'status') { label = (n as unknown as { label: string }).label || 'Status'; sublabel = 'STATUS' }
+            else if (n.type === 'decision') { label = (n as JourneyDecisionNode).label || 'Untitled'; sublabel = 'DECISION' }
+            else { const off = offerings.find(o => o.id === (n as JourneyOfferingNode).offeringId); label = off?.name ?? '(offering not found)'; sublabel = off?.type === 'course' ? 'COURSE' : off?.type === 'engagement' ? 'ENGAGEMENT' : 'OFFERING' }
+
+            const isRound = n.type === 'start' || n.type === 'end'
+            return (
+              <div key={n.id}>
+                <div
+                  onPointerDown={e => handleNodePointerDown(e, n)}
+                  className={`absolute ${isRound ? 'rounded-full' : 'rounded-lg'} border-2 shadow-sm select-none group ${col.bg} ${endBorder || col.border}`}
+                  style={{ left: n.x, top: n.y, width: size.width, minHeight: size.height, cursor: 'grab', zIndex: 1 }}
+                >
+                  {n.isEnd && !isRound && (
+                    <span className="absolute -top-2 -right-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 border border-rose-200 shadow-sm z-10">End</span>
+                  )}
+                  {canEdit && n.type !== 'start' && (
+                    <button type="button" data-no-drag onClick={e => { e.stopPropagation(); deleteNode(n.id) }}
+                      className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-400 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-600 flex items-center justify-center text-xs shadow-sm z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete node">&times;</button>
+                  )}
+                  {canEdit && !isRound && (
+                    <button type="button" data-no-drag onClick={e => { e.stopPropagation(); toggleEndNode(n.id) }}
+                      className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 opacity-0 group-hover:opacity-100 transition-opacity ${n.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200 !opacity-100' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
+                      title={n.isEnd ? 'Remove as end point' : 'Mark as end point'}>{n.isEnd ? 'End \u2713' : 'Set end'}</button>
+                  )}
+                  <div className={`flex flex-col justify-center items-center h-full px-3 py-2 ${isRound ? 'text-center' : ''}`}>
+                    {sublabel && <div className={`text-[9px] font-semibold uppercase tracking-wider ${col.text}`}>{sublabel}</div>}
+                    <div className={`text-sm ${isRound ? 'font-semibold' : 'font-medium'} ${isRound ? col.text : 'text-gray-900'} truncate max-w-full`}>{label}</div>
+                    {isDec && outgoing.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1" data-no-drag>
+                        {outgoing.map(o => (
+                          <span key={o.id} className="text-[8px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[80px]">{o.label || '...'}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {hasInput && (() => {
+                  const ip = inputPortPos(n)
+                  return (
+                    <div data-port="input"
+                      className={`absolute rounded-full border-2 border-gray-400 bg-white hover:border-brand hover:bg-brand/10 transition-colors ${drawingWire ? 'scale-125 border-brand' : ''}`}
+                      style={{ left: ip.x - PORT_RADIUS, top: ip.y - PORT_RADIUS, width: PORT_RADIUS * 2, height: PORT_RADIUS * 2, zIndex: 3 }}
+                    />
+                  )
+                })()}
+
+                {outPorts.map((op, idx) => (
+                  <div key={idx} data-port="output"
+                    onPointerDown={e => handlePortDragStart(n.id, op.x, op.y, e)}
+                    className={`absolute rounded-full border-2 bg-white hover:bg-brand/10 hover:border-brand transition-colors ${
+                      isDec && idx === outPorts.length - 1 && outgoing.length > 0 ? 'border-dashed border-gray-300 hover:border-brand' : 'border-gray-400'
+                    }`}
+                    style={{ left: op.x - PORT_RADIUS, top: op.y - PORT_RADIUS, width: PORT_RADIUS * 2, height: PORT_RADIUS * 2, zIndex: 3, cursor: canEdit ? 'crosshair' : 'default' }}
+                    title={canEdit ? 'Drag to connect' : undefined}
+                  />
+                ))}
+              </div>
+            )
+          })}
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Node renderers ───────────────────────────────────────────────────────
-
-/** Small badge shown when a node is marked as the end of the flow. */
-function EndBadge() {
-  return (
-    <span className="absolute -top-2 -right-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 border border-rose-200 shadow-sm z-10">
-      End
-    </span>
-  )
-}
-
-function NodeView({
-  node,
-  offerings,
-  connectors,
-  canEdit,
-  isConnectSource,
-  connectorMode,
-  onPointerDown,
-  onToggleEnd,
-}: {
-  node: JourneyNode
-  offerings: Offering[]
-  connectors: JourneyConnector[]
-  canEdit: boolean
-  isConnectSource: boolean
-  connectorMode: boolean
-  onPointerDown: (e: React.PointerEvent) => void
-  onToggleEnd: () => void
-}) {
-  const size = NODE_DEFAULTS[node.type]
-  const common: React.CSSProperties = {
-    left: node.x,
-    top: node.y,
-    width: size.width,
-    minHeight: size.height,
-    cursor: connectorMode ? 'crosshair' : 'grab',
-    zIndex: 1,
-  }
-  const ringClass = isConnectSource ? `ring-2 ${COLORS[node.type].ring}` : ''
-  const endBorder = node.isEnd ? 'border-rose-400' : ''
-
-  if (node.type === 'start') {
-    const c = COLORS.start
-    return (
-      <div
-        onPointerDown={onPointerDown}
-        className={`absolute rounded-full border-2 shadow-sm flex items-center justify-center select-none ${c.bg} ${c.border} ${ringClass}`}
-        style={common}
-      >
-        <span className={`text-sm font-semibold ${c.text}`}>Start</span>
-      </div>
-    )
-  }
-
-  // Legacy end nodes — still renderable for old flows.
-  if (node.type === 'end') {
-    const c = COLORS.end
-    return (
-      <div
-        onPointerDown={onPointerDown}
-        className={`absolute rounded-full border-2 shadow-sm flex items-center justify-center select-none ${c.bg} ${c.border} ${ringClass}`}
-        style={common}
-      >
-        <span className={`text-sm font-semibold ${c.text}`}>End</span>
-      </div>
-    )
-  }
-
-  // Legacy status nodes — still renderable for old flows.
-  if (node.type === 'status') {
-    const c = COLORS.status
-    return (
-      <div
-        onPointerDown={onPointerDown}
-        className={`absolute rounded-md border-2 shadow-sm flex items-center justify-center px-3 select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
-        style={common}
-      >
-        {node.isEnd && <EndBadge />}
-        <span className={`text-sm font-medium truncate ${c.text}`}>{node.label || 'Status'}</span>
-        {canEdit && !connectorMode && (
-          <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
-            className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
-            title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
-          >{node.isEnd ? 'End ✓' : 'Set end'}</button>
-        )}
-      </div>
-    )
-  }
-
-  if (node.type === 'decision') {
-    return (
-      <DecisionNodeView node={node} connectors={connectors} canEdit={canEdit}
-        common={common} ringClass={ringClass} endBorder={endBorder}
-        connectorMode={connectorMode} onPointerDown={onPointerDown} onToggleEnd={onToggleEnd} />
-    )
-  }
-
-  // offering
-  return (
-    <OfferingNodeView node={node} offerings={offerings} canEdit={canEdit}
-      common={common} ringClass={ringClass} endBorder={endBorder}
-      connectorMode={connectorMode} onPointerDown={onPointerDown} onToggleEnd={onToggleEnd} />
-  )
-}
-
-function DecisionNodeView({
-  node,
-  connectors,
-  canEdit,
-  common,
-  ringClass,
-  endBorder,
-  connectorMode,
-  onPointerDown,
-  onToggleEnd,
-}: {
-  node: JourneyDecisionNode
-  connectors: JourneyConnector[]
-  canEdit: boolean
-  common: React.CSSProperties
-  ringClass: string
-  endBorder: string
-  connectorMode: boolean
-  onPointerDown: (e: React.PointerEvent) => void
-  onToggleEnd: () => void
-}) {
-  const c = COLORS.decision
-  // Outgoing connectors from this decision node.
-  const outcomes = connectors.filter(cn => cn.fromNodeId === node.id)
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      className={`absolute rounded-md border-2 shadow-sm px-3 py-2 flex flex-col justify-center select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
-      style={common}
-    >
-      {node.isEnd && <EndBadge />}
-      <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>Decision</div>
-      <div className="text-sm font-medium text-gray-900 truncate">{node.label || 'Untitled'}</div>
-      {outcomes.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5" data-no-drag>
-          {outcomes.map(o => (
-            <span key={o.id} className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[90px]">
-              {o.label || '...'}
-            </span>
-          ))}
-        </div>
-      )}
-      {canEdit && !connectorMode && (
-        <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
-          className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
-          title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
-        >{node.isEnd ? 'End ✓' : 'Set end'}</button>
-      )}
-    </div>
-  )
-}
-
-function OfferingNodeView({
-  node,
-  offerings,
-  canEdit,
-  common,
-  ringClass,
-  endBorder,
-  connectorMode,
-  onPointerDown,
-  onToggleEnd,
-}: {
-  node: JourneyOfferingNode
-  offerings: Offering[]
-  canEdit: boolean
-  common: React.CSSProperties
-  ringClass: string
-  endBorder: string
-  connectorMode: boolean
-  onPointerDown: (e: React.PointerEvent) => void
-  onToggleEnd: () => void
-}) {
-  const c = COLORS.offering
-  const offering = offerings.find(o => o.id === node.offeringId)
-  const name = offering?.name ?? '(offering not found)'
-  const kind = offering?.type === 'course' ? 'Course'
-    : offering?.type === 'engagement' ? 'Engagement'
-    : '—'
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      className={`absolute rounded-md border-2 shadow-sm px-3 py-2 flex flex-col justify-center select-none ${c.bg} ${endBorder || c.border} ${ringClass}`}
-      style={common}
-    >
-      {node.isEnd && <EndBadge />}
-      <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>{kind}</div>
-      <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
-      {canEdit && !connectorMode && (
-        <button type="button" data-no-drag onClick={e => { e.stopPropagation(); onToggleEnd() }}
-          className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 ${node.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
-          title={node.isEnd ? 'Remove as end point' : 'Mark as end point'}
-        >{node.isEnd ? 'End ✓' : 'Set end'}</button>
-      )}
     </div>
   )
 }
