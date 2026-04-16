@@ -145,8 +145,9 @@ export function nodeSize(type: NodeType): { width: number; height: number } {
 }
 
 /** Snap a value to the nearest grid line. */
-export function snapToGrid(val: number): number {
-  return Math.round(val / GRID_SIZE) * GRID_SIZE
+export function snapToGrid(val: number, gridSize: number = GRID_SIZE): number {
+  if (gridSize <= 1) return Math.round(val)
+  return Math.round(val / gridSize) * gridSize
 }
 
 // ── Port positions (draw.io-style anchor points) ──────────────────────
@@ -245,8 +246,11 @@ export function computeDepths(
 export function autoLayout(
   nodes: JourneyNode[],
   connectors: JourneyConnector[],
+  opts?: { workspaceWidth?: number; gridSize?: number },
 ): JourneyNode[] {
   if (nodes.length === 0) return []
+  const wsWidth = opts?.workspaceWidth ?? WORKSPACE_SIZE.width
+  const gs = opts?.gridSize ?? GRID_SIZE
 
   const depth = computeDepths(nodes, connectors)
 
@@ -263,10 +267,10 @@ export function autoLayout(
   // Sort row keys so we lay out top to bottom.
   const sortedDepths = [...rows.keys()].sort((a, b) => a - b)
 
-  // Position each row.
+  // Position each row. Gaps are fixed pixel values for consistent spacing.
   const rowGap = ROW_GAP_GRIDS * GRID_SIZE
   const colGap = COL_GAP_GRIDS * GRID_SIZE
-  const startY = GRID_SIZE * 2 // top padding
+  const startY = snapToGrid(GRID_SIZE * 2, gs)
   const positioned = new Map<string, { x: number; y: number }>()
 
   let currentY = startY
@@ -283,15 +287,15 @@ export function autoLayout(
     ) + colGap * (rowNodes.length - 1)
 
     // Center the row in the workspace.
-    let cursorX = snapToGrid(Math.max(GRID_SIZE, Math.round((WORKSPACE_SIZE.width - totalWidth) / 2)))
+    let cursorX = snapToGrid(Math.max(gs, Math.round((wsWidth - totalWidth) / 2)), gs)
 
     for (const node of rowNodes) {
       const size = NODE_DEFAULTS[node.type]
       // Vertically center within the row's max height.
       const yOffset = Math.round((maxHeight - size.height) / 2)
       positioned.set(node.id, {
-        x: snapToGrid(cursorX),
-        y: snapToGrid(currentY + yOffset),
+        x: snapToGrid(cursorX, gs),
+        y: snapToGrid(currentY + yOffset, gs),
       })
       cursorX += size.width + colGap
     }

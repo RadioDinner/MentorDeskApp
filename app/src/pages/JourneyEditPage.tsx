@@ -9,8 +9,6 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import {
-  WORKSPACE_SIZE,
-  GRID_SIZE,
   NODE_DEFAULTS,
   HISTORY_LIMIT,
   COLORS,
@@ -73,6 +71,12 @@ export default function JourneyEditPage() {
   // Selected node — opens the settings sidebar.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<FlowLayoutMode>('freeform')
+  const [gridSize, setGridSize] = useState(24)
+  const [wsSize, setWsSize] = useState({ width: 1200, height: 800 })
+  const wsSizeRef = useRef(wsSize)
+  wsSizeRef.current = wsSize
+  const gridSizeRef = useRef(gridSize)
+  gridSizeRef.current = gridSize
 
   // Drag-to-connect: when the user drags from an output port, we track
   // the source node id and the current mouse position for the temp wire.
@@ -156,6 +160,24 @@ export default function JourneyEditPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [dirty])
 
+  // Track workspace dimensions for responsive layout
+  useEffect(() => {
+    const el = workspaceRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          const s = { width: Math.floor(width), height: Math.floor(height) }
+          setWsSize(s)
+          wsSizeRef.current = s
+        }
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Keep refs so the drag effect closure stays current.
   const layoutModeRef = useRef(layoutMode)
   layoutModeRef.current = layoutMode
@@ -185,19 +207,19 @@ export default function JourneyEditPage() {
         if (n.id !== drag.nodeId) return n
         const size = nodeSize(n.type)
         const rawX = drag.startNodeX + dx
+        const ws = wsSizeRef.current
+        const gs = gridSizeRef.current
         if (layoutModeRef.current === 'auto') {
-          // Auto mode: horizontal-only drag within the node's row.
           return {
             ...n,
-            x: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.width - size.width, rawX))),
+            x: snapToGrid(Math.max(0, Math.min(ws.width - size.width, rawX)), gs),
           }
         }
-        // Freeform mode: full grid-snap drag.
         const rawY = drag.startNodeY + dy
         return {
           ...n,
-          x: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.width  - size.width,  rawX))),
-          y: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.height - size.height, rawY))),
+          x: snapToGrid(Math.max(0, Math.min(ws.width  - size.width,  rawX)), gs),
+          y: snapToGrid(Math.max(0, Math.min(ws.height - size.height, rawY)), gs),
         }
       }))
     }
@@ -224,7 +246,7 @@ export default function JourneyEditPage() {
             if (da !== db) return da - db
             return a.x - b.x
           })
-          return autoLayout(sorted, connectorsRef.current)
+          return autoLayout(sorted, connectorsRef.current, { workspaceWidth: wsSizeRef.current.width, gridSize: gridSizeRef.current })
         })
       }
     }
@@ -306,7 +328,7 @@ export default function JourneyEditPage() {
     if (past.length === 0) return
     const snapshot = past[past.length - 1]
     setPast(prev => prev.slice(0, -1))
-    setNodes(layoutMode === 'auto' ? autoLayout(snapshot.nodes, snapshot.connectors) : snapshot.nodes)
+    setNodes(layoutMode === 'auto' ? autoLayout(snapshot.nodes, snapshot.connectors, { workspaceWidth: wsSize.width, gridSize }) : snapshot.nodes)
     setConnectors(snapshot.connectors)
     // Any in-progress label edit or connect mode should be closed so the
     // restored content sticks.
@@ -490,16 +512,15 @@ export default function JourneyEditPage() {
    *  Horizontally centered relative to the workspace. */
   function spawnPosition(type: NodeType) {
     const size = NODE_DEFAULTS[type]
-    const cx = snapToGrid(Math.round(WORKSPACE_SIZE.width / 2) - size.width / 2)
+    const cx = snapToGrid(Math.round(wsSize.width / 2) - size.width / 2, gridSize)
     if (nodes.length === 0) {
-      return { x: cx, y: snapToGrid(GRID_SIZE * 2) }
+      return { x: cx, y: snapToGrid(96, gridSize) }
     }
-    // Find the bottom edge of the lowest node and place below it with a gap.
     const bottommost = nodes.reduce((max, n) => {
       const bottom = n.y + nodeSize(n.type).height
       return bottom > max ? bottom : max
     }, 0)
-    return { x: cx, y: snapToGrid(bottommost + GRID_SIZE * 2) }
+    return { x: cx, y: snapToGrid(bottommost + 96, gridSize) }
   }
 
   /** In auto mode, re-run autoLayout after a mutation. Call this AFTER
@@ -507,12 +528,11 @@ export default function JourneyEditPage() {
    *  the latest state is used. */
   function relayoutIfAuto(nextNodes?: JourneyNode[], nextConnectors?: JourneyConnector[]) {
     if (layoutMode !== 'auto') return
-    // Use provided arrays (for cases where we have the new state) or
-    // schedule a setNodes with the latest state.
+    const opts = { workspaceWidth: wsSize.width, gridSize }
     if (nextNodes && nextConnectors) {
-      setNodes(autoLayout(nextNodes, nextConnectors))
+      setNodes(autoLayout(nextNodes, nextConnectors, opts))
     } else {
-      setNodes(prev => autoLayout(prev, connectorsRef.current))
+      setNodes(prev => autoLayout(prev, connectorsRef.current, opts))
     }
   }
 
@@ -558,7 +578,7 @@ export default function JourneyEditPage() {
   function handleAutoLayout() {
     if (nodes.length === 0) return
     pushHistory()
-    setNodes(autoLayout(nodes, connectors))
+    setNodes(autoLayout(nodes, connectors, { workspaceWidth: wsSize.width, gridSize }))
     setDirty(true)
   }
 
@@ -798,6 +818,20 @@ export default function JourneyEditPage() {
               </Button>
             </>
           )}
+          <div className="w-px h-5 bg-gray-200 mx-1" />
+          <label className="text-xs text-gray-500 flex items-center gap-1.5">
+            Snap:
+            <select
+              value={gridSize}
+              onChange={e => setGridSize(Number(e.target.value))}
+              className="text-xs border border-gray-200 rounded px-1.5 py-1 text-gray-600 bg-white"
+            >
+              <option value={48}>Large</option>
+              <option value={24}>Medium</option>
+              <option value={12}>Fine</option>
+              <option value={1}>Off</option>
+            </select>
+          </label>
         </div>
       )}
 
@@ -811,22 +845,20 @@ export default function JourneyEditPage() {
       <div className="flex-1 flex gap-0 min-h-0" style={{ minHeight: 400 }}>
       <div
         ref={workspaceRef}
-        className="flex-1 overflow-auto rounded-md border border-gray-200 bg-gray-50 relative"
+        className="flex-1 overflow-hidden rounded-md border border-gray-200 bg-gray-50 relative"
       >
         <div
-          className="relative"
+          className="absolute inset-0"
           style={{
-            width: WORKSPACE_SIZE.width,
-            height: WORKSPACE_SIZE.height,
-            backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
-            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+            backgroundImage: gridSize > 1 ? 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)' : 'none',
+            backgroundSize: gridSize > 1 ? `${gridSize}px ${gridSize}px` : undefined,
           }}
         >
           {/* SVG layer for connectors + drawing wire */}
           <svg
             className="absolute inset-0 pointer-events-none"
-            width={WORKSPACE_SIZE.width}
-            height={WORKSPACE_SIZE.height}
+            width={wsSize.width}
+            height={wsSize.height}
             style={{ zIndex: 0 }}
           >
             <defs>

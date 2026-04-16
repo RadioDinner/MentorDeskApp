@@ -1,0 +1,6 @@
+SESSION 027 PROMPT HISTORY
+===========================
+
+1. start another session for bug hunting and minor features. All migrations are run in supabase
+
+2. In the journey screen, there is still a scroll bar on the bottom of the screen. I don't want that. I want one single grid. I also want more resolution with the "Snap to" options in the grids there.
