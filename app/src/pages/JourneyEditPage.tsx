@@ -688,7 +688,6 @@ export default function JourneyEditPage() {
         </div>
       </div>
 
-
       {/* Add-node toolbar */}
       {canEdit && (
         <div className="flex items-center gap-2 mb-3 relative">
@@ -722,13 +721,23 @@ export default function JourneyEditPage() {
           </div>
           <Button variant="secondary" onClick={addDecisionNode}>+ Decision</Button>
           <div className="w-px h-5 bg-gray-200 mx-1" />
-          <Button variant="secondary" onClick={undo} disabled={past.length === 0} title="Undo (Cmd+Z)">
+          <Button
+            variant="secondary"
+            onClick={undo}
+            disabled={past.length === 0}
+            title="Undo (Cmd+Z)"
+          >
             Undo
           </Button>
           {layoutMode === 'freeform' && (
             <>
               <div className="w-px h-5 bg-gray-200 mx-1" />
-              <Button variant="secondary" onClick={handleAutoLayout} disabled={nodes.length === 0} title="Auto-arrange nodes by graph depth">
+              <Button
+                variant="secondary"
+                onClick={handleAutoLayout}
+                disabled={nodes.length === 0}
+                title="Auto-arrange nodes by graph depth"
+              >
                 Auto-arrange
               </Button>
             </>
@@ -738,7 +747,7 @@ export default function JourneyEditPage() {
 
       {drawingWire && (
         <div className="mb-2 text-xs text-brand bg-brand/5 border border-brand/20 rounded px-3 py-1.5">
-          Drag to a node&apos;s input port (top circle) to connect. Release elsewhere or press Esc to cancel.
+          Drag to a node's input port (top circle) to connect. Release elsewhere or press Esc to cancel.
         </div>
       )}
 
@@ -765,14 +774,31 @@ export default function JourneyEditPage() {
             style={{ zIndex: 0 }}
           >
             <defs>
-              <marker id="journey-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker
+                id="journey-arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
               </marker>
-              <marker id="journey-arrow-draw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker
+                id="journey-arrow-drawing"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
               </marker>
             </defs>
 
+            {/* Existing connectors: port-to-port */}
             {connectors.map(c => {
               const from = nodes.find(n => n.id === c.fromNodeId)
               const to = nodes.find(n => n.id === c.toNodeId)
@@ -792,9 +818,11 @@ export default function JourneyEditPage() {
                 <g key={c.id}>
                   <path d={d} stroke="#94a3b8" strokeWidth={2} fill="none" markerEnd="url(#journey-arrow)" />
                   {canEdit && (
-                    <path d={d} stroke="transparent" strokeWidth={14} fill="none"
+                    <path
+                      d={d} stroke="transparent" strokeWidth={14} fill="none"
                       className="pointer-events-auto cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}>
+                      onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
+                    >
                       <title>Click to delete connector</title>
                     </path>
                   )}
@@ -802,15 +830,20 @@ export default function JourneyEditPage() {
               )
             })}
 
+            {/* Drawing wire (temp line while dragging from port) */}
             {drawingWire && (
               <path
                 d={connectorPath(drawingWire.portX, drawingWire.portY, drawingWire.mouseX, drawingWire.mouseY)}
-                stroke="#6366f1" strokeWidth={2} strokeDasharray="6 4" fill="none" markerEnd="url(#journey-arrow-draw)"
+                stroke="#6366f1"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                fill="none"
+                markerEnd="url(#journey-arrow-drawing)"
               />
             )}
           </svg>
 
-          {/* Connector labels */}
+          {/* Connector labels (HTML layer) */}
           {connectors.map(c => {
             const from = nodes.find(n => n.id === c.fromNodeId)
             const to = nodes.find(n => n.id === c.toNodeId)
@@ -827,10 +860,15 @@ export default function JourneyEditPage() {
             const tgtPort = inputPortPos(to)
             const mx = (srcPort.x + tgtPort.x) / 2
             const my = (srcPort.y + tgtPort.y) / 2
+
             const isEditing = editingConnectorId === c.id
             if (isEditing) {
               return (
-                <input key={c.id} autoFocus data-no-drag value={editingLabelValue}
+                <input
+                  key={c.id}
+                  autoFocus
+                  data-no-drag
+                  value={editingLabelValue}
                   onChange={e => setEditingLabelValue(e.target.value)}
                   onBlur={() => saveConnectorLabel(c.id)}
                   onKeyDown={e => {
@@ -844,33 +882,52 @@ export default function JourneyEditPage() {
               )
             }
             return (
-              <div key={c.id} className="absolute flex items-center gap-1"
-                style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5 }} data-no-drag>
-                <button type="button" onClick={(e) => { e.stopPropagation(); beginEditLabel(c) }} disabled={!canEdit}
-                  className={'text-[11px] px-1.5 py-0.5 rounded border shadow-sm max-w-[160px] truncate ' +
-                    (c.label ? 'bg-white border-gray-300 text-gray-700 hover:border-brand' : 'bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-brand')}
-                  title={canEdit ? 'Click to edit label' : undefined}>
+              <div
+                key={c.id}
+                className="absolute flex items-center gap-1"
+                style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5 }}
+                data-no-drag
+              >
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); beginEditLabel(c) }}
+                  disabled={!canEdit}
+                  className={
+                    'text-[11px] px-1.5 py-0.5 rounded border shadow-sm max-w-[160px] truncate ' +
+                    (c.label
+                      ? 'bg-white border-gray-300 text-gray-700 hover:border-brand'
+                      : 'bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-brand')
+                  }
+                  title={canEdit ? 'Click to edit label' : undefined}
+                >
                   {c.label || 'label'}
                 </button>
                 {canEdit && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
                     className="text-[11px] leading-none w-4 h-4 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-500 hover:border-rose-400 hover:text-rose-600 shadow-sm"
-                    title="Delete connector">&times;</button>
+                    title="Delete connector"
+                  >
+                    &times;
+                  </button>
                 )}
               </div>
             )
           })}
 
-          {/* Nodes with port circles */}
+          {/* Nodes with ports */}
           {nodes.map(n => {
             const size = NODE_DEFAULTS[n.type]
-            const col = COLORS[n.type]
+            const c = COLORS[n.type]
             const endBorder = n.isEnd ? 'border-rose-400' : ''
             const hasInput = n.type !== 'start'
-            const isDec = n.type === 'decision'
+            const isDecisionType = n.type === 'decision'
             const outgoing = connectors.filter(cn => cn.fromNodeId === n.id)
-            const outPortCount = isDec ? outgoing.length + 1 : 1
-            const outPorts = isDec ? decisionOutputPorts(n, outPortCount) : [outputPortPos(n)]
+            const outPortCount = isDecisionType ? outgoing.length + 1 : 1
+            const outPorts = isDecisionType
+              ? decisionOutputPorts(n, outPortCount)
+              : [outputPortPos(n)]
 
             let label: string
             let sublabel: string | null = null
@@ -878,59 +935,111 @@ export default function JourneyEditPage() {
             else if (n.type === 'end') { label = 'End' }
             else if (n.type === 'status') { label = (n as unknown as { label: string }).label || 'Status'; sublabel = 'STATUS' }
             else if (n.type === 'decision') { label = (n as JourneyDecisionNode).label || 'Untitled'; sublabel = 'DECISION' }
-            else { const off = offerings.find(o => o.id === (n as JourneyOfferingNode).offeringId); label = off?.name ?? '(offering not found)'; sublabel = off?.type === 'course' ? 'COURSE' : off?.type === 'engagement' ? 'ENGAGEMENT' : 'OFFERING' }
+            else {
+              const off = offerings.find(o => o.id === (n as JourneyOfferingNode).offeringId)
+              label = off?.name ?? '(offering not found)'
+              sublabel = off?.type === 'course' ? 'COURSE' : off?.type === 'engagement' ? 'ENGAGEMENT' : 'OFFERING'
+            }
 
             const isRound = n.type === 'start' || n.type === 'end'
+
             return (
               <div key={n.id}>
+                {/* The node body */}
                 <div
                   onPointerDown={e => handleNodePointerDown(e, n)}
-                  className={`absolute ${isRound ? 'rounded-full' : 'rounded-lg'} border-2 shadow-sm select-none group ${col.bg} ${endBorder || col.border}`}
-                  style={{ left: n.x, top: n.y, width: size.width, minHeight: size.height, cursor: 'grab', zIndex: 1 }}
+                  className={`absolute ${isRound ? 'rounded-full' : 'rounded-lg'} border-2 shadow-sm select-none group ${c.bg} ${endBorder || c.border}`}
+                  style={{
+                    left: n.x,
+                    top: n.y,
+                    width: size.width,
+                    minHeight: size.height,
+                    cursor: 'grab',
+                    zIndex: 1,
+                  }}
                 >
                   {n.isEnd && !isRound && (
-                    <span className="absolute -top-2 -right-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 border border-rose-200 shadow-sm z-10">End</span>
+                    <span className="absolute -top-2 -right-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 border border-rose-200 shadow-sm z-10">
+                      End
+                    </span>
                   )}
+
                   {canEdit && n.type !== 'start' && (
-                    <button type="button" data-no-drag onClick={e => { e.stopPropagation(); deleteNode(n.id) }}
+                    <button
+                      type="button"
+                      data-no-drag
+                      onClick={e => { e.stopPropagation(); deleteNode(n.id) }}
                       className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-400 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-600 flex items-center justify-center text-xs shadow-sm z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete node">&times;</button>
+                      title="Delete node"
+                    >
+                      &times;
+                    </button>
                   )}
+
                   {canEdit && !isRound && (
                     <button type="button" data-no-drag onClick={e => { e.stopPropagation(); toggleEndNode(n.id) }}
                       className={`absolute -bottom-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full border shadow-sm z-10 opacity-0 group-hover:opacity-100 transition-opacity ${n.isEnd ? 'bg-rose-100 text-rose-600 border-rose-200 !opacity-100' : 'bg-white text-gray-400 border-gray-200 hover:text-rose-500 hover:border-rose-300'}`}
-                      title={n.isEnd ? 'Remove as end point' : 'Mark as end point'}>{n.isEnd ? 'End \u2713' : 'Set end'}</button>
+                      title={n.isEnd ? 'Remove as end point' : 'Mark as end point'}
+                    >{n.isEnd ? 'End \u2713' : 'Set end'}</button>
                   )}
+
                   <div className={`flex flex-col justify-center items-center h-full px-3 py-2 ${isRound ? 'text-center' : ''}`}>
-                    {sublabel && <div className={`text-[9px] font-semibold uppercase tracking-wider ${col.text}`}>{sublabel}</div>}
-                    <div className={`text-sm ${isRound ? 'font-semibold' : 'font-medium'} ${isRound ? col.text : 'text-gray-900'} truncate max-w-full`}>{label}</div>
-                    {isDec && outgoing.length > 0 && (
+                    {sublabel && (
+                      <div className={`text-[9px] font-semibold uppercase tracking-wider ${c.text}`}>{sublabel}</div>
+                    )}
+                    <div className={`text-sm font-${isRound ? 'semibold' : 'medium'} ${isRound ? c.text : 'text-gray-900'} truncate max-w-full`}>
+                      {label}
+                    </div>
+                    {isDecisionType && outgoing.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1" data-no-drag>
                         {outgoing.map(o => (
-                          <span key={o.id} className="text-[8px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[80px]">{o.label || '...'}</span>
+                          <span key={o.id} className="text-[8px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 truncate max-w-[80px]">
+                            {o.label || '...'}
+                          </span>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
 
+                {/* Input port (top center) */}
                 {hasInput && (() => {
                   const ip = inputPortPos(n)
                   return (
-                    <div data-port="input"
+                    <div
+                      data-port="input"
                       className={`absolute rounded-full border-2 border-gray-400 bg-white hover:border-brand hover:bg-brand/10 transition-colors ${drawingWire ? 'scale-125 border-brand' : ''}`}
-                      style={{ left: ip.x - PORT_RADIUS, top: ip.y - PORT_RADIUS, width: PORT_RADIUS * 2, height: PORT_RADIUS * 2, zIndex: 3 }}
+                      style={{
+                        left: ip.x - PORT_RADIUS,
+                        top: ip.y - PORT_RADIUS,
+                        width: PORT_RADIUS * 2,
+                        height: PORT_RADIUS * 2,
+                        zIndex: 3,
+                        cursor: 'default',
+                      }}
                     />
                   )
                 })()}
 
+                {/* Output ports (bottom) */}
                 {outPorts.map((op, idx) => (
-                  <div key={idx} data-port="output"
+                  <div
+                    key={idx}
+                    data-port="output"
                     onPointerDown={e => handlePortDragStart(n.id, op.x, op.y, e)}
                     className={`absolute rounded-full border-2 bg-white hover:bg-brand/10 hover:border-brand transition-colors ${
-                      isDec && idx === outPorts.length - 1 && outgoing.length > 0 ? 'border-dashed border-gray-300 hover:border-brand' : 'border-gray-400'
+                      isDecisionType && idx === outPorts.length - 1 && outgoing.length > 0
+                        ? 'border-dashed border-gray-300 hover:border-brand'
+                        : 'border-gray-400'
                     }`}
-                    style={{ left: op.x - PORT_RADIUS, top: op.y - PORT_RADIUS, width: PORT_RADIUS * 2, height: PORT_RADIUS * 2, zIndex: 3, cursor: canEdit ? 'crosshair' : 'default' }}
+                    style={{
+                      left: op.x - PORT_RADIUS,
+                      top: op.y - PORT_RADIUS,
+                      width: PORT_RADIUS * 2,
+                      height: PORT_RADIUS * 2,
+                      zIndex: 3,
+                      cursor: canEdit ? 'crosshair' : 'default',
+                    }}
                     title={canEdit ? 'Drag to connect' : undefined}
                   />
                 ))}
