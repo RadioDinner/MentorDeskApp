@@ -16,7 +16,7 @@ interface FlowWithCounts extends JourneyFlow {
   connector_count: number
 }
 
-const VIEW_STORAGE_KEY = 'mentordesk_flows_view'
+const VIEW_STORAGE_KEY = 'mentordesk_journeys_view'
 
 function readStoredView(): ViewMode {
   if (typeof window === 'undefined') return 'grid'
@@ -24,7 +24,7 @@ function readStoredView(): ViewMode {
   return v === 'list' || v === 'grid' ? v : 'grid'
 }
 
-export default function FlowsPage() {
+export default function JourneysPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<FlowWithCounts[]>([])
@@ -109,9 +109,9 @@ export default function FlowsPage() {
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Flows</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Journeys</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {visibleItems.length} flow{visibleItems.length === 1 ? '' : 's'}
+            {visibleItems.length} journey{visibleItems.length === 1 ? '' : 's'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export default function FlowsPage() {
             Show archived
           </label>
           {canCreate && (
-            <Button onClick={() => navigate('/flows/new')}>+ Create Flow</Button>
+            <Button onClick={() => navigate('/journeys/new')}>+ Create Journey</Button>
           )}
         </div>
       </div>
@@ -141,7 +141,7 @@ export default function FlowsPage() {
           folderTable="flow_folders"
           itemTable="journey_flows"
           dragKey="flow-id"
-          rootLabel="All Flows"
+          rootLabel="All Journeys"
           onMoveItem={moveFlowToFolder}
         />
       )}
@@ -152,19 +152,19 @@ export default function FlowsPage() {
         <LoadingErrorState message={error} onRetry={() => fetchRef.current()} />
       ) : visibleItems.length === 0 ? (
         <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">No flows yet.</p>
-          <p className="text-xs text-gray-400 mt-1">Create a flow to build a reusable journey template for mentees.</p>
+          <p className="text-sm text-gray-500">No journeys yet.</p>
+          <p className="text-xs text-gray-400 mt-1">Create a journey to build a reusable template for mentees.</p>
         </div>
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {visibleItems.map(f => (
-            <FlowGridCard key={f.id} flow={f} onOpen={() => navigate(`/flows/${f.id}`)} />
+            <FlowGridCard key={f.id} flow={f} onOpen={() => navigate(`/journeys/${f.id}`)} />
           ))}
         </div>
       ) : (
         <div className="bg-white rounded-md border border-gray-200/80 divide-y divide-gray-100">
           {visibleItems.map(f => (
-            <FlowListRow key={f.id} flow={f} onOpen={() => navigate(`/flows/${f.id}`)} />
+            <FlowListRow key={f.id} flow={f} onOpen={() => navigate(`/journeys/${f.id}`)} />
           ))}
         </div>
       )}
@@ -181,7 +181,7 @@ function FlowListRow({ flow, onOpen }: { flow: FlowWithCounts; onOpen: () => voi
       className="w-full text-left flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
     >
       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold shrink-0">
-        {flow.name[0]?.toUpperCase() ?? 'F'}
+        {flow.name[0]?.toUpperCase() ?? 'J'}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -220,7 +220,7 @@ function FlowGridCard({ flow, onOpen }: { flow: FlowWithCounts; onOpen: () => vo
     >
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-          {flow.name[0]?.toUpperCase() ?? 'F'}
+          {flow.name[0]?.toUpperCase() ?? 'J'}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

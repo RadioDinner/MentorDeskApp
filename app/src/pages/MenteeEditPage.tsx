@@ -331,7 +331,7 @@ export default function MenteeEditPage() {
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition bg-white">
                   <option value="">No status set</option>
                   {flowSteps.filter(s => s.in_flow).sort((a, b) => a.order - b.order).length > 0 && (
-                    <optgroup label="Program flow">
+                    <optgroup label="Program journey">
                       {flowSteps.filter(s => s.in_flow).sort((a, b) => a.order - b.order).map(s => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}

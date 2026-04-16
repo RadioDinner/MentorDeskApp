@@ -20,7 +20,7 @@ export const ALL_MODULES: ModuleDef[] = [
   { key: 'engagements',       label: 'Engagements',       letter: 'G', group: 'Offerings', path: '/engagements',        gradient: 'from-rose-400 to-rose-600',       color: 'bg-rose-500' },
   { key: 'habits',            label: 'Habits',            letter: 'H', group: 'Offerings', path: '/habits',             gradient: 'from-teal-400 to-teal-600',       color: 'bg-teal-500' },
   { key: 'canvases',          label: 'Canvases',          letter: 'V', group: 'Offerings', path: '/canvases',           gradient: 'from-fuchsia-400 to-fuchsia-600', color: 'bg-fuchsia-500' },
-  { key: 'flows',             label: 'Flows',             letter: 'F', group: 'Offerings', path: '/flows',              gradient: 'from-violet-400 to-violet-600',   color: 'bg-violet-500' },
+  { key: 'journeys',          label: 'Journeys',           letter: 'J', group: 'Offerings', path: '/journeys',           gradient: 'from-violet-400 to-violet-600',   color: 'bg-violet-500' },
   { key: 'billing',           label: 'Billing',           letter: 'B', group: 'System',    path: '/billing',            gradient: 'from-emerald-400 to-emerald-600', color: 'bg-emerald-500' },
   { key: 'invoicing',         label: 'Invoicing',         letter: 'I', group: 'Finance',   path: '/invoicing',          gradient: 'from-sky-400 to-sky-600',         color: 'bg-sky-500' },
   { key: 'payroll',           label: 'Payroll',           letter: 'Y', group: 'Finance',   path: '/payroll',            gradient: 'from-lime-500 to-lime-700',       color: 'bg-lime-500' },

@@ -37,7 +37,7 @@ import type {
 
 type HistorySnapshot = { nodes: JourneyNode[]; connectors: JourneyConnector[] }
 
-export default function FlowEditPage() {
+export default function JourneyEditPage() {
   const { id } = useParams<{ id: string }>()
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -481,7 +481,7 @@ export default function FlowEditPage() {
     )
     if (err) { toast.error(err.message); return }
     setFlow({ ...flow, archived_at: nextArchivedAt })
-    toast.success(nextArchivedAt ? 'Flow archived' : 'Flow unarchived')
+    toast.success(nextArchivedAt ? 'Journey archived' : 'Journey unarchived')
   }
 
   // ── Save flow content ──────────────────────────────────────────────────
@@ -542,8 +542,8 @@ export default function FlowEditPage() {
         details: { name: flow.name },
       })
     }
-    toast.success('Flow deleted')
-    navigate('/flows')
+    toast.success('Journey deleted')
+    navigate('/journeys')
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -555,7 +555,7 @@ export default function FlowEditPage() {
     )
   }
   if (error || !flow) {
-    return <LoadingErrorState message={error ?? 'Flow not found'} onRetry={() => fetchRef.current()} />
+    return <LoadingErrorState message={error ?? 'Journey not found'} onRetry={() => fetchRef.current()} />
   }
 
   return (
@@ -564,7 +564,7 @@ export default function FlowEditPage() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => navigate('/flows')}
+            onClick={() => navigate('/journeys')}
             className="text-sm text-gray-500 hover:text-gray-700 shrink-0"
           >
             &larr; Back

@@ -292,8 +292,8 @@ export default function CompanySettingsPage() {
                 </button>
               </div>
               <div className="rounded-lg border border-gray-200 px-4 py-4">
-                <p className="text-sm font-medium text-gray-900">Journey flow layout</p>
-                <p className="text-xs text-gray-500 mt-0.5 mb-3">How nodes are arranged in the journey flow editor.</p>
+                <p className="text-sm font-medium text-gray-900">Journey layout</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-3">How nodes are arranged in the journey editor.</p>
                 <div className="space-y-2">
                   <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${flowLayoutMode === 'auto' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
                     <input type="radio" name="flowLayoutMode" value="auto"

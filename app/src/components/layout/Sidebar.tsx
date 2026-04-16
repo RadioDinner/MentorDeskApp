@@ -124,6 +124,8 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
     for (const mod of ALL_MODULES) visibleKeys.add(mod.key)
   } else {
     for (const key of allowedKeys) visibleKeys.add(key)
+    // Legacy compat: 'flows' was renamed to 'journeys'
+    if (allowedKeys.has('flows')) visibleKeys.add('journeys')
   }
 
   const groups = modulesByGroup()

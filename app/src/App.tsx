@@ -53,9 +53,9 @@ const CanvasesPage               = lazy(() => import('./pages/CanvasesPage'))
 const CanvasCreatePage           = lazy(() => import('./pages/CanvasCreatePage'))
 const CanvasEditPage             = lazy(() => import('./pages/CanvasEditPage'))
 const MenteeCanvasesPage         = lazy(() => import('./pages/MenteeCanvasesPage'))
-const FlowsPage                  = lazy(() => import('./pages/FlowsPage'))
-const FlowCreatePage             = lazy(() => import('./pages/FlowCreatePage'))
-const FlowEditPage               = lazy(() => import('./pages/FlowEditPage'))
+const JourneysPage               = lazy(() => import('./pages/JourneysPage'))
+const JourneyCreatePage          = lazy(() => import('./pages/JourneyCreatePage'))
+const JourneyEditPage            = lazy(() => import('./pages/JourneyEditPage'))
 const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 
 export default function App() {
@@ -175,13 +175,16 @@ export default function App() {
               </ProtectedRoute>
             } />
             <Route path="/canvases/:id" element={<CanvasEditPage />} />
-            <Route path="/flows" element={<FlowsPage />} />
-            <Route path="/flows/new" element={
+            <Route path="/journeys" element={<JourneysPage />} />
+            <Route path="/journeys/new" element={
               <ProtectedRoute allowedRoles={['admin', 'operations', 'course_creator']}>
-                <FlowCreatePage />
+                <JourneyCreatePage />
               </ProtectedRoute>
             } />
-            <Route path="/flows/:id" element={<FlowEditPage />} />
+            <Route path="/journeys/:id" element={<JourneyEditPage />} />
+            {/* Legacy /flows routes redirect to /journeys */}
+            <Route path="/flows" element={<Navigate to="/journeys" replace />} />
+            <Route path="/flows/*" element={<Navigate to="/journeys" replace />} />
             <Route path="/offerings" element={<Navigate to="/courses" replace />} />
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/people/:id/availability" element={<AvailabilityPage />} />

@@ -22,7 +22,7 @@ const inputClass =
   'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 const errorClass = 'mt-1 text-xs text-red-500'
 
-export default function FlowCreatePage() {
+export default function JourneyCreatePage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
@@ -68,19 +68,19 @@ export default function FlowCreatePage() {
       entity_id: newFlow.id,
       details: { name: newFlow.name },
     })
-    toast.success('Flow created')
-    navigate(`/flows/${newFlow.id}`)
+    toast.success('Journey created')
+    navigate(`/journeys/${newFlow.id}`)
   }
 
   return (
     <div className="max-w-2xl">
       <button
-        onClick={() => navigate('/flows')}
+        onClick={() => navigate('/journeys')}
         className="text-sm text-gray-500 hover:text-gray-700 mb-4"
       >
         &larr; Back
       </button>
-      <h1 className="text-lg font-semibold text-gray-900 mb-6">Create Flow</h1>
+      <h1 className="text-lg font-semibold text-gray-900 mb-6">Create Journey</h1>
 
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
@@ -89,7 +89,7 @@ export default function FlowCreatePage() {
             <input
               id="name"
               type="text"
-              placeholder="e.g. General Flow"
+              placeholder="e.g. General Journey"
               {...register('name')}
               className={`${inputClass}${errors.name ? ' border-red-400 focus:border-red-400 focus:ring-red-200' : ''}`}
             />
@@ -101,7 +101,7 @@ export default function FlowCreatePage() {
             <textarea
               id="description"
               rows={3}
-              placeholder="What is this flow for? Who is it meant to guide?"
+              placeholder="What is this journey for? Who is it meant to guide?"
               {...register('description')}
               className={`${inputClass} resize-none`}
             />
@@ -109,9 +109,9 @@ export default function FlowCreatePage() {
 
           <div className="flex items-center gap-3 pt-2">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating…' : 'Create Flow'}
+              {isSubmitting ? 'Creating…' : 'Create Journey'}
             </Button>
-            <Button variant="secondary" type="button" onClick={() => navigate('/flows')}>
+            <Button variant="secondary" type="button" onClick={() => navigate('/journeys')}>
               Cancel
             </Button>
           </div>

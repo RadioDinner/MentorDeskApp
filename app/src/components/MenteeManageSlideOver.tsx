@@ -261,7 +261,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
     if (!flow) return
     const startNode = flow.content.nodes.find(n => n.type === 'start')
     if (!startNode) {
-      toast.error('This flow has no start node. Edit the flow and add one before starting it.')
+      toast.error('This journey has no start node. Edit the journey and add one before starting it.')
       return
     }
     setAssigning(true)
@@ -703,7 +703,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                   {showJourneySelect && (
                     <div className="mb-3">
                       <select className={selectClass} value="" disabled={assigning} onChange={e => { if (e.target.value) assignJourney(e.target.value) }}>
-                        <option value="">Select a flow...</option>
+                        <option value="">Select a journey...</option>
                         {availableFlows.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                       </select>
                     </div>
@@ -718,8 +718,8 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                         </button>
                       )}
                       {availableFlows.length === 0 && journeyFlows.length === 0 && (
-                        <button onClick={() => { onClose(); navigate('/flows') }} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
-                          Create a flow
+                        <button onClick={() => { onClose(); navigate('/journeys') }} className="mt-2 text-xs font-medium text-brand hover:text-brand-hover transition-colors">
+                          Create a journey
                         </button>
                       )}
                     </div>

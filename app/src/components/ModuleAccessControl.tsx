@@ -27,7 +27,9 @@ function getGroupStyle(group: string) {
 export default function ModuleAccessControl({ person, allPeople, permissionGroups, onUpdate, expanded, onToggle, renderPanel }: Props) {
   const [copyOpen, setCopyOpen] = useState(false)
 
-  const allowed = new Set(person.allowed_modules ?? [])
+  // Normalize legacy key: 'flows' was renamed to 'journeys'
+  const rawModules = (person.allowed_modules ?? []).map(k => k === 'flows' ? 'journeys' : k)
+  const allowed = new Set(rawModules)
   const assignable = ALL_MODULES.filter(m => !ALWAYS_VISIBLE.includes(m.key))
   const groups = modulesByGroup().filter(g => g.group !== 'Main')
   const activeCount = assignable.filter(m => allowed.has(m.key)).length
