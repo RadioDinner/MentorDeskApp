@@ -24,6 +24,7 @@ import {
   snapToGrid,
   connectorPath,
   autoLayout,
+  computeDepths,
   type NodeType,
 } from '../lib/journeyFlow'
 import type {
@@ -34,6 +35,7 @@ import type {
   JourneyDecisionNode,
   JourneyStatusNode,
   Offering,
+  FlowLayoutMode,
 } from '../types'
 
 type HistorySnapshot = { nodes: JourneyNode[]; connectors: JourneyConnector[] }
@@ -64,6 +66,7 @@ export default function FlowEditPage() {
   // Inline label edit state for connectors.
   const [editingConnectorId, setEditingConnectorId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState('')
+  const [layoutMode, setLayoutMode] = useState<FlowLayoutMode>('freeform')
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -92,19 +95,23 @@ export default function FlowEditPage() {
       setLoading(true)
       setError(null)
       try {
-        const [flowRes, offeringsRes] = await Promise.all([
+        const [flowRes, offeringsRes, orgRes] = await Promise.all([
           supabase.from('journey_flows').select('*').eq('id', id!).single(),
           supabaseRestGet<Offering>(
             'offerings',
             `select=*&organization_id=eq.${orgId}&order=name.asc`,
             { label: 'flow:offerings' },
           ),
+          supabase.from('organizations').select('flow_layout_mode').eq('id', orgId).single(),
         ])
         if (flowRes.error) { setError(flowRes.error.message); return }
         const f = flowRes.data as JourneyFlow
         const normalized = migrateContent(f.content)
+        const mode: FlowLayoutMode = (orgRes.data as { flow_layout_mode?: FlowLayoutMode } | null)?.flow_layout_mode ?? 'freeform'
+        setLayoutMode(mode)
         setFlow({ ...f, content: normalized })
-        setNodes(normalized.nodes)
+        // In auto mode, apply auto-layout on load.
+        setNodes(mode === 'auto' ? autoLayout(normalized.nodes, normalized.connectors) : normalized.nodes)
         setConnectors(normalized.connectors)
         setPast([])
         setDirty(false)
@@ -132,6 +139,12 @@ export default function FlowEditPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [dirty])
 
+  // Keep refs so the drag effect closure stays current.
+  const layoutModeRef = useRef(layoutMode)
+  layoutModeRef.current = layoutMode
+  const connectorsRef = useRef(connectors)
+  connectorsRef.current = connectors
+
   // ── Drag listeners (document-level while a drag is in progress) ───────
   useEffect(() => {
     function handleMove(e: PointerEvent) {
@@ -155,6 +168,14 @@ export default function FlowEditPage() {
         if (n.id !== drag.nodeId) return n
         const size = nodeSize(n.type)
         const rawX = drag.startNodeX + dx
+        if (layoutModeRef.current === 'auto') {
+          // Auto mode: horizontal-only drag within the node's row.
+          return {
+            ...n,
+            x: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.width - size.width, rawX))),
+          }
+        }
+        // Freeform mode: full grid-snap drag.
         const rawY = drag.startNodeY + dy
         return {
           ...n,
@@ -167,7 +188,24 @@ export default function FlowEditPage() {
       if (!dragStateRef.current) return
       const ds = dragStateRef.current
       dragStateRef.current = null
-      if (ds.moved) setDirty(true)
+      if (!ds.moved) return
+      setDirty(true)
+      if (layoutModeRef.current === 'auto') {
+        // After horizontal reorder, re-run autoLayout to snap everything
+        // clean. The node array order (which autoLayout uses for within-row
+        // ordering) is updated by sorting nodes at the same depth by their
+        // current x position before passing to autoLayout.
+        setNodes(prev => {
+          const depths = computeDepths(prev, connectorsRef.current)
+          const sorted = [...prev].sort((a, b) => {
+            const da = depths.get(a.id) ?? 999
+            const db = depths.get(b.id) ?? 999
+            if (da !== db) return da - db
+            return a.x - b.x
+          })
+          return autoLayout(sorted, connectorsRef.current)
+        })
+      }
     }
     document.addEventListener('pointermove', handleMove)
     document.addEventListener('pointerup', handleUp)
@@ -195,7 +233,7 @@ export default function FlowEditPage() {
     if (past.length === 0) return
     const snapshot = past[past.length - 1]
     setPast(prev => prev.slice(0, -1))
-    setNodes(snapshot.nodes)
+    setNodes(layoutMode === 'auto' ? autoLayout(snapshot.nodes, snapshot.connectors) : snapshot.nodes)
     setConnectors(snapshot.connectors)
     // Any in-progress label edit or connect mode should be closed so the
     // restored content sticks.
@@ -236,8 +274,11 @@ export default function FlowEditPage() {
     )
     if (!alreadyExists) {
       pushHistory()
-      setConnectors(prev => [...prev, createConnector(src, nodeId)])
+      const newConn = createConnector(src, nodeId)
+      const nextConnectors = [...connectors, newConn]
+      setConnectors(nextConnectors)
       setDirty(true)
+      relayoutIfAuto(nodes, nextConnectors)
     }
     setConnectorMode(null)
   }
@@ -249,8 +290,10 @@ export default function FlowEditPage() {
       setEditingLabelValue('')
     }
     pushHistory()
-    setConnectors(prev => prev.filter(c => c.id !== connectorId))
+    const nextConnectors = connectors.filter(c => c.id !== connectorId)
+    setConnectors(nextConnectors)
     setDirty(true)
+    relayoutIfAuto(nodes, nextConnectors)
   }
 
   function beginEditLabel(connector: JourneyConnector) {
@@ -357,33 +400,59 @@ export default function FlowEditPage() {
     return { x: cx, y: snapToGrid(bottommost + GRID_SIZE * 2) }
   }
 
+  /** In auto mode, re-run autoLayout after a mutation. Call this AFTER
+   *  updating nodes/connectors state with the setter callback form so
+   *  the latest state is used. */
+  function relayoutIfAuto(nextNodes?: JourneyNode[], nextConnectors?: JourneyConnector[]) {
+    if (layoutMode !== 'auto') return
+    // Use provided arrays (for cases where we have the new state) or
+    // schedule a setNodes with the latest state.
+    if (nextNodes && nextConnectors) {
+      setNodes(autoLayout(nextNodes, nextConnectors))
+    } else {
+      setNodes(prev => autoLayout(prev, connectorsRef.current))
+    }
+  }
+
   function addOfferingNode(offeringId: string) {
     pushHistory()
     const { x, y } = spawnPosition('offering')
-    setNodes(prev => [...prev, createOfferingNode(x, y, offeringId)])
+    const newNode = createOfferingNode(x, y, offeringId)
+    const nextNodes = [...nodes, newNode]
+    setNodes(nextNodes)
     setDirty(true)
     setShowOfferingPicker(false)
+    relayoutIfAuto(nextNodes, connectors)
   }
 
   function addDecisionNode() {
     pushHistory()
     const { x, y } = spawnPosition('decision')
-    setNodes(prev => [...prev, createDecisionNode(x, y, 'Decision')])
+    const newNode = createDecisionNode(x, y, 'Decision')
+    const nextNodes = [...nodes, newNode]
+    setNodes(nextNodes)
     setDirty(true)
+    relayoutIfAuto(nextNodes, connectors)
   }
 
   function addStatusNode() {
     pushHistory()
     const { x, y } = spawnPosition('status')
-    setNodes(prev => [...prev, createStatusNode(x, y, 'Status')])
+    const newNode = createStatusNode(x, y, 'Status')
+    const nextNodes = [...nodes, newNode]
+    setNodes(nextNodes)
     setDirty(true)
+    relayoutIfAuto(nextNodes, connectors)
   }
 
   function addEndNode() {
     pushHistory()
     const { x, y } = spawnPosition('end')
-    setNodes(prev => [...prev, createEndNode(x, y)])
+    const newNode = createEndNode(x, y)
+    const nextNodes = [...nodes, newNode]
+    setNodes(nextNodes)
     setDirty(true)
+    relayoutIfAuto(nextNodes, connectors)
   }
 
   function handleAutoLayout() {
@@ -548,6 +617,9 @@ export default function FlowEditPage() {
           <span className="text-[11px] text-gray-400 tabular-nums">
             {nodes.length} node{nodes.length === 1 ? '' : 's'} · {connectors.length} connector{connectors.length === 1 ? '' : 's'}
           </span>
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${layoutMode === 'auto' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+            {layoutMode === 'auto' ? 'Auto layout' : 'Freeform'}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
@@ -621,15 +693,19 @@ export default function FlowEditPage() {
           >
             Undo
           </Button>
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-          <Button
-            variant="secondary"
-            onClick={handleAutoLayout}
-            disabled={nodes.length === 0}
-            title="Auto-arrange nodes by graph depth"
-          >
-            Auto-arrange
-          </Button>
+          {layoutMode === 'freeform' && (
+            <>
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <Button
+                variant="secondary"
+                onClick={handleAutoLayout}
+                disabled={nodes.length === 0}
+                title="Auto-arrange nodes by graph depth"
+              >
+                Auto-arrange
+              </Button>
+            </>
+          )}
         </div>
       )}
 

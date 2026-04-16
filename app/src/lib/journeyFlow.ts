@@ -155,6 +155,40 @@ const ROW_GAP_GRIDS = 3
 const COL_GAP_GRIDS = 2
 
 /**
+ * Compute the longest-path depth of each node from the start node.
+ * Returns a Map<nodeId, depth>. Unreachable nodes are absent.
+ */
+export function computeDepths(
+  nodes: JourneyNode[],
+  connectors: JourneyConnector[],
+): Map<string, number> {
+  const children = new Map<string, string[]>()
+  for (const c of connectors) {
+    const list = children.get(c.fromNodeId)
+    if (list) list.push(c.toNodeId)
+    else children.set(c.fromNodeId, [c.toNodeId])
+  }
+  const startNode = nodes.find(n => n.type === 'start')
+  const rootId = startNode?.id ?? nodes[0]?.id
+  if (!rootId) return new Map()
+  const depth = new Map<string, number>()
+  depth.set(rootId, 0)
+  const queue = [rootId]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const d = depth.get(current)!
+    for (const child of children.get(current) ?? []) {
+      const prev = depth.get(child)
+      if (prev === undefined || d + 1 > prev) {
+        depth.set(child, d + 1)
+        queue.push(child)
+      }
+    }
+  }
+  return depth
+}
+
+/**
  * Compute an auto-layout for a set of nodes and connectors.
  *
  * Algorithm:
@@ -177,34 +211,7 @@ export function autoLayout(
 ): JourneyNode[] {
   if (nodes.length === 0) return []
 
-  // Build forward adjacency list.
-  const children = new Map<string, string[]>()
-  for (const c of connectors) {
-    const list = children.get(c.fromNodeId)
-    if (list) list.push(c.toNodeId)
-    else children.set(c.fromNodeId, [c.toNodeId])
-  }
-
-  // Find start node.
-  const startNode = nodes.find(n => n.type === 'start')
-  const rootId = startNode?.id ?? nodes[0].id
-
-  // Compute longest-path depth for each reachable node via iterative
-  // relaxation (handles DAGs with multiple paths correctly).
-  const depth = new Map<string, number>()
-  depth.set(rootId, 0)
-  const queue = [rootId]
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    const d = depth.get(current)!
-    for (const child of children.get(current) ?? []) {
-      const prev = depth.get(child)
-      if (prev === undefined || d + 1 > prev) {
-        depth.set(child, d + 1)
-        queue.push(child) // re-visit to propagate longer path
-      }
-    }
-  }
+  const depth = computeDepths(nodes, connectors)
 
   // Group nodes by depth. Unreachable nodes get depth = maxDepth + 1.
   const maxDepth = Math.max(0, ...depth.values())

@@ -9,7 +9,7 @@ import { useToast } from '../context/ToastContext'
 import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
-import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit, AllocationGrantMode, AllocationRefreshMode } from '../types'
+import type { Organization, PayType, RoleCategory, PayTypeSettings, FlowStep, MenteeFlow, CancellationPolicy, RoleGroup, ArchiveSettings, ArchiveDeleteUnit, AllocationGrantMode, AllocationRefreshMode, FlowLayoutMode } from '../types'
 import CancellationPolicyEditor, { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 import { ALL_MODULES, ALWAYS_VISIBLE, modulesByGroup } from '../lib/modules'
 
@@ -82,6 +82,7 @@ export default function CompanySettingsPage() {
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
   const [journeyAutoAssign, setJourneyAutoAssign] = useState(false)
+  const [flowLayoutMode, setFlowLayoutMode] = useState<FlowLayoutMode>('freeform')
   const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
   const [schedulerMaxDaysAhead, setSchedulerMaxDaysAhead] = useState(14)
   const [allocationGrantMode, setAllocationGrantMode] = useState<AllocationGrantMode>('on_open')
@@ -111,6 +112,7 @@ export default function CompanySettingsPage() {
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
         setAllowMultiEngagement(o.allow_multi_engagement ?? false)
         setJourneyAutoAssign(o.journey_auto_assign_offerings ?? false)
+        setFlowLayoutMode(o.flow_layout_mode ?? 'freeform')
         setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
         setSchedulerMaxDaysAhead(o.scheduler_max_days_ahead ?? 14)
         setAllocationGrantMode(o.allocation_grant_mode ?? 'on_open')
@@ -140,6 +142,7 @@ export default function CompanySettingsPage() {
         enable_lesson_due_dates: enableLessonDueDates,
         allow_multi_engagement: allowMultiEngagement,
         journey_auto_assign_offerings: journeyAutoAssign,
+        flow_layout_mode: flowLayoutMode,
         show_all_days_in_scheduler: showAllDaysInScheduler,
         scheduler_max_days_ahead: schedulerMaxDaysAhead,
         allocation_grant_mode: allocationGrantMode,
@@ -287,6 +290,32 @@ export default function CompanySettingsPage() {
                 <button type="button" onClick={() => setJourneyAutoAssign(!journeyAutoAssign)} className={toggleClass(journeyAutoAssign)}>
                   <span className={dotClass(journeyAutoAssign)} />
                 </button>
+              </div>
+              <div className="rounded-lg border border-gray-200 px-4 py-4">
+                <p className="text-sm font-medium text-gray-900">Journey flow layout</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-3">How nodes are arranged in the journey flow editor.</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${flowLayoutMode === 'auto' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="flowLayoutMode" value="auto"
+                      checked={flowLayoutMode === 'auto'}
+                      onChange={() => setFlowLayoutMode('auto')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Automatic layout</p>
+                      <p className="text-xs text-gray-500">Nodes arrange themselves in rows by graph depth. Drag to reorder within a row. The layout stays clean automatically.</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${flowLayoutMode === 'freeform' ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="flowLayoutMode" value="freeform"
+                      checked={flowLayoutMode === 'freeform'}
+                      onChange={() => setFlowLayoutMode('freeform')}
+                      className="mt-0.5 accent-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Freeform with grid snap</p>
+                      <p className="text-xs text-gray-500">Drag nodes freely on a snapping grid. Use the Auto-arrange button to organize by graph depth when needed.</p>
+                    </div>
+                  </label>
+                </div>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
                 <div className="pr-4">

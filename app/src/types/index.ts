@@ -79,6 +79,7 @@ export type CancelOutcome = 'keep_credit' | 'lose_credit'
 export type AllocationPeriod = 'monthly' | 'weekly' | 'per_cycle'
 export type AllocationGrantMode = 'on_open' | 'on_first_payment'
 export type AllocationRefreshMode = 'by_cycle' | 'by_payment'
+export type FlowLayoutMode = 'auto' | 'freeform'
 
 export interface CancellationPolicy {
   cancel_window_value: number
@@ -117,6 +118,7 @@ export interface Organization {
   pay_mentors_for_uncredited_meetings: boolean
   archive_settings: ArchiveSettings
   journey_auto_assign_offerings: boolean
+  flow_layout_mode: FlowLayoutMode
   created_at: string
 }
 
