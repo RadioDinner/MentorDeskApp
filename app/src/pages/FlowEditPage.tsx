@@ -23,6 +23,7 @@ import {
   nodeSize,
   snapToGrid,
   connectorPath,
+  autoLayout,
   type NodeType,
 } from '../lib/journeyFlow'
 import type {
@@ -385,6 +386,13 @@ export default function FlowEditPage() {
     setDirty(true)
   }
 
+  function handleAutoLayout() {
+    if (nodes.length === 0) return
+    pushHistory()
+    setNodes(autoLayout(nodes, connectors))
+    setDirty(true)
+  }
+
   // ── Title / archive / delete (persist immediately) ─────────────────────
   async function saveTitle() {
     if (!flow || editingTitleValue === null) return
@@ -612,6 +620,15 @@ export default function FlowEditPage() {
             title="Undo (⌘Z)"
           >
             Undo
+          </Button>
+          <div className="w-px h-5 bg-gray-200 mx-1" />
+          <Button
+            variant="secondary"
+            onClick={handleAutoLayout}
+            disabled={nodes.length === 0}
+            title="Auto-arrange nodes by graph depth"
+          >
+            Auto-arrange
           </Button>
         </div>
       )}

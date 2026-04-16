@@ -147,6 +147,122 @@ export function snapToGrid(val: number): number {
   return Math.round(val / GRID_SIZE) * GRID_SIZE
 }
 
+// ── Auto-layout ────────────────────────────────────────────────────────
+
+/** Vertical gap between rows (in grid units). */
+const ROW_GAP_GRIDS = 3
+/** Horizontal gap between nodes in the same row (in grid units). */
+const COL_GAP_GRIDS = 2
+
+/**
+ * Compute an auto-layout for a set of nodes and connectors.
+ *
+ * Algorithm:
+ *   1. Build an adjacency list from connectors (forward edges).
+ *   2. Find the start node. If none exists, pick the first node.
+ *   3. BFS from start, assigning each node the LONGEST path depth from
+ *      start (not shortest). This ensures a node that's reachable via
+ *      both a direct edge and a longer chain appears after the chain.
+ *   4. Group nodes by depth into rows.
+ *   5. Position rows top-to-bottom, centered horizontally in the workspace.
+ *   6. Disconnected nodes (unreachable from start) are placed in a final
+ *      row at the bottom.
+ *
+ * Returns a new nodes array with updated x/y (all grid-snapped). The
+ * original array is not mutated.
+ */
+export function autoLayout(
+  nodes: JourneyNode[],
+  connectors: JourneyConnector[],
+): JourneyNode[] {
+  if (nodes.length === 0) return []
+
+  // Build forward adjacency list.
+  const children = new Map<string, string[]>()
+  for (const c of connectors) {
+    const list = children.get(c.fromNodeId)
+    if (list) list.push(c.toNodeId)
+    else children.set(c.fromNodeId, [c.toNodeId])
+  }
+
+  // Find start node.
+  const startNode = nodes.find(n => n.type === 'start')
+  const rootId = startNode?.id ?? nodes[0].id
+
+  // Compute longest-path depth for each reachable node via iterative
+  // relaxation (handles DAGs with multiple paths correctly).
+  const depth = new Map<string, number>()
+  depth.set(rootId, 0)
+  const queue = [rootId]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const d = depth.get(current)!
+    for (const child of children.get(current) ?? []) {
+      const prev = depth.get(child)
+      if (prev === undefined || d + 1 > prev) {
+        depth.set(child, d + 1)
+        queue.push(child) // re-visit to propagate longer path
+      }
+    }
+  }
+
+  // Group nodes by depth. Unreachable nodes get depth = maxDepth + 1.
+  const maxDepth = Math.max(0, ...depth.values())
+  const rows = new Map<number, JourneyNode[]>()
+  for (const node of nodes) {
+    const d = depth.get(node.id) ?? maxDepth + 1
+    const row = rows.get(d)
+    if (row) row.push(node)
+    else rows.set(d, [node])
+  }
+
+  // Sort row keys so we lay out top to bottom.
+  const sortedDepths = [...rows.keys()].sort((a, b) => a - b)
+
+  // Position each row.
+  const rowGap = ROW_GAP_GRIDS * GRID_SIZE
+  const colGap = COL_GAP_GRIDS * GRID_SIZE
+  const startY = GRID_SIZE * 2 // top padding
+  const positioned = new Map<string, { x: number; y: number }>()
+
+  let currentY = startY
+  for (const d of sortedDepths) {
+    const rowNodes = rows.get(d)!
+
+    // Find the tallest node in this row to compute vertical spacing.
+    const maxHeight = Math.max(...rowNodes.map(n => NODE_DEFAULTS[n.type].height))
+
+    // Total width of this row.
+    const totalWidth = rowNodes.reduce(
+      (sum, n) => sum + NODE_DEFAULTS[n.type].width,
+      0,
+    ) + colGap * (rowNodes.length - 1)
+
+    // Center the row in the workspace.
+    let cursorX = snapToGrid(Math.max(GRID_SIZE, Math.round((WORKSPACE_SIZE.width - totalWidth) / 2)))
+
+    for (const node of rowNodes) {
+      const size = NODE_DEFAULTS[node.type]
+      // Vertically center within the row's max height.
+      const yOffset = Math.round((maxHeight - size.height) / 2)
+      positioned.set(node.id, {
+        x: snapToGrid(cursorX),
+        y: snapToGrid(currentY + yOffset),
+      })
+      cursorX += size.width + colGap
+    }
+
+    currentY += maxHeight + rowGap
+  }
+
+  // Return new nodes array with updated positions.
+  return nodes.map(n => {
+    const pos = positioned.get(n.id)
+    if (!pos) return n
+    return { ...n, x: pos.x, y: pos.y }
+  })
+}
+
 /**
  * Compute an SVG cubic bezier path string between two node centers.
  * The curve bows vertically — the control point offset scales with
