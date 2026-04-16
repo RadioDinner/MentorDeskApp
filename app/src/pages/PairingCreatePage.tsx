@@ -74,7 +74,6 @@ export default function PairingCreatePage() {
         if (mentorRes.data) setMentors(mentorRes.data)
         if (menteeRes.data) setMentees(menteeRes.data)
       } catch (err) {
-        console.error('Failed to load options:', err)
       } finally {
         setLoadingOptions(false)
       }
@@ -107,7 +106,6 @@ export default function PairingCreatePage() {
     } catch (err) {
       reportSupabaseError({ message: (err as Error).message || 'Failed to create pairing' }, { component: 'PairingCreatePage', action: 'create' })
       toast.error((err as Error).message || 'Failed to create pairing')
-      console.error(err)
     }
   }
 

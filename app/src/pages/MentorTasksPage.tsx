@@ -107,7 +107,6 @@ export default function MentorTasksPage() {
 
       setTasks(enriched)
     } catch (err) {
-      console.error('[MentorTasksPage] loadTasks error:', err)
       toast.error('Failed to load tasks.')
     } finally {
       setLoading(false)
@@ -223,11 +222,10 @@ export default function MentorTasksPage() {
       if (jErr) { toast.error(jErr.message); return }
 
       // Complete the task
-      const { error: tErr } = await supabase
+      await supabase
         .from('mentor_tasks')
         .update({ status: 'done', completed_at: now, updated_at: now })
         .eq('id', task.id)
-      if (tErr) console.error('[MentorTasksPage] task complete error:', tErr)
 
       // Update local state
       setTasks(prev => prev.map(t =>
@@ -267,7 +265,6 @@ export default function MentorTasksPage() {
       }
     } catch (err) {
       toast.error((err as Error).message || 'Failed to advance journey.')
-      console.error('[MentorTasksPage] advanceFromTask error:', err)
     } finally {
       setBusy(false)
     }

@@ -25,12 +25,10 @@ export function useLoadingGuard(
     if (loading) {
       if (onSlow) {
         softRef.current = setTimeout(() => {
-          console.warn('[useLoadingGuard] Loading slow after', softMs, 'ms')
           onSlow()
         }, softMs)
       }
       hardRef.current = setTimeout(() => {
-        console.warn('[useLoadingGuard] Loading timed out after', hardMs, 'ms')
         onTimeout()
       }, hardMs)
     } else {

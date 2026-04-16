@@ -150,7 +150,6 @@ export default function OfferingEditPage() {
         setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
-        console.error(err)
       } finally {
         setLoading(false)
       }
@@ -250,7 +249,6 @@ export default function OfferingEditPage() {
       toast.success('Offering has been updated.')
     } catch (err) {
       toast.error((err as Error).message || 'Failed to save')
-      console.error('[OfferingEdit] save error:', err)
     }
   }
 

@@ -86,7 +86,6 @@ export default function PairingEditPage() {
         reset({ status: a.status, notes: a.notes ?? '' })
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
-        console.error(err)
       } finally {
         setLoading(false)
       }

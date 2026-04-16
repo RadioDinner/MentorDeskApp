@@ -96,7 +96,6 @@ export default function MenteeHabitDetailPage() {
     const { error: err } = await supabaseRestCall('mentee_habits', 'PATCH', patch, `id=eq.${mh.id}`)
     if (err) {
       // Non-fatal — the log already succeeded. Just log.
-      console.warn('[MenteeHabitDetailPage] syncProgress failed:', err.message)
       return
     }
     setMh(prev => prev ? {

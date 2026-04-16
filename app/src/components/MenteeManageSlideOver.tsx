@@ -119,7 +119,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           completed_lessons: completedCounts[mo.id] ?? 0,
         })))
       } catch (err) {
-        console.error('[MenteeManageSlideOver] fetch error:', err)
         toast.error('Failed to load data. Please try again.')
       } finally {
         setLoading(false)
@@ -211,7 +210,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           }
         }
       } catch (err) {
-        console.error('[MenteeManageSlideOver] flow step update error:', err)
+        // flow step update failed — non-critical, continue
       }
 
       // Auto-create setup fee invoice if applicable
@@ -249,7 +248,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       return insertedId ?? null
     } catch (err) {
       toast.error((err as Error).message || 'Failed to assign')
-      console.error(err)
       return null
     } finally {
       setAssigning(false)
@@ -304,7 +302,6 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       })
     } catch (err) {
       toast.error((err as Error).message || 'Failed to start journey')
-      console.error('[MenteeManageSlideOver] assignJourney error:', err)
     } finally {
       setAssigning(false)
     }
@@ -439,7 +436,7 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
           })
         }
       } catch (err) {
-        console.error('[MenteeManageSlideOver] auto-task creation error:', err)
+        // auto-task creation failed — non-critical, continue
       }
     }
   }
@@ -946,7 +943,7 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
         })),
       })))
     } catch (err) {
-      console.error('[CourseCard] loadDetails error:', err)
+      // loadDetails failed silently
     } finally {
       setDetailLoading(false)
     }

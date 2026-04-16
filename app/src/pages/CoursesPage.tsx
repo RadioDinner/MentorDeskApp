@@ -48,7 +48,7 @@ export default function CoursesPage() {
         const [offeringsRes, foldersRes] = await Promise.all([
           supabaseRestGet<Offering>(
             'offerings',
-            `select=*&organization_id=eq.${orgId}&type=eq.course&order=name.asc`,
+            `select=*&organization_id=eq.${orgId}&type=eq.course&order=name.asc&limit=1000`,
             { label: 'courses:offerings' },
           ),
           supabaseRestGet<OfferingFolder>(
@@ -103,7 +103,6 @@ export default function CoursesPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[CoursesPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }

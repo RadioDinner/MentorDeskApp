@@ -152,11 +152,8 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
         record.cancellation_policy = values.useOrgDefault ? null : cancelPolicy
       }
 
-      console.log('[OfferingCreate] inserting record:', record)
       const { data, error } = await supabase.from('offerings').insert(record).select('id')
-      console.log('[OfferingCreate] insert result:', { data, error })
       if (error) {
-        console.error('[OfferingCreate] insert FAILED:', error.message, error)
         reportSupabaseError(error, { component: 'OfferingCreatePage', action: 'create', metadata: { type: offeringType } })
         toast.error(error.message)
         return
@@ -185,7 +182,6 @@ export default function OfferingCreatePage({ title, offeringType }: OfferingCrea
     } catch (err) {
       reportSupabaseError({ message: (err as Error).message }, { component: 'OfferingCreatePage', action: 'create' })
       toast.error((err as Error).message || 'Failed to create offering')
-      console.error(err)
     }
   }
 

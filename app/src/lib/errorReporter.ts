@@ -50,13 +50,10 @@ export async function reportError(report: ErrorReport) {
     })
 
     if (error) {
-      console.warn('[reportError] Failed to save error report:', error.message)
-    } else {
-      console.log('[reportError] Error report saved')
+      // error already handled — inserted into error_reports table failed
     }
-  } catch (err) {
+  } catch {
     // Never throw from the error reporter
-    console.warn('[reportError] Exception while reporting:', err)
   }
 }
 

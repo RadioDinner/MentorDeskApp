@@ -41,7 +41,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
-    if (!profile?.organization_id) { console.warn('[PeopleListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
     const orgId = profile.organization_id
 
     async function loadPeople() {
@@ -59,7 +59,7 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
         const [peopleRes, allStaffRes, orgRes] = await Promise.all([
           supabaseRestGet<StaffMember>(
             'staff',
-            `select=*&organization_id=eq.${orgId}&${roleFilter}&order=first_name.asc`,
+            `select=*&organization_id=eq.${orgId}&${roleFilter}&order=first_name.asc&limit=1000`,
             { label: 'people:list' },
           ),
           showAccessGroups
@@ -90,7 +90,6 @@ export default function PeopleListPage({ title, roles, createLabel, createRoute,
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[PeopleListPage] loadPeople error:', err)
       } finally {
         setLoading(false)
       }

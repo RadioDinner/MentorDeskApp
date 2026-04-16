@@ -139,7 +139,6 @@ export default function JourneyEditPage() {
         if (!offeringsRes.error) setOfferings(offeringsRes.data ?? [])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[FlowEditPage] load error:', err)
       } finally {
         setLoading(false)
       }

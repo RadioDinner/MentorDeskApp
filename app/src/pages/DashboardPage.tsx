@@ -386,8 +386,8 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
         }
 
         setMentees(Array.from(menteesMap.values()))
-      } catch (err) {
-        console.error(err)
+      } catch {
+        // silently handled
       } finally {
         setLoading(false)
       }
@@ -405,8 +405,8 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
           .order('created_at', { ascending: false })
           .limit(5)
         setPendingTasks((data ?? []) as MentorTask[])
-      } catch (err) {
-        console.error('[MentorDashboard] fetchTasks error:', err)
+      } catch {
+        // silently handled
       } finally {
         setTasksLoading(false)
       }

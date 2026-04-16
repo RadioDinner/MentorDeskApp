@@ -122,7 +122,6 @@ export default function MenteeEditPage() {
         if (!mhRes.error) setMenteeHabits(mhRes.data ?? [])
       } catch (err) {
         setFetchError((err as Error).message || 'Failed to load')
-        console.error(err)
       } finally {
         setLoading(false)
       }

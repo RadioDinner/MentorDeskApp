@@ -72,7 +72,6 @@ export default function InvoicePrintPage() {
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[InvoicePrintPage] loadInvoice error:', err)
       } finally {
         setLoading(false)
       }

@@ -16,23 +16,25 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   const [reported, setReported] = useState(false)
   const [reporting, setReporting] = useState(false)
   const loadStartRef = useRef(Date.now())
+  const mountedRef = useRef(true)
 
-  // Track how long we've been loading
+  useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
+
   useEffect(() => {
     if (loading) {
       loadStartRef.current = Date.now()
     }
   }, [loading])
 
-  // Safety: if loading stays true for more than 8 seconds, force-clear it
   useEffect(() => {
     if (!loading) {
       setTimedOut(false)
       return
     }
     const timer = setTimeout(() => {
-      console.warn('[ProtectedRoute] Auth loading timed out after 8s — forcing through')
-      setTimedOut(true)
+      if (mountedRef.current) setTimedOut(true)
     }, 8000)
     return () => clearTimeout(timer)
   }, [loading])
@@ -40,10 +42,8 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   async function handleReportBug() {
     setReporting(true)
     try {
-      // Collect comprehensive diagnostic info
       const loadDuration = Date.now() - loadStartRef.current
 
-      // Check Supabase session directly
       let sessionInfo: Record<string, unknown> = { error: 'could not fetch' }
       try {
         const { data, error } = await supabase.auth.getSession()
@@ -58,7 +58,6 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         sessionInfo = { error: (e as Error).message }
       }
 
-      // Check staff records directly
       let staffInfo: Record<string, unknown> = { error: 'could not fetch' }
       try {
         if (sessionInfo.userId) {
@@ -78,7 +77,6 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         staffInfo = { error: (e as Error).message }
       }
 
-      // Check my_organization_id() RPC
       let orgIdInfo: Record<string, unknown> = { error: 'could not fetch' }
       try {
         const { data, error } = await supabase.rpc('my_organization_id')
@@ -120,11 +118,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         },
       })
 
-      setReported(true)
-    } catch (e) {
-      console.error('[ProtectedRoute] Failed to report bug:', e)
+      if (mountedRef.current) setReported(true)
     } finally {
-      setReporting(false)
+      if (mountedRef.current) setReporting(false)
     }
   }
 

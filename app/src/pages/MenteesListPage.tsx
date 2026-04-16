@@ -47,7 +47,7 @@ export default function MenteesListPage() {
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
-    if (!profile?.organization_id) { console.warn('[MenteesListPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
     const orgId = profile.organization_id
     const profileId = profile.id
     const mentorMode = isMentor
@@ -80,7 +80,7 @@ export default function MenteesListPage() {
         } else {
           const menteesRes = await supabaseRestGet<Mentee>(
             'mentees',
-            `select=*&organization_id=eq.${orgId}&order=first_name.asc`,
+            `select=*&organization_id=eq.${orgId}&order=first_name.asc&limit=1000`,
             { label: 'mentees:all' },
           )
           if (menteesRes.error) { setError(menteesRes.error.message); return }
@@ -88,7 +88,6 @@ export default function MenteesListPage() {
         }
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[MenteesListPage] loadMentees error:', err)
       } finally {
         setLoading(false)
       }
@@ -168,8 +167,8 @@ export default function MenteesListPage() {
         }
 
         setProgressMap(summaries)
-      } catch (err) {
-        console.error('[MenteesListPage] fetchProgress error:', err)
+      } catch {
+        // silently handled
       }
     }
 
@@ -199,8 +198,8 @@ export default function MenteesListPage() {
           map[row.mentee_id] = (map[row.mentee_id] || 0) + 1
         }
         setPendingJourneyMap(map)
-      } catch (err) {
-        console.error('[MenteesListPage] fetchPendingJourneys error:', err)
+      } catch {
+        // silently handled
       }
     }
 

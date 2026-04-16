@@ -96,7 +96,7 @@ export default function CompanySettingsPage() {
   }, []))
 
   useEffect(() => {
-    if (!profile?.organization_id) { console.warn('[CompanySettingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
     async function fetchOrg() {
       try {
         const { data, error } = await supabase.from('organizations').select('*').eq('id', profile!.organization_id).single()
@@ -121,7 +121,6 @@ export default function CompanySettingsPage() {
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
       } catch (err) {
         toast.error('Failed to load: ' + ((err as Error).message || 'Unknown error'))
-        console.error(err)
       } finally {
         setLoading(false)
       }
@@ -161,7 +160,6 @@ export default function CompanySettingsPage() {
     } catch (err) {
       reportSupabaseError({ message: (err as Error).message || 'Failed to save settings' }, { component: 'CompanySettingsPage', action: 'save' })
       toast.error((err as Error).message || 'Failed to save settings')
-      console.error(err)
     } finally {
       setSaving(false)
     }

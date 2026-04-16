@@ -77,7 +77,6 @@ export default function MenteeCoursesPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[MenteeCoursesPage] loadData error:', err)
       } finally {
         setLoading(false)
       }

@@ -60,7 +60,7 @@ export default function JourneysPage() {
         const [flowsRes, foldersRes] = await Promise.all([
           supabaseRestGet<JourneyFlow>(
             'journey_flows',
-            `select=*&organization_id=eq.${orgId}&order=updated_at.desc`,
+            `select=*&organization_id=eq.${orgId}&order=updated_at.desc&limit=1000`,
             { label: 'flows:list' },
           ),
           supabaseRestGet<JourneyFolder>(
@@ -79,7 +79,6 @@ export default function JourneysPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[FlowsPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }
@@ -97,7 +96,7 @@ export default function JourneysPage() {
       { folder_id: folderId },
       `id=eq.${flowId}`,
     )
-    if (err) console.error('[FlowsPage] moveFlowToFolder error:', err)
+    if (err) { /* move failed silently */ }
   }
 
   const visibleItems = items

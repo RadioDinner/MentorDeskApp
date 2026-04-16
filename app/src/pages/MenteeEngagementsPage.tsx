@@ -96,7 +96,6 @@ export default function MenteeEngagementsPage() {
         setMeetings(meetingsRes.data ?? [])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[MenteeEngagementsPage] loadData error:', err)
       } finally {
         setLoading(false)
       }

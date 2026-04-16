@@ -61,7 +61,7 @@ export default function HabitsPage() {
         const [habitsRes, foldersRes] = await Promise.all([
           supabaseRestGet<Habit>(
             'habits',
-            `select=*&organization_id=eq.${orgId}&order=created_at.desc`,
+            `select=*&organization_id=eq.${orgId}&order=created_at.desc&limit=1000`,
             { label: 'habits:list' },
           ),
           supabaseRestGet<HabitFolder>(
@@ -114,7 +114,6 @@ export default function HabitsPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[HabitsPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }
@@ -130,13 +129,12 @@ export default function HabitsPage() {
     // have a stale client state until next refetch; toast surfacing can
     // be added later if needed.
     setItems(prev => prev.map(h => h.id === habitId ? { ...h, folder_id: folderId } : h))
-    const { error: err } = await supabaseRestCall(
+    await supabaseRestCall(
       'habits',
       'PATCH',
       { folder_id: folderId },
       `id=eq.${habitId}`,
     )
-    if (err) console.error('[HabitsPage] moveHabitToFolder error:', err)
   }
 
   const visibleItems = items

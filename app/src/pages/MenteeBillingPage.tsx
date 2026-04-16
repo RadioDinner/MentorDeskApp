@@ -66,7 +66,7 @@ export default function MenteeBillingPage() {
           setSavedPayment(menteeData.payment_method as PaymentMethod)
         }
       } catch (err) {
-        console.error(err)
+        // silently handled
       } finally {
         setLoading(false)
       }

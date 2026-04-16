@@ -74,7 +74,6 @@ export default function CompanySettingsPage() {
         setCancellationPolicy(o.default_cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       } catch (err) {
         setMsg({ type: 'error', text: (err as Error).message || 'Failed to load' })
-        console.error(err)
       } finally {
         setLoading(false)
       }

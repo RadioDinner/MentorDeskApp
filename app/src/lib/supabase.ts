@@ -21,12 +21,11 @@ export const supabase = createClient(
 export async function withTimeout<T>(
   promise: PromiseLike<{ data: T; error: { message: string } | null }>,
   ms = 15000,
-  label = 'Supabase call',
+  _label = 'Supabase call',
 ): Promise<{ data: T; error: { message: string } | null }> {
   let timer: ReturnType<typeof setTimeout>
   const timeout = new Promise<{ data: T; error: { message: string } }>(resolve => {
     timer = setTimeout(() => {
-      console.error(`[withTimeout] ${label} timed out after ${ms}ms`)
       resolve({ data: null as T, error: { message: `Request timed out after ${ms / 1000}s. Your Supabase project may be paused or unreachable.` } })
     }, ms)
   })
@@ -125,11 +124,10 @@ export async function supabaseRestGet<T = unknown>(
     countExact?: boolean
   } = {},
 ): Promise<{ data: T[] | null; error: { message: string } | null; count: number | null }> {
-  const { timeoutMs = 12000, label, range, countExact } = opts
+  const { timeoutMs = 12000, range, countExact } = opts
   if (!supabaseUrl || !supabaseAnonKey) {
     return { data: null, error: { message: 'Supabase env vars not configured' }, count: null }
   }
-  const logLabel = label ?? table
   try {
     const session = await supabase.auth.getSession()
     const token = session.data.session?.access_token ?? supabaseAnonKey
@@ -150,20 +148,17 @@ export async function supabaseRestGet<T = unknown>(
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
-    const start = performance.now()
     const resp = await fetch(url, {
       method: 'GET',
       headers,
       signal: controller.signal,
     })
     clearTimeout(timer)
-    const elapsed = Math.round(performance.now() - start)
 
     if (!resp.ok) {
       const body = await resp.text()
       let msg = `HTTP ${resp.status}`
       try { msg = JSON.parse(body).message || msg } catch { msg = body.slice(0, 200) || msg }
-      console.warn(`[supabaseRestGet] ${logLabel} failed (${elapsed}ms):`, msg)
       return { data: null, error: { message: msg }, count: null }
     }
 
@@ -181,13 +176,11 @@ export async function supabaseRestGet<T = unknown>(
     }
 
     const rows = (await resp.json()) as T[]
-    console.log(`[supabaseRestGet] ${logLabel} ok (${elapsed}ms, ${Array.isArray(rows) ? rows.length : 0} rows${count !== null ? `, total=${count}` : ''})`)
     return { data: rows, error: null, count }
   } catch (e) {
     const msg = (e as Error).name === 'AbortError'
       ? `Request timed out after ${timeoutMs / 1000}s. Supabase may be unreachable or your connection is unstable.`
       : (e as Error).message || 'Network error'
-    console.warn(`[supabaseRestGet] ${logLabel} exception:`, msg)
     return { data: null, error: { message: msg }, count: null }
   }
 }
@@ -209,7 +202,7 @@ export function warmUpSupabase() {
     },
     signal: controller.signal,
   })
-    .then(() => { clearTimeout(timer); console.log('[Supabase] Warm-up ping completed') })
+    .then(() => { clearTimeout(timer) })
     .catch(() => { clearTimeout(timer) /* best effort */ })
 }
 
@@ -221,9 +214,6 @@ export async function testSupabaseConnectivity(orgId: string) {
   const projectUrl = supabaseUrl ?? 'NOT SET'
   // Show just the project ID, not the full key
   const projectId = projectUrl.replace('https://', '').replace('.supabase.co', '')
-  console.log('[SupabaseTest] Starting connectivity test...')
-  console.log('[SupabaseTest] Project URL:', projectUrl)
-  console.log('[SupabaseTest] Project ID:', projectId)
   const results: Record<string, string> = { project: projectId }
 
   // Test 1: Read (via Supabase JS client)
@@ -411,6 +401,5 @@ export async function testSupabaseConnectivity(orgId: string) {
     results.lessons_write_fetch = `ERROR: ${msg}`
   }
 
-  console.log('[SupabaseTest] Results:', results)
   return results
 }

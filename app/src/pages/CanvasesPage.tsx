@@ -64,7 +64,7 @@ export default function CanvasesPage() {
             mentee: { first_name: string; last_name: string } | null
           }>(
             'canvases',
-            `select=*,mentor:staff!canvases_mentor_id_fkey(first_name,last_name),mentee:mentees!canvases_mentee_id_fkey(first_name,last_name)&organization_id=eq.${orgId}&order=updated_at.desc`,
+            `select=*,mentor:staff!canvases_mentor_id_fkey(first_name,last_name),mentee:mentees!canvases_mentee_id_fkey(first_name,last_name)&organization_id=eq.${orgId}&order=updated_at.desc&limit=1000`,
             { label: 'canvases:list' },
           ),
           supabaseRestGet<CanvasFolder>(
@@ -84,7 +84,6 @@ export default function CanvasesPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[CanvasesPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }
@@ -102,7 +101,7 @@ export default function CanvasesPage() {
       { folder_id: folderId },
       `id=eq.${canvasId}`,
     )
-    if (err) console.error('[CanvasesPage] moveCanvasToFolder error:', err)
+    if (err) { /* move failed silently */ }
   }
 
   const visibleItems = items

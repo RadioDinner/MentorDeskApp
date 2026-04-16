@@ -51,7 +51,7 @@ export default function PairingsPage() {
   }, []))
 
   async function fetchAll() {
-    if (!profile?.organization_id) { console.warn('[PairingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
     setLoading(true)
     setError(null)
     try {
@@ -80,7 +80,6 @@ export default function PairingsPage() {
       setFlowSteps((orgRes.data?.mentee_flow as { steps: FlowStep[] })?.steps ?? [])
     } catch (err) {
       setError((err as Error).message || 'Failed to load')
-      console.error(err)
     } finally {
       setLoading(false)
     }

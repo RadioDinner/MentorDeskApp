@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, warmUpSupabase } from '../lib/supabase'
@@ -52,36 +52,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
   const [isMenteeMode, setIsMenteeMode] = useState(false)
 
+  // Ref to always hold the latest profile — avoids stale closures in async callbacks
+  const profileRef = useRef<StaffMember | null>(null)
+  profileRef.current = profile
+
   async function fetchAllProfiles(userId: string) {
-    console.log('[AuthContext] fetchAllProfiles for user:', userId)
-    // Fetch all staff records for this user (and mentee record if exists)
     const [staffRes, menteeRes] = await Promise.all([
       supabase.from('staff').select('*').eq('user_id', userId),
       supabase.from('mentees').select('*').eq('user_id', userId),
     ])
 
-    console.log('[AuthContext] staff query:', { data: staffRes.data?.length ?? 0, error: staffRes.error?.message })
-    console.log('[AuthContext] mentee query:', { data: menteeRes.data?.length ?? 0, error: menteeRes.error?.message })
-
     if (staffRes.error) {
-      console.error('[AuthContext] FAILED to fetch staff profiles:', staffRes.error.message, staffRes.error)
-      // CRITICAL: if fetch fails, keep existing profile — don't null it out
-      return profile
+      // If fetch fails, keep existing profile — don't null it out
+      return profileRef.current
     }
 
     const staffRecords = (staffRes.data as StaffMember[]) ?? []
-    // Filter out archived in JS (archived_at column may not exist yet)
     const activeStaff = staffRecords.filter(s => !s.archived_at)
     const menteeRecords = ((menteeRes.data as Mentee[]) ?? []).filter(m => !m.archived_at)
 
-    console.log('[AuthContext] activeStaff:', activeStaff.length, 'mentees:', menteeRecords.length)
-    if (activeStaff.length > 0) {
-      console.log('[AuthContext] staff roles:', activeStaff.map(s => `${s.role} (org: ${s.organization_id})`))
-    }
-
     // If no staff records found, keep existing profile to prevent null-out
-    if (activeStaff.length === 0 && !profile) {
-      console.warn('[AuthContext] No staff records found and no existing profile')
+    if (activeStaff.length === 0 && !profileRef.current) {
       return null
     }
 
@@ -101,24 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (activeId) {
       applyProfile(activeId, activeStaff, menteeRecords.length > 0 ? menteeRecords[0] : null, userId)
     } else if (activeStaff.length > 0) {
-      // No activeId could be determined but we have staff — use the first one
-      console.warn('[AuthContext] No activeId resolved, falling back to first staff record')
       setProfile(activeStaff[0])
       setIsMenteeMode(false)
     }
 
-    return activeStaff[0] ?? profile // Never return null if we have a current profile
+    return activeStaff[0] ?? profileRef.current
   }
 
   function applyProfile(profileId: string, staffRecords: StaffMember[], _menteeRec: Mentee | null, userId?: string) {
-    console.log('[AuthContext] applyProfile:', profileId, '| staff records:', staffRecords.length)
     setActiveProfileId(profileId)
 
     if (profileId.startsWith('mentee:')) {
-      // Mentee mode — we still need a staff profile for org_id etc.
-      // Use the first staff record as the "base" but mark mentee mode
       setIsMenteeMode(true)
-      // Keep the current staff profile for org context
       if (staffRecords.length > 0) {
         setProfile(staffRecords[0])
       }
@@ -128,8 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(staffProfile)
         setIsMenteeMode(false)
       } else if (staffRecords.length > 0) {
-        // Fallback: profileId didn't match any record — use first available
-        console.warn('[AuthContext] applyProfile: profileId', profileId, 'not found in staff records, falling back to first')
         setProfile(staffRecords[0])
         setIsMenteeMode(false)
       }
@@ -165,27 +148,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let didInit = false
+    let cancelled = false
     let activeSafetyTimeout: ReturnType<typeof setTimeout> | null = null
 
     const initTimeout = setTimeout(() => {
       if (!didInit) {
         didInit = true
-        console.warn('[AuthContext] Session init timed out — continuing without session')
         setLoading(false)
       }
     }, 3000)
 
     // CRITICAL: The onAuthStateChange callback holds an internal Supabase auth
     // lock. Any `await supabase.*` call made synchronously inside this callback
-    // will deadlock against that lock once another part of the app tries to
-    // use the SDK. We MUST defer async work via setTimeout(0) so it runs
-    // outside the callback scope. See:
-    //   https://github.com/supabase/auth-js/issues/762
-    //   https://supabase.com/docs/reference/javascript/auth-onauthstatechange
+    // will deadlock against that lock. We MUST defer async work via setTimeout(0)
+    // so it runs outside the callback scope.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AuthContext] onAuthStateChange:', event, '| has session:', !!session)
+      if (cancelled) return
 
-      // Synchronous state updates ONLY inside this callback.
       setSession(session)
       setUser(session?.user ?? null)
 
@@ -194,60 +173,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(initTimeout)
       }
 
-      // Clear any previous safety timeout before starting a new one
       if (activeSafetyTimeout) clearTimeout(activeSafetyTimeout)
 
-      // Safety timeout: if deferred profile fetch hangs, clear loading
       activeSafetyTimeout = setTimeout(() => {
-        console.warn('[AuthContext] Profile fetch safety timeout — clearing loading state')
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }, 15000)
 
-      // Defer ALL async SDK work outside the auth callback to avoid the
-      // auth-lock deadlock. The setTimeout(0) trick releases the auth mutex
-      // before any `await supabase.*` calls run.
       setTimeout(async () => {
+        if (cancelled) return
         try {
           if (session?.user) {
-            // Warm up connection (fire-and-forget, also now outside the lock)
             warmUpSupabase()
 
-            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profile) {
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || !profileRef.current) {
               const p = await fetchAllProfiles(session.user.id)
-              if (p?.organization_id) {
+              if (!cancelled && p?.organization_id) {
                 purgeExpiredArchives(p.organization_id).catch(() => {})
               }
             }
-            // TOKEN_REFRESHED: keep existing profile, don't re-fetch
-          } else {
+          } else if (!cancelled) {
             setProfile(null)
             setAllStaffProfiles([])
             setMenteeProfile(null)
             setActiveProfileId(null)
             setIsMenteeMode(false)
           }
-        } catch (err) {
-          console.error('[AuthContext] Error during deferred auth handling:', err)
         } finally {
           if (activeSafetyTimeout) {
             clearTimeout(activeSafetyTimeout)
             activeSafetyTimeout = null
           }
-          setLoading(false)
+          if (!cancelled) setLoading(false)
         }
       }, 0)
     })
 
-    supabase.auth.getSession().catch((err) => {
-      console.error('[AuthContext] getSession failed:', err)
+    supabase.auth.getSession().catch(() => {
       if (!didInit) {
         didInit = true
         clearTimeout(initTimeout)
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     })
 
     return () => {
+      cancelled = true
       clearTimeout(initTimeout)
       if (activeSafetyTimeout) clearTimeout(activeSafetyTimeout)
       subscription.unsubscribe()

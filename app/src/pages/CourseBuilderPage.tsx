@@ -88,7 +88,6 @@ export default function CourseBuilderPage() {
         setSections((sectRes.data as LessonSection[]) ?? [])
         setQuestions((qRes.data as LessonQuestion[]) ?? [])
       } catch (err) {
-        console.error(err)
       } finally {
         setSectionsLoading(false)
       }
@@ -224,7 +223,7 @@ export default function CourseBuilderPage() {
 
   async function updateSection(sectionId: string, updates: Partial<LessonSection>) {
     const { error: e } = await supabaseRestCall('lesson_sections', 'PATCH', updates as Record<string, unknown>, `id=eq.${sectionId}`)
-    if (e) { console.error('[CourseBuilder] updateSection error:', e); return }
+    if (e) { return }
     setSections(prev => prev.map(s => s.id === sectionId ? { ...s, ...updates } as LessonSection : s))
   }
 

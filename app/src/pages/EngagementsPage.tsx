@@ -37,7 +37,7 @@ export default function EngagementsPage() {
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
-    if (!profile?.organization_id) { console.warn('[EngagementsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
     const orgId = profile.organization_id
 
     async function loadAll() {
@@ -49,7 +49,7 @@ export default function EngagementsPage() {
         const [offeringsRes, foldersRes] = await Promise.all([
           supabaseRestGet<Offering>(
             'offerings',
-            `select=*&organization_id=eq.${orgId}&type=eq.engagement&order=name.asc`,
+            `select=*&organization_id=eq.${orgId}&type=eq.engagement&order=name.asc&limit=1000`,
             { label: 'engagements:offerings' },
           ),
           supabaseRestGet<OfferingFolder>(
@@ -90,7 +90,6 @@ export default function EngagementsPage() {
         })))
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[EngagementsPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }

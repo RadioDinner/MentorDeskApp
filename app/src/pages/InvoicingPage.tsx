@@ -83,14 +83,13 @@ export default function InvoicingPage() {
           'invoices',
           `select=*,mentee:mentees(id,first_name,last_name,email),mentee_offering:mentee_offerings(id,offering:offerings(id,name))` +
             `&organization_id=eq.${orgId}` +
-            `&order=created_at.desc`,
+            `&order=created_at.desc&limit=1000`,
           { label: 'invoicing:list' },
         )
         if (res.error) { setError(res.error.message); return }
         setInvoices(res.data ?? [])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[InvoicingPage] loadInvoices error:', err)
       } finally {
         setLoading(false)
       }

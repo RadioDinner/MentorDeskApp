@@ -160,7 +160,6 @@ export default function ProfilePage() {
       const message = err instanceof Error
         ? (err.name === 'AbortError' ? 'Request timed out after 15 seconds' : err.message)
         : 'Unknown error'
-      console.error('[ProfilePage] Password update failed:', message)
       toast.error(message)
     } finally {
       setPasswordSaving(false)

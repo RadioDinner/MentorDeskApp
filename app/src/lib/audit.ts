@@ -38,8 +38,8 @@ export async function logAudit(entry: AuditEntry) {
       old_values: entry.old_values ?? null,
       new_values: entry.new_values ?? null,
     })
-  } catch (err) {
-    console.error('[audit] Failed to log:', err)
+  } catch {
+    // audit logging is best-effort
   }
 }
 

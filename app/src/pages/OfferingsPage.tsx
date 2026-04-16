@@ -28,7 +28,7 @@ export default function OfferingsPage() {
   }, []))
 
   useEffect(() => {
-    if (!profile?.organization_id) { console.warn('[OfferingsPage] No profile.organization_id — profile:', profile); setLoading(false); return }
+    if (!profile?.organization_id) { setLoading(false); return }
 
     async function fetchOfferings() {
       setLoading(true)
@@ -45,7 +45,6 @@ export default function OfferingsPage() {
         setItems(data as Offering[])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error(err)
       } finally {
         setLoading(false)
       }

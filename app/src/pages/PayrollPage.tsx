@@ -104,7 +104,7 @@ export default function PayrollPage() {
           ),
           supabaseRestGet<Offering>(
             'offerings',
-            `select=*&organization_id=eq.${orgId}`,
+            `select=*&organization_id=eq.${orgId}&limit=1000`,
             { label: 'payroll:offerings' },
           ),
         ])
@@ -116,7 +116,6 @@ export default function PayrollPage() {
         setOfferings(offRes.data ?? [])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[PayrollPage] loadAll error:', err)
       } finally {
         setLoading(false)
       }

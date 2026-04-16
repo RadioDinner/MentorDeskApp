@@ -51,7 +51,6 @@ export default function MentorMeetingsPage() {
         setMeetings(res.data ?? [])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
-        console.error('[MentorMeetingsPage] loadMeetings error:', err)
       } finally {
         setLoading(false)
       }

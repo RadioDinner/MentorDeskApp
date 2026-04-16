@@ -113,7 +113,7 @@ export default function MenteeCourseViewerPage() {
         const rMap: Record<string, QuestionResponse> = {}
         if (rRes.data) for (const r of rRes.data as QuestionResponse[]) rMap[r.question_id] = r
         setResponses(rMap)
-      } catch (err) { console.error(err) }
+      } catch (err) { }
       finally { setContentLoading(false) }
     }
     fetchContent()
