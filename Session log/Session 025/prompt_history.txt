@@ -5,3 +5,5 @@
 3. I want mentees to have the option to cancel an upcoming meeting IF the cancellation policy would allow it. If the cancellation policy does NOT allow it, grey out the button and show a tooltip on hover that the appointment cannot be cancelled. Or maybe we should give them an option to cancel, knowing that the meeting credit will not be re-allocated.
 
 4. Option B
+
+5. With the new flow, should we have the mentee dashboard showing the 4 modules for each offering? Or would it be better to just have them log into their dashboard and have a breakdown of their next steps, etc?
