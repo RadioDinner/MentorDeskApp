@@ -1,11 +1,12 @@
 SESSION 025 HANDOFF LOG
 ========================
 Date: 2026-04-16
-Branch: claude/build-block-15-QXgEG (fast-forwarded to main)
+Branch: main (all work committed directly)
 
-Session 025 shipped the final two blocks of the Journeys 69-slice plan:
-Block 15 (company setting toggle) and Block 16 (verification + wrap).
-The Journeys feature is now complete.
+Session 025 shipped the final Journeys blocks (15+16), added mentee
+meeting cancellation, and overhauled the journey flow editor with
+grid snap, bezier curves, auto-layout, two layout modes, and a
+node UI redesign.
 
 
 WORK COMPLETED THIS SESSION
@@ -13,149 +14,200 @@ WORK COMPLETED THIS SESSION
 
 A) BLOCK 15 — COMPANY SETTING TOGGLE  (commit f92750d)
 
-   Added journey_auto_assign_offerings toggle to CompanySettingsPage in
-   the Offerings card, placed after "Multiple open engagements". Three
-   touch points in the component:
+   Added journey_auto_assign_offerings toggle to CompanySettingsPage
+   in the Offerings card. No migration needed — column already existed
+   from migration 949.
 
-     1. State: journeyAutoAssign boolean, default false
-     2. Load: read from org.journey_auto_assign_offerings in fetchOrg
-     3. Save: included in the updates object in handleSave
-
-   UI: standard toggle row matching the existing pattern, with:
-     - Label: "Auto-assign offerings from Journeys"
-     - Helper: "When a mentee's journey reaches an offering node,
-       automatically create the course or engagement assignment. When
-       off, the journey pauses and a mentor must manually confirm the
-       assignment."
-
-   No new migration needed — the DB column already existed from
-   migration 949_journey_auto_assign.sql (Session 022).
-
-   Touched:
-     - app/src/pages/CompanySettingsPage.tsx (+12 lines)
-
-   CompanySettingsPage chunk: 33.03 kB (gzip 7.73 kB) — unchanged
-   from Session 024 (the toggle adds negligible weight).
+   Touched: app/src/pages/CompanySettingsPage.tsx (+12 lines)
 
 
-B) BLOCK 16 — VERIFICATION + WRAP
+B) BLOCK 16 — VERIFICATION + WRAP  (commit d2ddebe)
 
-   Full verification pass:
+   Full build + test verification pass. 57/57 tests, clean build.
+   Code audit of all Journeys files found no issues. No polish changes
+   needed. Journeys feature declared complete (all 16 blocks shipped).
 
-     - Build: clean (tsc -b + vite build), 845ms
-     - Tests: 57/57 passing
-     - Code audit of all Journeys files found no issues:
-       * journey_auto_assign_offerings correctly read in
-         MenteeManageSlideOver (defaults to true on the mentee side)
-       * advanceJourney handler covers all node types (end, offering,
-         decision, status) with proper branching
-       * No TODO/FIXME comments or placeholder code
-       * FlowEditPage correctly uses migrateContent from journeyFlow
-       * No unused imports or missing null checks
-       * Pending assignment flow properly wired end-to-end
-       * Type safety is solid across the discriminated union
 
-   No polish changes needed — the feature is production-ready.
+C) MENTEE MEETING CANCELLATION  (commit 5448432)
 
-   Touched:
-     - Session log/Session 025/prompt_history.txt
-     - Session log/Session 025/session_log.txt (this file)
+   Option B implementation: mentees can always cancel, the cancellation
+   policy controls the credit outcome (not whether cancellation is
+   allowed).
+
+   Two pages updated:
+   - MenteeEngagementsPage: "Cancel" link on each upcoming meeting row
+     in the Upcoming Meetings tab
+   - MenteeEngagementDetailPage: "Cancel" button on each upcoming
+     meeting card
+
+   Confirmation modal shows policy-aware messaging:
+   - Within cancellation window + keep_credit: green "credit will be
+     returned" banner
+   - Outside window (late cancel) + lose_credit: amber "credit will
+     not be re-allocated" warning
+   - Optional reason textarea stored in meetings.cancellation_reason
+   - cancelled_by tracks the mentee ID
+
+   Effective policy resolved per-meeting: offering-specific policy if
+   set, otherwise org default_cancellation_policy.
+
+   New imports: supabase client, useToast, Modal, Button,
+   CancellationPolicy type, DEFAULT_CANCELLATION_POLICY.
+   MeetingWithContext type expanded to include offering cancellation
+   fields. Org default_cancellation_policy fetched in parallel.
+
+
+D) FLOW EDITOR PHASE 1 — GRID SNAP + BEZIER CURVES  (commit b4fbd77)
+
+   journeyFlow.ts:
+   - GRID_SIZE = 48 constant
+   - snapToGrid() helper
+   - connectorPath() cubic bezier SVG path generator
+
+   FlowEditPage:
+   - Drag handler snaps to 48px grid in real-time
+   - Dot grid background updated to 48px (was 24px)
+   - Straight <line> connectors replaced with smooth <path> curves
+   - Smarter node spawn: below lowest existing node, centered
+
+   FlowCreatePage:
+   - Start node spawns grid-aligned at top-center
+
+
+E) FLOW EDITOR PHASE 2 — AUTO-LAYOUT ALGORITHM  (commit b4bae5d)
+
+   journeyFlow.ts:
+   - autoLayout() function: BFS from start node using longest-path
+     depth, groups nodes into rows, centers horizontally, grid-snaps
+   - computeDepths() extracted as standalone export
+
+   FlowEditPage:
+   - "Auto-arrange" toolbar button runs autoLayout, pushes undo
+
+
+F) FLOW EDITOR PHASES 3+4 — LAYOUT MODES + ORG SETTING  (commit 5b97dee)
+
+   Two layout modes:
+
+   AUTO MODE (Option B):
+   - autoLayout() runs on load and after every structural mutation
+   - Drag is horizontal-only (reorder within row)
+   - On pointer-up, nodes sorted by x within their depth row and
+     autoLayout re-applied for clean snap
+   - Auto-arrange button hidden (redundant)
+
+   FREEFORM MODE (Option C):
+   - Grid-snap drag + auto-arrange button
+   - Full freedom within 48px grid
+
+   Org setting:
+   - Migration 947_flow_layout_mode.sql: flow_layout_mode text column
+     on organizations, default 'freeform'
+   - FlowLayoutMode type: 'auto' | 'freeform'
+   - CompanySettingsPage radio group with descriptions
+   - FlowEditPage fetches org setting and applies correct behavior
+   - Mode badge in header: blue "Auto layout" / gray "Freeform"
+
+
+G) FLOW EDITOR UI OVERHAUL  (commit 17fda35)
+
+   Decision node:
+   - Removed the rotated 45° diamond — now a normal rounded rectangle
+   - Shows outgoing connector labels as amber chips inside the node
+
+   Removed from toolbar:
+   - +Status button
+   - +End button
+
+   isEnd toggle:
+   - Any node can be marked as the flow endpoint via "Set end" button
+   - isEnd?: boolean added to JourneyBaseNode type
+   - Marked nodes get a rose "End" badge and border
+   - Legacy 'end' nodes auto-migrate to isEnd=true
+   - Advance handler updated to check isEnd || type==='end'
 
 
 CURRENT CODEBASE STATE
 -----------------------
 
-  - main = f92750d (after ff merge) + this session log commit
+  - main = 17fda35, pushed
   - Working tree clean after session log commit
   - Tests: 57/57 passing
   - Build: clean
-    CompanySettingsPage chunk: 33.03 kB (gzip 7.73 kB)
-    MenteesListPage chunk: 78.88 kB (gzip 16.51 kB)
-  - No new migrations this session
-  - Migration numbers unchanged:
-      lowest (newest):  948_mentee_journey_pending_assignment.sql
+  - New migration this session:
+      947_flow_layout_mode.sql
+    User needs to apply it in Supabase (same as 948-950 from prior
+    sessions).
+  - Migration numbers:
+      lowest (newest):  947_flow_layout_mode.sql
       highest (oldest): 999
   - No new npm dependencies
-  - Feature branch claude/build-block-15-QXgEG is at the same commit
-    as main. Safe to delete.
 
 
-JOURNEYS FEATURE — COMPLETE
------------------------------
+DELIBERATE DESIGN DECISIONS
+----------------------------
 
-All 16 blocks of the 69-slice Journeys plan are now shipped:
-
-  Block 0:  Bug fix (Session 022)
-  Block 1:  Migration 950 — journey_flows + mentee_journeys tables
-  Block 2:  Migration 949 — journey_auto_assign_offerings column
-  Block 3:  TypeScript types
-  Block 4:  journeyFlow lib (migrateContent, node factories)
-  Block 5:  Sidebar "Flows" link
-  Block 6:  FlowsPage — list + folder management
-  Block 7:  FlowCreatePage — create + initial editor shell
-  Block 8:  FlowEditPage — node rendering + drag
-  Block 9:  FlowEditPage — toolbar (add nodes)
-  Block 10: FlowEditPage — connectors (SVG + connect mode + labels)
-  Block 11: FlowEditPage — undo history
-  Block 12: FlowEditPage — save flow content
-  Block 13: MenteeManageSlideOver — assign flow to mentee
-  Block 14: MenteeManageSlideOver — advance handler + pending assignment
-  Block 15: CompanySettingsPage — journey_auto_assign_offerings toggle
-  Block 16: Verification + wrap (this block)
+  - Status and End node types kept in the type system and render layer
+    for backwards compatibility with existing flows. They just can't be
+    created from the toolbar anymore.
+  - isEnd is optional (undefined = false) so all existing node data
+    works without migration.
+  - The auto-layout algorithm uses longest-path depth (not shortest)
+    so nodes reachable via multiple paths always appear after all
+    predecessors.
+  - Meeting cancellation uses Option B (always allow, warn about credit
+    loss) rather than Option A (block late cancels).
 
 
-DELIBERATELY OUT OF SCOPE
--------------------------
+OPEN ITEMS / FUTURE WORK
+--------------------------
 
-Same list from Sessions 021-024. Not built and NOT in the plan:
-  - Per-mentee journey editing (mentor changes the snapshot mid-journey)
-  - Auto-advance on offering completion (when a mentee finishes a
-    course, auto-advance the journey past its offering node)
-  - Mentee-side read-only "My Journey" view
-  - Legacy mentee_flow migration to Journeys
-  - Notification delivery for pending_assignment (email / in-app)
-  - MenteeEditPage RHF holdouts, InvoicePrintPage loading text
+  - Mentee dashboard redesign: discussed but not built. User was
+    considering a unified "next steps" dashboard instead of 4 separate
+    module pages. Recommendation was to keep both (sidebar modules for
+    drill-down, dashboard as an aggregated actionable feed).
 
+  - The user mentioned wanting auto-status-update when a mentee opens
+    an engagement offering (the engagement node status auto-updates
+    when the mentee begins it). Not yet implemented.
 
-NOTES FOR SESSION 026
----------------------
+  - Per-mentee journey editing, auto-advance on offering completion,
+    mentee-side "My Journey" view, legacy mentee_flow migration,
+    notification delivery for pending_assignment — all still out of
+    scope from prior sessions.
 
-The Journeys feature is fully complete. An admin can now:
-
-  1. Author a journey flow (/flows) with nodes and connectors
-  2. Assign the flow to a mentee (Manage → Journeys → Start)
-  3. Advance the mentee through the flow one step at a time
-  4. See offerings auto-assigned (or pend for manual confirmation)
-  5. Toggle auto-assign behavior in Company Settings → Offerings
-  6. Watch journeys auto-complete when they reach an end node
-
-Migrations the user needs to have applied (from Sessions 022/024):
-  - 950_journey_tables.sql
-  - 949_journey_auto_assign.sql
-  - 948_mentee_journey_pending_assignment.sql
-
-One thing NOT tested end-to-end (noted in Session 024 handoff): a
-journey reaching an end node, auto-completing, and the JourneyCard
-correctly sliding into the completed list via local optimistic state.
-The logic looks correct but there's no integration test. Worth a quick
-manual smoke test when time allows.
-
-The next feature work is up to the user — there are no remaining
-planned blocks.
+  - End-to-end test: a journey reaching an isEnd node and completing
+    via the new isEnd check has not been smoke-tested in a live
+    environment.
 
 
 PROMPTS LOGGED THIS SESSION
 ---------------------------
 
-Two prompts captured in Session 025/prompt_history.txt:
+Eleven prompts captured in Session 025/prompt_history.txt:
   1. "Can you build block 15 and commit it to main"
   2. "Now build block 16"
+  3. Mentee meeting cancellation discussion
+  4. "Option B"
+  5. Mentee dashboard discussion
+  6. Flow editor redesign discussion
+  7. "Could we build Option B and Option C..."
+  8. "do phase 1"
+  9. "phase 2"
+  10. "Phase 3 and 4"
+  11. Button/UI changes request
 
 
 COMMITS
 -------
 
   f92750d  Session 025 Block 15: journey auto-assign offerings toggle
-  (plus this session log commit after this file)
+  d2ddebe  Session 025 wrap (Block 16): handoff log + prompt history
+  5448432  Mentee meeting cancellation with cancellation-policy-aware credit messaging
+  b4fbd77  Flow editor phase 1: grid snap + bezier curves + smarter node spawn
+  b4bae5d  Flow editor phase 2: auto-layout algorithm + Auto-arrange button
+  5b97dee  Flow editor phases 3+4: auto-layout mode, freeform mode, org setting
+  17fda35  Flow editor UI overhaul: decision node fix, isEnd toggle, remove Status/End buttons
+  (plus prompt history commits and this session log commit)
 
 ========================================================================
