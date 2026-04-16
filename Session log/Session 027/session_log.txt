@@ -1,0 +1,158 @@
+SESSION 027 HANDOFF LOG
+========================
+Date: 2026-04-16
+Branch: main (all work merged and pushed)
+
+
+WORK COMPLETED THIS SESSION
+----------------------------
+
+A) JOURNEY EDITOR: RESPONSIVE WORKSPACE + SNAP RESOLUTION (commit 3eea723)
+
+   Fixed the horizontal scrollbar on the journey editor screen and added
+   configurable grid snap resolution.
+
+   Scrollbar fix:
+   - Workspace inner div changed from fixed 1200x800 to absolute inset-0
+     (fills its container naturally)
+   - Container changed from overflow-auto to overflow-hidden
+   - ResizeObserver tracks actual container dimensions for node drag
+     clamping, spawn positioning, and auto-layout centering
+   - SVG connector layer matches tracked dimensions
+
+   Snap resolution:
+   - New "Snap" dropdown in the editor toolbar with 4 levels:
+     Large (48px), Medium (24px, default), Fine (12px), Off
+   - Grid dot pattern updates to match the selected snap size
+   - snapToGrid() and autoLayout() accept optional gridSize parameter
+   - autoLayout() also accepts optional workspaceWidth parameter
+
+   Files changed:
+   - app/src/lib/journeyFlow.ts (snapToGrid, autoLayout signatures)
+   - app/src/pages/JourneyEditPage.tsx (responsive workspace, grid UI)
+
+
+B) BUG FIX 1: AUTH CONTEXT STALE PROFILE (commit e42b6c0)
+
+   Added profileRef to AuthContext so error/fallback paths in
+   fetchAllProfiles always access the latest profile value instead of
+   a stale closure-captured value from an earlier render.
+
+   Files changed:
+   - app/src/context/AuthContext.tsx
+
+
+C) BUG FIX 2: PROTECTED ROUTE ASYNC CLEANUP (commit e42b6c0)
+
+   Added mountedRef to ProtectedRoute. The async handleReportBug
+   function now checks mountedRef.current before calling setState,
+   preventing state updates on unmounted components.
+
+   Files changed:
+   - app/src/router/ProtectedRoute.tsx
+
+
+D) BUG FIX 3: AUTH CONTEXT CANCELLATION PATTERN (commit e42b6c0)
+
+   Added a cancelled flag in AuthContext's auth-change useEffect.
+   The deferred setTimeout callback checks cancelled before every
+   setState call. Cleanup sets cancelled = true. Prevents stale
+   state updates if the provider unmounts during async profile fetch.
+
+   Files changed:
+   - app/src/context/AuthContext.tsx
+
+
+E) BUG FIX 4: CONSOLE STATEMENT CLEANUP (commit e42b6c0)
+
+   Removed all 87 console.log/warn/error statements from 30+ files
+   across the codebase. Only the critical missing-env-var startup
+   warning in supabase.ts remains. Also cleaned up unused variables
+   that were left behind (label, logLabel, elapsed, err, tErr).
+
+   Files changed: 30+ files across context/, lib/, hooks/, pages/,
+   components/, router/
+
+
+F) BUG FIX 5: QUERY LIMITS (commit e42b6c0)
+
+   Added &limit=1000 to 9 unbounded list page queries as a safety
+   valve against pathological unbounded fetches:
+   - MenteesListPage (mentees)
+   - PeopleListPage (staff)
+   - CoursesPage (offerings/courses)
+   - EngagementsPage (offerings/engagements)
+   - JourneysPage (journey_flows)
+   - HabitsPage (habits)
+   - CanvasesPage (canvases)
+   - InvoicingPage (invoices)
+   - PayrollPage (offerings)
+
+   1000 is generous enough for any realistic org but prevents runaway
+   queries from data import errors or similar issues.
+
+
+G) BUG FIX 6: STALE CLOSURES — NO ACTION NEEDED
+
+   Investigated and verified no real stale closure issues exist:
+   - Modal.tsx: escape handler has correct deps [open, onClose]
+   - Sidebar.tsx: no keyboard handlers at all
+   - JourneyEditPage: keyboard handler uses refs for dynamic values
+     (wsSizeRef, gridSizeRef) added in fix A
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  - main = e42b6c0, pushed
+  - Working tree clean after session log commit
+  - Build: clean (tsc + vite, no errors)
+  - No new migrations this session
+  - No new npm dependencies
+  - Migration numbers:
+      lowest (newest):  945_meetings_cancelled_by_fix.sql
+      highest (oldest): 999
+  - Console statements: 1 remaining (critical startup warning)
+
+
+DELIBERATE DESIGN DECISIONS
+----------------------------
+
+  - Journey editor workspace uses ResizeObserver + absolute positioning
+    rather than a fixed pixel canvas. This means the workspace adapts
+    to different screen sizes and sidebar open/close states.
+
+  - Grid snap default is 24px (Medium) instead of the old 48px. This
+    gives better positioning control while still being visible as dots.
+
+  - Query limit of 1000 is a safety valve, not pagination. If an org
+    exceeds 1000 records in a list, they'll see the first 1000. Full
+    pagination UI would be a future feature.
+
+  - Console statements were removed entirely rather than gated behind
+    a DEBUG flag. The error reporter (reportError) handles persistent
+    error logging to the error_reports table, which is more useful
+    than browser console for production debugging.
+
+
+OPEN ITEMS / FUTURE WORK
+--------------------------
+
+  - Full pagination UI for list pages (currently just limit=1000)
+  - Auto-advance automation (advanceTrigger settings stored but not
+    yet wired to actual triggers — needs backend process)
+  - Webhook entry trigger for journeys
+  - Auto-status-on-entry for mentees joining via webhook
+  - Per-mentee journey editing
+  - Mentee-side "My Journey" view
+
+
+COMMITS THIS SESSION
+---------------------
+
+  3eea723  Journey editor: responsive workspace + snap resolution controls
+  e42b6c0  Fix 6 bugs: auth stale profile, route cleanup, cancellation,
+           console removal, query limits, stale closures
+  (plus prompt history and session log commits)
+
+========================================================================
