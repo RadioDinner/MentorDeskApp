@@ -36,8 +36,11 @@ import type {
   JourneyConnector,
   JourneyOfferingNode,
   JourneyDecisionNode,
+  JourneyStartNode,
   Offering,
   FlowLayoutMode,
+  AdvanceTrigger,
+  DelayUnit,
 } from '../types'
 
 type HistorySnapshot = { nodes: JourneyNode[]; connectors: JourneyConnector[] }
@@ -67,6 +70,8 @@ export default function JourneyEditPage() {
   // Inline label edit state for node labels (decision nodes).
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editingNodeLabel, setEditingNodeLabel] = useState('')
+  // Selected node — opens the settings sidebar.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<FlowLayoutMode>('freeform')
 
   // Drag-to-connect: when the user drags from an output port, we track
@@ -200,7 +205,11 @@ export default function JourneyEditPage() {
       if (!dragStateRef.current) return
       const ds = dragStateRef.current
       dragStateRef.current = null
-      if (!ds.moved) return
+      if (!ds.moved) {
+        // Click without drag — select the node to open settings sidebar
+        setSelectedNodeId(ds.nodeId)
+        return
+      }
       setDirty(true)
       if (layoutModeRef.current === 'auto') {
         // After horizontal reorder, re-run autoLayout to snap everything
@@ -404,6 +413,15 @@ export default function JourneyEditPage() {
     setEditingNodeLabel('')
   }
 
+  /** Update any fields on a node (used by the settings sidebar). */
+  function updateNode(nodeId: string, updates: Record<string, unknown>) {
+    pushHistory()
+    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, ...updates } : n))
+    setDirty(true)
+  }
+
+  const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) ?? null : null
+
   // Keyboard shortcuts:
   //   Escape          — cancel connect mode or label editing
   //   Cmd/Ctrl + Z    — undo
@@ -436,13 +454,17 @@ export default function JourneyEditPage() {
         if (editingConnectorId) {
           setEditingConnectorId(null)
           setEditingLabelValue('')
+          return
+        }
+        if (selectedNodeId) {
+          setSelectedNodeId(null)
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawingWire, editingConnectorId, past, nodes, connectors, dirty, saving])
+  }, [drawingWire, editingConnectorId, selectedNodeId, past, nodes, connectors, dirty, saving])
 
   // ── Node actions ───────────────────────────────────────────────────────
   function handleNodePointerDown(e: React.PointerEvent, node: JourneyNode) {
@@ -785,11 +807,11 @@ export default function JourneyEditPage() {
         </div>
       )}
 
-      {/* Workspace */}
+      {/* Workspace + Settings sidebar */}
+      <div className="flex-1 flex gap-0 min-h-0" style={{ minHeight: 400 }}>
       <div
         ref={workspaceRef}
         className="flex-1 overflow-auto rounded-md border border-gray-200 bg-gray-50 relative"
-        style={{ minHeight: 400 }}
       >
         <div
           className="relative"
@@ -1097,6 +1119,242 @@ export default function JourneyEditPage() {
             )
           })}
         </div>
+      </div>
+
+      {/* Node settings sidebar */}
+      {selectedNode && (
+        <NodeSettingsSidebar
+          node={selectedNode}
+          offerings={offerings}
+          connectors={connectors}
+          canEdit={canEdit}
+          onUpdate={(updates) => updateNode(selectedNode.id, updates)}
+          onClose={() => setSelectedNodeId(null)}
+        />
+      )}
+      </div>
+    </div>
+  )
+}
+
+// ── Node Settings Sidebar ─────────────────────────────────────────────
+
+function NodeSettingsSidebar({
+  node,
+  offerings,
+  connectors,
+  canEdit,
+  onUpdate,
+  onClose,
+}: {
+  node: JourneyNode
+  offerings: Offering[]
+  connectors: JourneyConnector[]
+  canEdit: boolean
+  onUpdate: (updates: Record<string, unknown>) => void
+  onClose: () => void
+}) {
+  const outgoing = connectors.filter(c => c.fromNodeId === node.id)
+  const incoming = connectors.filter(c => c.toNodeId === node.id)
+
+  const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
+
+  return (
+    <div className="w-72 shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Node Settings</h3>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">{node.type}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="px-4 py-4 space-y-5 flex-1">
+        {/* ── Start node ── */}
+        {node.type === 'start' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Entry trigger</label>
+              <select
+                value={(node as JourneyStartNode).entryTrigger ?? 'manual'}
+                onChange={e => onUpdate({ entryTrigger: e.target.value })}
+                disabled={!canEdit}
+                className={inputClass}
+              >
+                <option value="manual">Manual (admin/ops assigns)</option>
+                <option value="webhook">Webhook (website button)</option>
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">How mentees enter this journey.</p>
+            </div>
+            <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
+              <p className="font-medium text-gray-700 mb-1">Connections</p>
+              <p>{outgoing.length} outgoing</p>
+            </div>
+          </>
+        )}
+
+        {/* ── Offering node ── */}
+        {node.type === 'offering' && (() => {
+          const ofNode = node as JourneyOfferingNode
+          const offering = offerings.find(o => o.id === ofNode.offeringId)
+          const trigger = ofNode.advanceTrigger ?? 'auto'
+          return (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Linked offering</label>
+                <div className="rounded border border-gray-200 px-3 py-2 bg-gray-50">
+                  <p className="text-sm font-medium text-gray-900">{offering?.name ?? '(not found)'}</p>
+                  <p className="text-[10px] text-gray-400 uppercase">{offering?.type ?? '—'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">After completion</label>
+                <select
+                  value={trigger}
+                  onChange={e => {
+                    const v = e.target.value as AdvanceTrigger
+                    onUpdate({
+                      advanceTrigger: v,
+                      ...(v !== 'auto_delay' ? { delayValue: undefined, delayUnit: undefined } : {}),
+                    })
+                  }}
+                  disabled={!canEdit}
+                  className={inputClass}
+                >
+                  <option value="auto">Auto-advance immediately</option>
+                  <option value="auto_delay">Auto-advance after delay</option>
+                  <option value="manual">Manual review (create task)</option>
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {trigger === 'auto' && 'Journey advances to the next node as soon as the meeting/offering completes.'}
+                  {trigger === 'auto_delay' && 'Journey waits the specified time after completion, then auto-advances.'}
+                  {trigger === 'manual' && 'A task is created for the mentor to review and decide the next step.'}
+                </p>
+              </div>
+
+              {trigger === 'auto_delay' && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Delay</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={ofNode.delayValue ?? 24}
+                      onChange={e => onUpdate({ delayValue: parseInt(e.target.value) || 1 })}
+                      disabled={!canEdit}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                    <select
+                      value={ofNode.delayUnit ?? 'hours'}
+                      onChange={e => onUpdate({ delayUnit: e.target.value as DelayUnit })}
+                      disabled={!canEdit}
+                      className={inputClass}
+                    >
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
+                <p className="font-medium text-gray-700 mb-1">Connections</p>
+                <p>{incoming.length} incoming · {outgoing.length} outgoing</p>
+              </div>
+            </>
+          )
+        })()}
+
+        {/* ── Decision node ── */}
+        {node.type === 'decision' && (() => {
+          const dNode = node as JourneyDecisionNode
+          return (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Label</label>
+                <input
+                  type="text"
+                  value={dNode.label}
+                  onChange={e => onUpdate({ label: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="e.g. After Discovery Call"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Description</label>
+                <textarea
+                  value={dNode.description ?? ''}
+                  onChange={e => onUpdate({ description: e.target.value || undefined })}
+                  disabled={!canEdit}
+                  rows={3}
+                  placeholder="Describe what this decision point is about..."
+                  className={`${inputClass} resize-none`}
+                />
+              </div>
+
+              <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
+                <p className="font-medium text-gray-700 mb-1">Outgoing paths</p>
+                {outgoing.length === 0 ? (
+                  <p className="text-gray-400 italic">No outgoing connectors yet. Drag from an output port to connect.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {outgoing.map(c => (
+                      <li key={c.id} className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                        <span className="truncate">{c.label || '(unlabeled)'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )
+        })()}
+
+        {/* ── Status node ── */}
+        {node.type === 'status' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Status label</label>
+              <input
+                type="text"
+                value={(node as unknown as { label: string }).label}
+                onChange={e => onUpdate({ label: e.target.value })}
+                disabled={!canEdit}
+                placeholder="e.g. Waitlisted, Graduated"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
+              <p className="font-medium text-gray-700 mb-1">Connections</p>
+              <p>{incoming.length} incoming · {outgoing.length} outgoing</p>
+            </div>
+          </>
+        )}
+
+        {/* ── End node ── */}
+        {node.type === 'end' && (
+          <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
+            <p className="font-medium text-gray-700 mb-1">End node</p>
+            <p>When the journey reaches this node, it is marked as completed.</p>
+            <p className="mt-1">{incoming.length} incoming</p>
+          </div>
+        )}
       </div>
     </div>
   )

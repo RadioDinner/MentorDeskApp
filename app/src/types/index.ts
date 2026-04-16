@@ -568,6 +568,14 @@ export interface CanvasFolder {
 // The connector labels are where the if/then logic lives (e.g. "completed
 // course", "waitlist").
 
+// ── Journey node advance trigger settings ─────────────────────────────
+//
+// Controls what happens after the offering at this node is completed
+// (e.g., discovery call ends). Stored per-node in the flow template.
+
+export type AdvanceTrigger = 'auto' | 'auto_delay' | 'manual'
+export type DelayUnit = 'hours' | 'days'
+
 export interface JourneyBaseNode {
   id: string     // client-generated id
   x: number      // px offset from workspace origin
@@ -577,16 +585,26 @@ export interface JourneyBaseNode {
 
 export interface JourneyStartNode extends JourneyBaseNode {
   type: 'start'
+  /** How mentees enter this journey. Future: 'webhook' for website integration. */
+  entryTrigger?: 'manual' | 'webhook'
 }
 
 export interface JourneyOfferingNode extends JourneyBaseNode {
   type: 'offering'
   offeringId: string
+  /** What happens after the offering/meeting at this node completes. */
+  advanceTrigger?: AdvanceTrigger
+  /** Delay value (only used when advanceTrigger === 'auto_delay'). */
+  delayValue?: number
+  /** Delay unit (only used when advanceTrigger === 'auto_delay'). */
+  delayUnit?: DelayUnit
 }
 
 export interface JourneyDecisionNode extends JourneyBaseNode {
   type: 'decision'
   label: string
+  /** Optional longer description shown in the settings sidebar. */
+  description?: string
 }
 
 /**
