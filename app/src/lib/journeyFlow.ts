@@ -21,6 +21,7 @@ export function clientId(prefix = 'jn'): string {
 // ── Constants ───────────────────────────────────────────────────────────
 
 export const WORKSPACE_SIZE = { width: 2400, height: 1800 } as const
+export const GRID_SIZE = 48
 export const HISTORY_LIMIT = 50
 
 export type NodeType = JourneyNode['type']
@@ -139,4 +140,37 @@ export function migrateContent(raw: unknown): JourneyContent {
 /** Width/height for a given node type. Used by render + drag-clamp layers. */
 export function nodeSize(type: NodeType): { width: number; height: number } {
   return NODE_DEFAULTS[type]
+}
+
+/** Snap a value to the nearest grid line. */
+export function snapToGrid(val: number): number {
+  return Math.round(val / GRID_SIZE) * GRID_SIZE
+}
+
+/**
+ * Compute an SVG cubic bezier path string between two node centers.
+ * The curve bows vertically — the control point offset scales with
+ * the vertical distance between nodes so the arc looks natural for
+ * both short and long connections. When nodes are roughly horizontal,
+ * the curve pushes downward slightly to avoid a flat line.
+ */
+export function connectorPath(
+  x1: number, y1: number,
+  x2: number, y2: number,
+): string {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  // The control-point offset is proportional to the distance, clamped
+  // so very short connections don't get wild curves and very long ones
+  // don't overshoot.
+  const dist = Math.sqrt(dx * dx + dy * dy)
+  const offset = Math.min(Math.max(Math.abs(dy) * 0.5, 40), dist * 0.4)
+  // When the target is below the source, push control points downward
+  // for a smooth downward arc. When above, flip.
+  const cpY = dy >= 0 ? offset : -offset
+  const cp1x = x1 + dx * 0.25
+  const cp1y = y1 + cpY
+  const cp2x = x1 + dx * 0.75
+  const cp2y = y2 - cpY
+  return `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`
 }

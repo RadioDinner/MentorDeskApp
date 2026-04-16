@@ -10,6 +10,7 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import {
   WORKSPACE_SIZE,
+  GRID_SIZE,
   NODE_DEFAULTS,
   HISTORY_LIMIT,
   COLORS,
@@ -20,6 +21,8 @@ import {
   createEndNode,
   createConnector,
   nodeSize,
+  snapToGrid,
+  connectorPath,
   type NodeType,
 } from '../lib/journeyFlow'
 import type {
@@ -150,10 +153,12 @@ export default function FlowEditPage() {
       setNodes(prev => prev.map(n => {
         if (n.id !== drag.nodeId) return n
         const size = nodeSize(n.type)
+        const rawX = drag.startNodeX + dx
+        const rawY = drag.startNodeY + dy
         return {
           ...n,
-          x: Math.max(0, Math.min(WORKSPACE_SIZE.width  - size.width,  drag.startNodeX + dx)),
-          y: Math.max(0, Math.min(WORKSPACE_SIZE.height - size.height, drag.startNodeY + dy)),
+          x: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.width  - size.width,  rawX))),
+          y: snapToGrid(Math.max(0, Math.min(WORKSPACE_SIZE.height - size.height, rawY))),
         }
       }))
     }
@@ -334,15 +339,21 @@ export default function FlowEditPage() {
     e.preventDefault()
   }
 
-  /** Pick a reasonable spawn position for a new node: slightly offset from
-   *  the workspace center, so multiple adds do not stack exactly on top of
-   *  each other. Uses node count as a cheap stagger. */
+  /** Pick a spawn position for a new node. Places it below the lowest
+   *  existing node (or centered if the canvas is empty), snapped to the grid.
+   *  Horizontally centered relative to the workspace. */
   function spawnPosition(type: NodeType) {
     const size = NODE_DEFAULTS[type]
-    const cx = Math.round(WORKSPACE_SIZE.width / 2) - size.width / 2
-    const cy = Math.round(WORKSPACE_SIZE.height / 2) - size.height / 2
-    const stagger = (nodes.length % 10) * 24
-    return { x: cx + stagger, y: cy + stagger }
+    const cx = snapToGrid(Math.round(WORKSPACE_SIZE.width / 2) - size.width / 2)
+    if (nodes.length === 0) {
+      return { x: cx, y: snapToGrid(GRID_SIZE * 2) }
+    }
+    // Find the bottom edge of the lowest node and place below it with a gap.
+    const bottommost = nodes.reduce((max, n) => {
+      const bottom = n.y + nodeSize(n.type).height
+      return bottom > max ? bottom : max
+    }, 0)
+    return { x: cx, y: snapToGrid(bottommost + GRID_SIZE * 2) }
   }
 
   function addOfferingNode(offeringId: string) {
@@ -624,7 +635,7 @@ export default function FlowEditPage() {
             width: WORKSPACE_SIZE.width,
             height: WORKSPACE_SIZE.height,
             backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
+            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
             cursor: connectorMode ? 'crosshair' : undefined,
           }}
         >
@@ -660,24 +671,27 @@ export default function FlowEditPage() {
               const y1 = from.y + fs.height / 2
               const x2 = to.x + ts.width / 2
               const y2 = to.y + ts.height / 2
+              const d = connectorPath(x1, y1, x2, y2)
               return (
                 <g key={c.id}>
-                  <line
-                    x1={x1} y1={y1} x2={x2} y2={y2}
+                  <path
+                    d={d}
                     stroke="#64748b"
                     strokeWidth={2}
+                    fill="none"
                     markerEnd="url(#journey-arrow)"
                   />
                   {canEdit && !connectorMode && (
-                    <line
-                      x1={x1} y1={y1} x2={x2} y2={y2}
+                    <path
+                      d={d}
                       stroke="transparent"
                       strokeWidth={14}
+                      fill="none"
                       className="pointer-events-auto cursor-pointer"
                       onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
                     >
                       <title>Click to delete connector</title>
-                    </line>
+                    </path>
                   )}
                 </g>
               )

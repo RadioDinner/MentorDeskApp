@@ -11,3 +11,5 @@
 6. I'm re-thinking the canvas/draggable flow system. The system, as it stands, plops decisions and offerings in random places on the graph/chart and it can start to look messy quickly. What are our options to change this system up? I want something slightly more rigid that looks beautiful too, that has beautiful curved lines that go from node to node that can be dragged around, etc, but I feel like they should snap to something. Let's figure this out, then I'll have specific changes to be made to the buttons and things.
 
 7. Could we build Option B and Option C, and then give the org the ability to pick which layout system they want to go with?
+
+8. do phase 1

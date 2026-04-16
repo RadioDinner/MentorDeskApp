@@ -8,7 +8,7 @@ import { logAudit } from '../lib/audit'
 import { reportSupabaseError } from '../lib/errorReporter'
 import { useToast } from '../context/ToastContext'
 import Button from '../components/ui/Button'
-import { createStartNode, WORKSPACE_SIZE } from '../lib/journeyFlow'
+import { createStartNode, WORKSPACE_SIZE, GRID_SIZE, snapToGrid } from '../lib/journeyFlow'
 import type { JourneyFlow } from '../types'
 
 const schema = z.object({
@@ -42,7 +42,10 @@ export default function FlowCreatePage() {
     // Every new flow starts with a single start node in the middle-left
     // of the workspace. Block 7+ renders / drags / connects everything
     // downstream from here.
-    const startNode = createStartNode(120, Math.round(WORKSPACE_SIZE.height / 2) - 28)
+    const startNode = createStartNode(
+      snapToGrid(Math.round(WORKSPACE_SIZE.width / 2) - 70),
+      snapToGrid(GRID_SIZE * 2),
+    )
 
     const { data, error: err } = await supabaseRestCall('journey_flows', 'POST', {
       organization_id: profile.organization_id,
