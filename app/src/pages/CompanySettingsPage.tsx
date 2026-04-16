@@ -81,6 +81,7 @@ export default function CompanySettingsPage() {
   const [newGroupName, setNewGroupName] = useState('')
   const [enableLessonDueDates, setEnableLessonDueDates] = useState(false)
   const [allowMultiEngagement, setAllowMultiEngagement] = useState(false)
+  const [journeyAutoAssign, setJourneyAutoAssign] = useState(false)
   const [showAllDaysInScheduler, setShowAllDaysInScheduler] = useState(true)
   const [schedulerMaxDaysAhead, setSchedulerMaxDaysAhead] = useState(14)
   const [allocationGrantMode, setAllocationGrantMode] = useState<AllocationGrantMode>('on_open')
@@ -109,6 +110,7 @@ export default function CompanySettingsPage() {
         setRoleGroups(o.role_groups ?? [])
         setEnableLessonDueDates(o.enable_lesson_due_dates ?? false)
         setAllowMultiEngagement(o.allow_multi_engagement ?? false)
+        setJourneyAutoAssign(o.journey_auto_assign_offerings ?? false)
         setShowAllDaysInScheduler(o.show_all_days_in_scheduler ?? true)
         setSchedulerMaxDaysAhead(o.scheduler_max_days_ahead ?? 14)
         setAllocationGrantMode(o.allocation_grant_mode ?? 'on_open')
@@ -137,6 +139,7 @@ export default function CompanySettingsPage() {
         role_groups: roleGroups,
         enable_lesson_due_dates: enableLessonDueDates,
         allow_multi_engagement: allowMultiEngagement,
+        journey_auto_assign_offerings: journeyAutoAssign,
         show_all_days_in_scheduler: showAllDaysInScheduler,
         scheduler_max_days_ahead: schedulerMaxDaysAhead,
         allocation_grant_mode: allocationGrantMode,
@@ -274,6 +277,15 @@ export default function CompanySettingsPage() {
                 </div>
                 <button type="button" onClick={() => setAllowMultiEngagement(!allowMultiEngagement)} className={toggleClass(allowMultiEngagement)}>
                   <span className={dotClass(allowMultiEngagement)} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
+                <div className="pr-4">
+                  <p className="text-sm font-medium text-gray-900">Auto-assign offerings from Journeys</p>
+                  <p className="text-xs text-gray-500 mt-0.5">When a mentee's journey reaches an offering node, automatically create the course or engagement assignment. When off, the journey pauses and a mentor must manually confirm the assignment.</p>
+                </div>
+                <button type="button" onClick={() => setJourneyAutoAssign(!journeyAutoAssign)} className={toggleClass(journeyAutoAssign)}>
+                  <span className={dotClass(journeyAutoAssign)} />
                 </button>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
