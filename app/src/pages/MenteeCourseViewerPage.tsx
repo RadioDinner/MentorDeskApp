@@ -16,6 +16,13 @@ interface LessonWithProgress extends Lesson {
   progress: LessonProgress | null
 }
 
+const SECTION_BORDER: Record<string, string> = {
+  text: 'border-gray-400',
+  video: 'border-sky-400',
+  quiz: 'border-violet-400',
+  response: 'border-indigo-400',
+}
+
 export default function MenteeCourseViewerPage() {
   const { id } = useParams<{ id: string }>()
   const { menteeProfile, profile } = useAuth()
@@ -291,8 +298,9 @@ export default function MenteeCourseViewerPage() {
                 const sectionQuestions = questions.filter(q => q.section_id === section.id)
                 // Text sections (and legacy sections without a type) render everything
                 const isTextOrLegacy = sType === 'text'
+                const borderClass = SECTION_BORDER[sType] ?? SECTION_BORDER.text
                 return (
-                  <div key={section.id} className="bg-white rounded-md border border-gray-200/80 overflow-hidden">
+                  <div key={section.id} className={`bg-white rounded-md border ${borderClass} overflow-hidden`}>
                     {section.title && (
                       <div className="px-5 pt-5 pb-2">
                         <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
