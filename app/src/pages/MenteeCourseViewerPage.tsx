@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import confetti from 'canvas-confetti'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
@@ -41,6 +42,7 @@ export default function MenteeCourseViewerPage() {
   const [responses, setResponses] = useState<Record<string, QuestionResponse>>({})
   const [contentLoading, setContentLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
   const [fieldCtx, setFieldCtx] = useState<DynamicFieldContext>({})
 
   const menteeId = menteeProfile?.id
@@ -181,7 +183,8 @@ export default function MenteeCourseViewerPage() {
       const updatedLessons = lessons.map(l => l.id === selectedLesson.id ? { ...l, progress: { status: 'completed' } } : l)
       if (updatedLessons.every(l => l.progress?.status === 'completed')) {
         await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', id)
-        toast.success('Course completed! All lessons finished.')
+        fireCelebration()
+        setShowCelebration(true)
       } else {
         toast.success('Lesson completed!')
         const idx = lessons.findIndex(l => l.id === selectedLesson.id)
@@ -378,6 +381,49 @@ export default function MenteeCourseViewerPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {showCelebration && (
+        <CourseCompleteModal courseName={course.name} onClose={() => setShowCelebration(false)} />
+      )}
+    </div>
+  )
+}
+
+function fireCelebration() {
+  const duration = 2500
+  const end = Date.now() + duration
+  const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9']
+  ;(function frame() {
+    confetti({ particleCount: 4, angle: 60, spread: 55, startVelocity: 55, origin: { x: 0, y: 0.7 }, colors })
+    confetti({ particleCount: 4, angle: 120, spread: 55, startVelocity: 55, origin: { x: 1, y: 0.7 }, colors })
+    if (Date.now() < end) requestAnimationFrame(frame)
+  })()
+  confetti({ particleCount: 120, spread: 80, startVelocity: 45, origin: { y: 0.6 }, colors })
+}
+
+function CourseCompleteModal({ courseName, onClose }: { courseName: string; onClose: () => void }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="course-complete-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-in fade-in"
+      onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full mx-4 px-8 py-10 text-center"
+      >
+        <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500 flex items-center justify-center shadow-lg">
+          <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+        <h2 id="course-complete-title" className="text-2xl font-bold text-gray-900 mb-2">Course Complete!</h2>
+        <p className="text-sm text-gray-600 mb-6">Nice work finishing <span className="font-semibold text-gray-900">{courseName}</span>. Every lesson is done.</p>
+        <button
+          onClick={onClose}
+          className="px-5 py-2.5 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"
+        >
+          Keep going
+        </button>
       </div>
     </div>
   )
