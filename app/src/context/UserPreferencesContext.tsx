@@ -9,6 +9,7 @@ export interface UserPreferences {
   accessibility?: {
     fontSize?: 'normal' | 'large' | 'xlarge'
     highContrast?: boolean
+    brandTint?: boolean
   }
   // Future sections land here: notifications, display, defaults, etc.
   [key: string]: unknown
