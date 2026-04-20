@@ -840,12 +840,17 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
 
   async function resetCourse() {
     setConfirmAction(null)
-    await Promise.all([
+    const [progressRes, responsesRes] = await Promise.all([
       supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
       supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
     ])
+    if (progressRes.error || responsesRes.error) {
+      toast.error('Failed to reset progress: ' + (progressRes.error?.message || responsesRes.error?.message))
+      return
+    }
     if (assignment.status === 'completed') {
-      await supabase.from('mentee_offerings').update({ status: 'active', completed_at: null }).eq('id', assignment.id)
+      const { error: e } = await supabase.from('mentee_offerings').update({ status: 'active', completed_at: null }).eq('id', assignment.id)
+      if (e) { toast.error('Failed to reactivate course: ' + e.message); return }
       onStatusChange(assignment.id, 'active')
     }
     setLessonDetails(prev => prev.map(l => ({ ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) })))
@@ -862,19 +867,28 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
 
   async function removeCourse() {
     setConfirmAction(null)
-    await Promise.all([
+    const [progressRes, responsesRes] = await Promise.all([
       supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id),
       supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id),
     ])
-    await supabase.from('mentee_offerings').delete().eq('id', assignment.id)
+    if (progressRes.error || responsesRes.error) {
+      toast.error('Failed to clear progress: ' + (progressRes.error?.message || responsesRes.error?.message))
+      return
+    }
+    const { error: e } = await supabase.from('mentee_offerings').delete().eq('id', assignment.id)
+    if (e) { toast.error('Failed to remove course: ' + e.message); return }
     onRemove(assignment.id)
   }
 
   async function resetLesson(lessonId: string) {
-    await Promise.all([
+    const [progressRes, responsesRes] = await Promise.all([
       supabase.from('lesson_progress').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
       supabase.from('question_responses').delete().eq('mentee_offering_id', assignment.id).eq('lesson_id', lessonId),
     ])
+    if (progressRes.error || responsesRes.error) {
+      toast.error('Failed to reset lesson: ' + (progressRes.error?.message || responsesRes.error?.message))
+      return
+    }
     setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) } : l))
     toast.success('Lesson reset.')
   }
@@ -883,12 +897,14 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
     const now = new Date().toISOString()
     const existing = lessonDetails.find(l => l.id === lessonId)?.progress
     if (existing) {
-      await supabase.from('lesson_progress').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', existing.id)
+      const { error: e } = await supabase.from('lesson_progress').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', existing.id)
+      if (e) { toast.error('Failed to mark complete: ' + e.message); return }
     } else {
-      await supabase.from('lesson_progress').insert({
+      const { error: e } = await supabase.from('lesson_progress').insert({
         organization_id: assignment.organization_id, mentee_id: assignment.mentee_id, mentee_offering_id: assignment.id,
         lesson_id: lessonId, status: 'completed', started_at: now, completed_at: now,
       })
+      if (e) { toast.error('Failed to mark complete: ' + e.message); return }
     }
     setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: { ...(l.progress ?? {} as LessonProgress), status: 'completed', completed_at: now } as LessonProgress } : l))
     toast.success('Lesson marked as completed.')
