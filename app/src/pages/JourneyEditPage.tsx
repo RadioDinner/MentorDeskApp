@@ -62,9 +62,6 @@ export default function JourneyEditPage() {
   const [dirty, setDirty] = useState(false)
   const [editingTitleValue, setEditingTitleValue] = useState<string | null>(null)
   const [showOfferingPicker, setShowOfferingPicker] = useState(false)
-  // Inline label edit state for connectors.
-  const [editingConnectorId, setEditingConnectorId] = useState<string | null>(null)
-  const [editingLabelValue, setEditingLabelValue] = useState('')
   // Inline label edit state for node labels (decision nodes).
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editingNodeLabel, setEditingNodeLabel] = useState('')
@@ -329,10 +326,8 @@ export default function JourneyEditPage() {
     setPast(prev => prev.slice(0, -1))
     setNodes(layoutMode === 'auto' ? autoLayout(snapshot.nodes, snapshot.connectors, { workspaceWidth: wsSize.width, gridSize }) : snapshot.nodes)
     setConnectors(snapshot.connectors)
-    // Any in-progress label edit or connect mode should be closed so the
-    // restored content sticks.
-    setEditingConnectorId(null)
-    setEditingLabelValue('')
+    // Any in-progress connect mode should be closed so the restored content
+    // sticks.
     setDrawingWire(null)
     setDirty(true)
   }
@@ -370,10 +365,6 @@ export default function JourneyEditPage() {
 
   function deleteConnector(connectorId: string) {
     if (!canEdit) return
-    if (editingConnectorId === connectorId) {
-      setEditingConnectorId(null)
-      setEditingLabelValue('')
-    }
     pushHistory()
     const nextConnectors = connectors.filter(c => c.id !== connectorId)
     setConnectors(nextConnectors)
@@ -392,27 +383,6 @@ export default function JourneyEditPage() {
     setConnectors(nextConnectors)
     setDirty(true)
     relayoutIfAuto(nextNodes, nextConnectors)
-  }
-
-  function beginEditLabel(connector: JourneyConnector) {
-    if (!canEdit) return
-    if (drawingWire) return
-    setEditingConnectorId(connector.id)
-    setEditingLabelValue(connector.label)
-  }
-
-  function saveConnectorLabel(connectorId: string) {
-    const trimmed = editingLabelValue.trim()
-    const existing = connectors.find(c => c.id === connectorId)
-    if (existing && existing.label !== trimmed) {
-      pushHistory()
-      setConnectors(prev =>
-        prev.map(c => (c.id === connectorId ? { ...c, label: trimmed } : c)),
-      )
-      setDirty(true)
-    }
-    setEditingConnectorId(null)
-    setEditingLabelValue('')
   }
 
   function beginEditNodeLabel(node: JourneyNode) {
@@ -472,11 +442,6 @@ export default function JourneyEditPage() {
           setDrawingWire(null)
           return
         }
-        if (editingConnectorId) {
-          setEditingConnectorId(null)
-          setEditingLabelValue('')
-          return
-        }
         if (selectedNodeId) {
           setSelectedNodeId(null)
         }
@@ -485,7 +450,7 @@ export default function JourneyEditPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawingWire, editingConnectorId, selectedNodeId, past, nodes, connectors, dirty, saving])
+  }, [drawingWire, selectedNodeId, past, nodes, connectors, dirty, saving])
 
   // ── Node actions ───────────────────────────────────────────────────────
   function handleNodePointerDown(e: React.PointerEvent, node: JourneyNode) {
@@ -930,8 +895,9 @@ export default function JourneyEditPage() {
             )}
           </svg>
 
-          {/* Connector labels (HTML layer) */}
-          {connectors.map(c => {
+          {/* Connector overlays: just a delete button at midpoint.
+              Connector labels removed — they cluttered the editor. */}
+          {canEdit && connectors.map(c => {
             const from = nodes.find(n => n.id === c.fromNodeId)
             const to = nodes.find(n => n.id === c.toNodeId)
             if (!from || !to) return null
@@ -948,58 +914,18 @@ export default function JourneyEditPage() {
             const mx = (srcPort.x + tgtPort.x) / 2
             const my = (srcPort.y + tgtPort.y) / 2
 
-            const isEditing = editingConnectorId === c.id
-            if (isEditing) {
-              return (
-                <input
-                  key={c.id}
-                  autoFocus
-                  data-no-drag
-                  value={editingLabelValue}
-                  onChange={e => setEditingLabelValue(e.target.value)}
-                  onBlur={() => saveConnectorLabel(c.id)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); saveConnectorLabel(c.id) }
-                    if (e.key === 'Escape') { e.preventDefault(); setEditingConnectorId(null); setEditingLabelValue('') }
-                  }}
-                  placeholder="label"
-                  className="absolute text-xs px-1.5 py-0.5 bg-white border border-brand rounded shadow-sm outline-none"
-                  style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5, width: 140 }}
-                />
-              )
-            }
             return (
-              <div
+              <button
                 key={c.id}
-                className="absolute flex items-center gap-1"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
+                className="absolute text-[11px] leading-none w-4 h-4 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-500 hover:border-rose-400 hover:text-rose-600 shadow-sm opacity-0 hover:opacity-100 focus:opacity-100"
                 style={{ left: mx, top: my, transform: 'translate(-50%, -50%)', zIndex: 5 }}
                 data-no-drag
+                title="Delete connector"
               >
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); beginEditLabel(c) }}
-                  disabled={!canEdit}
-                  className={
-                    'text-[11px] px-1.5 py-0.5 rounded border shadow-sm max-w-[160px] truncate ' +
-                    (c.label
-                      ? 'bg-white border-gray-300 text-gray-700 hover:border-brand'
-                      : 'bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-brand')
-                  }
-                  title={canEdit ? 'Click to edit label' : undefined}
-                >
-                  {c.label || 'label'}
-                </button>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); deleteConnector(c.id) }}
-                    className="text-[11px] leading-none w-4 h-4 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-500 hover:border-rose-400 hover:text-rose-600 shadow-sm"
-                    title="Delete connector"
-                  >
-                    &times;
-                  </button>
-                )}
-              </div>
+                &times;
+              </button>
             )
           })}
 
