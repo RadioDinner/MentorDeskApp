@@ -10,6 +10,17 @@
   --color-brand-secondary-light: rgb(var(--brand-secondary-light));
   --color-brand-tertiary: rgb(var(--brand-tertiary));
   --color-brand-tertiary-light: rgb(var(--brand-tertiary-light));
+
+  /* Visibility overhaul: shift the gray ramp up one step so borders,
+     dividers, placeholders, and muted text read as more distinct.
+     50/100/200/... now use the values of the next step (old 100/200/300/...).
+     600-950 are left alone — they are already dark enough. */
+  --color-gray-50:  #f3f4f6;  /* was #f9fafb */
+  --color-gray-100: #e5e7eb;  /* was #f3f4f6 */
+  --color-gray-200: #d1d5db;  /* was #e5e7eb */
+  --color-gray-300: #9ca3af;  /* was #d1d5db */
+  --color-gray-400: #6b7280;  /* was #9ca3af */
+  --color-gray-500: #4b5563;  /* was #6b7280 */
 }
 
 :root {
