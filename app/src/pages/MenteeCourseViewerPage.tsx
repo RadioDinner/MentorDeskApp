@@ -43,6 +43,7 @@ export default function MenteeCourseViewerPage() {
   const [contentLoading, setContentLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
+  const [orgCompletionMessage, setOrgCompletionMessage] = useState<string | null>(null)
   const [fieldCtx, setFieldCtx] = useState<DynamicFieldContext>({})
 
   const menteeId = menteeProfile?.id
@@ -62,6 +63,13 @@ export default function MenteeCourseViewerPage() {
         if (mo.offering?.type !== 'course') { setError('This is not a course.'); return }
         setMenteeOffering(mo)
         setCourse(mo.offering)
+
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('default_course_completion_message')
+          .eq('id', mo.organization_id)
+          .single()
+        setOrgCompletionMessage((orgData?.default_course_completion_message as string | null) ?? null)
 
         // Build dynamic field context: mentee data + mentor from active pairing
         const ctx: DynamicFieldContext = {
@@ -384,7 +392,11 @@ export default function MenteeCourseViewerPage() {
       </div>
 
       {showCelebration && (
-        <CourseCompleteModal courseName={course.name} onClose={() => setShowCelebration(false)} />
+        <CourseCompleteModal
+          courseName={course.name}
+          message={course.course_completion_message ?? orgCompletionMessage ?? ''}
+          onClose={() => setShowCelebration(false)}
+        />
       )}
     </div>
   )
@@ -402,7 +414,8 @@ function fireCelebration() {
   confetti({ particleCount: 120, spread: 80, startVelocity: 45, origin: { y: 0.6 }, colors })
 }
 
-function CourseCompleteModal({ courseName, onClose }: { courseName: string; onClose: () => void }) {
+function CourseCompleteModal({ courseName, message, onClose }: { courseName: string; message: string; onClose: () => void }) {
+  const resolved = message.trim() || `Nice work finishing ${courseName}!`
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="course-complete-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-in fade-in"
@@ -417,7 +430,7 @@ function CourseCompleteModal({ courseName, onClose }: { courseName: string; onCl
           </svg>
         </div>
         <h2 id="course-complete-title" className="text-2xl font-bold text-gray-900 mb-2">Course Complete!</h2>
-        <p className="text-sm text-gray-600 mb-6">Nice work finishing <span className="font-semibold text-gray-900">{courseName}</span>. Every lesson is done.</p>
+        <p className="text-sm text-gray-600 mb-6 whitespace-pre-wrap">{resolved}</p>
         <button
           onClick={onClose}
           className="px-5 py-2.5 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-hover transition-colors"

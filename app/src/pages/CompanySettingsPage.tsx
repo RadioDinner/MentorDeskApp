@@ -89,6 +89,7 @@ export default function CompanySettingsPage() {
   const [allocationRefreshMode, setAllocationRefreshMode] = useState<AllocationRefreshMode>('by_cycle')
   const [payForUncredited, setPayForUncredited] = useState(false)
   const [archiveSettings, setArchiveSettings] = useState<ArchiveSettings>(DEFAULT_ARCHIVE_SETTINGS)
+  const [defaultCourseCompletionMessage, setDefaultCourseCompletionMessage] = useState('')
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -119,6 +120,7 @@ export default function CompanySettingsPage() {
         setAllocationRefreshMode(o.allocation_refresh_mode ?? 'by_cycle')
         setPayForUncredited(o.pay_mentors_for_uncredited_meetings ?? false)
         setArchiveSettings(o.archive_settings ?? DEFAULT_ARCHIVE_SETTINGS)
+        setDefaultCourseCompletionMessage(o.default_course_completion_message ?? '')
       } catch (err) {
         toast.error('Failed to load: ' + ((err as Error).message || 'Unknown error'))
       } finally {
@@ -148,6 +150,7 @@ export default function CompanySettingsPage() {
         allocation_refresh_mode: allocationRefreshMode,
         pay_mentors_for_uncredited_meetings: payForUncredited,
         archive_settings: archiveSettings,
+        default_course_completion_message: defaultCourseCompletionMessage.trim() || null,
       }
       const { error } = await supabase.from('organizations').update(updates).eq('id', org.id)
       if (error) { reportSupabaseError(error, { component: 'CompanySettingsPage', action: 'save' }); toast.error(error.message); return }
@@ -270,6 +273,17 @@ export default function CompanySettingsPage() {
                 <button type="button" onClick={() => setEnableLessonDueDates(!enableLessonDueDates)} className={toggleClass(enableLessonDueDates)}>
                   <span className={dotClass(enableLessonDueDates)} />
                 </button>
+              </div>
+              <div className="rounded-lg border border-gray-200 px-4 py-4">
+                <p className="text-sm font-medium text-gray-900">Default course completion message</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-2">Shown on the "Course Complete!" popup when a mentee finishes any course that doesn't set its own message. Leave blank to use the system default.</p>
+                <textarea
+                  value={defaultCourseCompletionMessage}
+                  onChange={e => setDefaultCourseCompletionMessage(e.target.value)}
+                  rows={2}
+                  placeholder="Nice work finishing this course!"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
+                />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4">
                 <div>

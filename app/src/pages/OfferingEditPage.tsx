@@ -51,6 +51,8 @@ const schema = z.object({
   allocation_period: z.enum(['monthly', 'weekly', 'per_cycle']),
   use_org_default:   z.boolean(),
   auto_send_invoice: z.boolean(),
+  use_org_default_completion_message: z.boolean(),
+  course_completion_message:          z.string(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -103,6 +105,8 @@ export default function OfferingEditPage() {
       allocation_period: 'monthly',
       use_org_default: true,
       auto_send_invoice: false,
+      use_org_default_completion_message: true,
+      course_completion_message: '',
     },
   })
 
@@ -112,6 +116,7 @@ export default function OfferingEditPage() {
   const billingMode = watch('billing_mode')
   const dispenseMode = watch('dispense_mode')
   const useOrgDefault = watch('use_org_default')
+  const useOrgDefaultCompletionMessage = watch('use_org_default_completion_message')
 
   useEffect(() => {
     if (!id) return
@@ -146,6 +151,8 @@ export default function OfferingEditPage() {
           allocation_period: o.allocation_period ?? 'monthly',
           use_org_default: o.use_org_default_cancellation ?? true,
           auto_send_invoice: o.auto_send_invoice ?? false,
+          use_org_default_completion_message: o.course_completion_message == null,
+          course_completion_message: o.course_completion_message ?? '',
         })
         setCancelPolicy(o.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY)
       } catch (err) {
@@ -183,6 +190,9 @@ export default function OfferingEditPage() {
       updates.lesson_count = values.lesson_count ? parseInt(values.lesson_count) : null
       updates.expected_completion_days = values.completion_days ? parseInt(values.completion_days) : null
       updates.preview_mode = values.preview_mode
+      updates.course_completion_message = values.use_org_default_completion_message
+        ? null
+        : (values.course_completion_message.trim() || null)
     }
 
     if (offering.type === 'engagement') {
@@ -461,13 +471,38 @@ export default function OfferingEditPage() {
         {isCourse && (
           <div className="bg-white rounded-md border border-gray-200/80 px-6 py-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Options</h2>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
+            <div className="space-y-5">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" {...register('addToFlow')} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Include as a step in the mentee progression.</p>
+                </div>
+              </label>
+
               <div>
-                <p className="text-sm font-medium text-gray-900">Add to mentee flow</p>
-                <p className="text-xs text-gray-500 mt-0.5">Include as a step in the mentee progression.</p>
+                <label className="flex items-start gap-3 cursor-pointer mb-3">
+                  <input type="checkbox" {...register('use_org_default_completion_message')} className="mt-0.5 accent-brand" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Use organization default completion message</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Apply the default message set in Company Settings when a mentee finishes this course.</p>
+                  </div>
+                </label>
+                {!useOrgDefaultCompletionMessage && (
+                  <div>
+                    <label htmlFor="editCompletionMessage" className="block text-sm font-medium text-gray-700 mb-1.5">Completion message</label>
+                    <textarea
+                      id="editCompletionMessage"
+                      rows={2}
+                      {...register('course_completion_message')}
+                      placeholder="Nice work finishing this course!"
+                      className={inputClass + ' resize-none'}
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">Shown on the "Course Complete!" popup when a mentee finishes this course.</p>
+                  </div>
+                )}
               </div>
-            </label>
+            </div>
           </div>
         )}
 

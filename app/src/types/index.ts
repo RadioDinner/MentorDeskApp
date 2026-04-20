@@ -119,6 +119,7 @@ export interface Organization {
   archive_settings: ArchiveSettings
   journey_auto_assign_offerings: boolean
   flow_layout_mode: FlowLayoutMode
+  default_course_completion_message: string | null
   created_at: string
 }
 
@@ -153,6 +154,7 @@ export interface Offering {
   expected_completion_days: number | null
   auto_send_invoice: boolean
   folder_id: string | null
+  course_completion_message: string | null
   created_at: string
   updated_at: string
 }
