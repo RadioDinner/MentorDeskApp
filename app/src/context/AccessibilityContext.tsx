@@ -1,58 +1,39 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useCallback, type ReactNode } from 'react'
+import { useUserPreferences } from './UserPreferencesContext'
 
 export type FontSize = 'normal' | 'large' | 'xlarge'
 
-interface AccessibilityPrefs {
+interface AccessibilityCtx {
   fontSize: FontSize
   highContrast: boolean
-}
-
-interface AccessibilityCtx extends AccessibilityPrefs {
   setFontSize: (s: FontSize) => void
   setHighContrast: (v: boolean) => void
 }
 
-const STORAGE_KEY = 'mentordesk.accessibility'
-const DEFAULTS: AccessibilityPrefs = { fontSize: 'normal', highContrast: false }
+const DEFAULTS: { fontSize: FontSize; highContrast: boolean } = { fontSize: 'normal', highContrast: false }
 
-function loadPrefs(): AccessibilityPrefs {
-  if (typeof window === 'undefined') return DEFAULTS
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULTS
-    const parsed = JSON.parse(raw) as Partial<AccessibilityPrefs>
-    return {
-      fontSize: parsed.fontSize === 'large' || parsed.fontSize === 'xlarge' ? parsed.fontSize : 'normal',
-      highContrast: !!parsed.highContrast,
-    }
-  } catch {
-    return DEFAULTS
-  }
-}
-
-function applyToDocument(prefs: AccessibilityPrefs) {
+function applyToDocument(fontSize: FontSize, highContrast: boolean) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   root.classList.remove('font-size-normal', 'font-size-large', 'font-size-xlarge')
-  root.classList.add(`font-size-${prefs.fontSize}`)
-  root.classList.toggle('high-contrast', prefs.highContrast)
+  root.classList.add(`font-size-${fontSize}`)
+  root.classList.toggle('high-contrast', highContrast)
 }
 
 const Context = createContext<AccessibilityCtx | null>(null)
 
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
-  const [prefs, setPrefs] = useState<AccessibilityPrefs>(() => loadPrefs())
+  const { prefs, setSection } = useUserPreferences()
+  const fontSize = prefs.accessibility?.fontSize ?? DEFAULTS.fontSize
+  const highContrast = prefs.accessibility?.highContrast ?? DEFAULTS.highContrast
 
-  useEffect(() => {
-    applyToDocument(prefs)
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs)) } catch { /* ignore quota/denied */ }
-  }, [prefs])
+  useEffect(() => { applyToDocument(fontSize, highContrast) }, [fontSize, highContrast])
 
-  const setFontSize = useCallback((fontSize: FontSize) => setPrefs(p => ({ ...p, fontSize })), [])
-  const setHighContrast = useCallback((highContrast: boolean) => setPrefs(p => ({ ...p, highContrast })), [])
+  const setFontSize = useCallback((fontSize: FontSize) => setSection('accessibility', { fontSize }), [setSection])
+  const setHighContrast = useCallback((highContrast: boolean) => setSection('accessibility', { highContrast }), [setSection])
 
   return (
-    <Context.Provider value={{ ...prefs, setFontSize, setHighContrast }}>
+    <Context.Provider value={{ fontSize, highContrast, setFontSize, setHighContrast }}>
       {children}
     </Context.Provider>
   )
