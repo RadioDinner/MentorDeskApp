@@ -11,17 +11,17 @@
   --color-brand-tertiary: rgb(var(--brand-tertiary));
   --color-brand-tertiary-light: rgb(var(--brand-tertiary-light));
 
-  /* Visibility overhaul: shift the gray ramp two steps up so borders,
-     dividers, placeholders, and muted text are clearly distinct.
-     50/100/200/... now use the values that used to belong to
-     150/200/300/400/... (two shades darker across the board).
+  /* Default UI palette is a slate (blue-tinted) scale rather than a
+     neutral gray. Every `*-gray-*` utility resolves to a slate value
+     that is also shifted two steps darker than Tailwind's default
+     slate, preserving the earlier contrast-boost.
      600-950 are left alone — they are already dark enough. */
-  --color-gray-50:  #e5e7eb;  /* was #f9fafb */
-  --color-gray-100: #d1d5db;  /* was #f3f4f6 */
-  --color-gray-200: #9ca3af;  /* was #e5e7eb */
-  --color-gray-300: #6b7280;  /* was #d1d5db */
-  --color-gray-400: #4b5563;  /* was #9ca3af */
-  --color-gray-500: #374151;  /* was #6b7280 */
+  --color-gray-50:  #e2e8f0;  /* Tailwind slate-200 */
+  --color-gray-100: #cbd5e1;  /* Tailwind slate-300 */
+  --color-gray-200: #94a3b8;  /* Tailwind slate-400 */
+  --color-gray-300: #64748b;  /* Tailwind slate-500 */
+  --color-gray-400: #475569;  /* Tailwind slate-600 */
+  --color-gray-500: #334155;  /* Tailwind slate-700 */
 }
 
 :root {
@@ -106,24 +106,6 @@
 html.font-size-normal  { font-size: 16px; }
 html.font-size-large   { font-size: 18px; }
 html.font-size-xlarge  { font-size: 20px; }
-
-/* ── Accessibility: brand-tinted palette ──
-   Derives a full brand-color ramp from --color-brand using the OKLCH
-   relative color syntax. Each shade keeps the brand's hue (and most of
-   its chroma) and just varies lightness, so an orange brand produces
-   real orange shades rather than tinted gray. Lightest shades drop
-   chroma a bit to keep them readable as page backgrounds.
-   Skipped when high-contrast is on (that rule overrides these later). */
-html.brand-tint {
-  --color-gray-50:  oklch(from var(--color-brand) 0.975 calc(c * 0.15) h);
-  --color-gray-100: oklch(from var(--color-brand) 0.94  calc(c * 0.30) h);
-  --color-gray-200: oklch(from var(--color-brand) 0.86  calc(c * 0.55) h);
-  --color-gray-300: oklch(from var(--color-brand) 0.75  calc(c * 0.80) h);
-  --color-gray-400: oklch(from var(--color-brand) 0.60  c              h);
-  --color-gray-500: oklch(from var(--color-brand) 0.48  c              h);
-  --color-gray-600: oklch(from var(--color-brand) 0.36  c              h);
-  --color-gray-700: oklch(from var(--color-brand) 0.24  c              h);
-}
 
 /* ── Accessibility: high contrast ──
    Pushes borders to near-black, hardens text to max contrast, and

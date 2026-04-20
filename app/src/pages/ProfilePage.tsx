@@ -26,7 +26,7 @@ const CREATABLE_ROLES: { role: string; label: string; desc: string; table: 'staf
 export default function ProfilePage() {
   const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile } = useAuth()
   const toast = useToast()
-  const { fontSize, highContrast, brandTint, setFontSize, setHighContrast, setBrandTint } = useAccessibility()
+  const { fontSize, highContrast, setFontSize, setHighContrast } = useAccessibility()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -322,21 +322,6 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          <div className="flex items-start justify-between gap-4 rounded-md border border-gray-200 px-4 py-4">
-            <div>
-              <p className="text-sm font-medium text-gray-900">On-brand color scheme</p>
-              <p className="text-xs text-gray-500 mt-0.5">Tints the app's grays toward your organization's brand color. Cards, borders, and muted text pick up the brand hue.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setBrandTint(!brandTint)}
-              aria-pressed={brandTint}
-              aria-label="Toggle on-brand color scheme"
-              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${brandTint ? 'bg-brand' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${brandTint ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
         </div>
       </div>
 

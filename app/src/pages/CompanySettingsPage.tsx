@@ -235,25 +235,29 @@ export default function CompanySettingsPage() {
                   <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." className={inputClass} />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Brand colors</label>
+              <div className="opacity-60 pointer-events-none select-none" aria-disabled="true">
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="block text-xs font-medium text-gray-700">Brand colors</label>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Coming soon</span>
+                </div>
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: 'Primary', value: primaryColor, set: setPrimaryColor },
-                    { label: 'Secondary', value: secondaryColor, set: setSecondaryColor },
-                    { label: 'Tertiary', value: tertiaryColor, set: setTertiaryColor },
+                    { label: 'Primary', value: primaryColor },
+                    { label: 'Secondary', value: secondaryColor },
+                    { label: 'Tertiary', value: tertiaryColor },
                   ].map(c => (
                     <div key={c.label} className="flex items-center gap-2">
-                      <input type="color" value={c.value} onChange={e => c.set(e.target.value)}
-                        className="h-8 w-8 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0" />
+                      <input type="color" value={c.value} disabled readOnly tabIndex={-1}
+                        className="h-8 w-8 rounded border border-gray-300 p-0.5 shrink-0 cursor-not-allowed" />
                       <div>
-                        <input type="text" value={c.value} onChange={e => c.set(e.target.value)}
-                          className="w-24 rounded border border-gray-300 px-2 py-1 text-xs text-gray-900 outline-none focus:border-brand transition" />
+                        <input type="text" value={c.value} disabled readOnly tabIndex={-1}
+                          className="w-24 rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 bg-gray-50 outline-none cursor-not-allowed" />
                         <p className="text-[10px] text-gray-400 mt-0.5">{c.label}</p>
                       </div>
                     </div>
                   ))}
                 </div>
+                <p className="text-[11px] text-gray-500 mt-2">Custom brand colors are temporarily disabled while we refine the theming system.</p>
               </div>
             </div>
           </div>
