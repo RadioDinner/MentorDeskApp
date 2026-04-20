@@ -108,19 +108,21 @@ html.font-size-large   { font-size: 18px; }
 html.font-size-xlarge  { font-size: 20px; }
 
 /* ── Accessibility: brand-tinted palette ──
-   Derives the whole gray scale from the org's brand color via
-   color-mix(). Light shades lean toward white with a hint of brand,
-   dark shades are nearly-black with a brand undertone.
-   Skipped when high-contrast is on (high-contrast overrides later). */
+   Derives a full brand-color ramp from --color-brand using the OKLCH
+   relative color syntax. Each shade keeps the brand's hue (and most of
+   its chroma) and just varies lightness, so an orange brand produces
+   real orange shades rather than tinted gray. Lightest shades drop
+   chroma a bit to keep them readable as page backgrounds.
+   Skipped when high-contrast is on (that rule overrides these later). */
 html.brand-tint {
-  --color-gray-50:  color-mix(in oklab, var(--color-brand) 5%,  white);
-  --color-gray-100: color-mix(in oklab, var(--color-brand) 12%, white);
-  --color-gray-200: color-mix(in oklab, var(--color-brand) 25%, white);
-  --color-gray-300: color-mix(in oklab, var(--color-brand) 45%, white);
-  --color-gray-400: color-mix(in oklab, var(--color-brand) 60%, #1f2937);
-  --color-gray-500: color-mix(in oklab, var(--color-brand) 45%, #111827);
-  --color-gray-600: color-mix(in oklab, var(--color-brand) 30%, #0b1220);
-  --color-gray-700: color-mix(in oklab, var(--color-brand) 20%, #030712);
+  --color-gray-50:  oklch(from var(--color-brand) 0.975 calc(c * 0.15) h);
+  --color-gray-100: oklch(from var(--color-brand) 0.94  calc(c * 0.30) h);
+  --color-gray-200: oklch(from var(--color-brand) 0.86  calc(c * 0.55) h);
+  --color-gray-300: oklch(from var(--color-brand) 0.75  calc(c * 0.80) h);
+  --color-gray-400: oklch(from var(--color-brand) 0.60  c              h);
+  --color-gray-500: oklch(from var(--color-brand) 0.48  c              h);
+  --color-gray-600: oklch(from var(--color-brand) 0.36  c              h);
+  --color-gray-700: oklch(from var(--color-brand) 0.24  c              h);
 }
 
 /* ── Accessibility: high contrast ──
