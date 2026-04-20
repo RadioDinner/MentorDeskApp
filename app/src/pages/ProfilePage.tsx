@@ -6,6 +6,8 @@ import { logAudit } from '../lib/audit'
 import TimezoneSelect from '../components/TimezoneSelect'
 import Button from '../components/ui/Button'
 import { useToast } from '../context/ToastContext'
+import { useAccessibility } from '../context/AccessibilityContext'
+import type { FontSize } from '../context/AccessibilityContext'
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
@@ -24,6 +26,7 @@ const CREATABLE_ROLES: { role: string; label: string; desc: string; table: 'staf
 export default function ProfilePage() {
   const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile } = useAuth()
   const toast = useToast()
+  const { fontSize, highContrast, setFontSize, setHighContrast } = useAccessibility()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -271,6 +274,54 @@ export default function ProfilePage() {
             <Button type="submit" disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save changes'}</Button>
           </div>
         </form>
+      </div>
+
+      {/* --- Accessibility --- */}
+      <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Accessibility</h2>
+        <p className="text-sm text-gray-500 mb-6">Adjust how the app looks so it's easier to read. Saved to this browser.</p>
+
+        <div className="space-y-6">
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Font size</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { value: 'normal', label: 'Normal', sample: 'Aa' },
+                { value: 'large', label: 'Large', sample: 'Aa' },
+                { value: 'xlarge', label: 'Extra Large', sample: 'Aa' },
+              ] as { value: FontSize; label: string; sample: string }[]).map(opt => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => setFontSize(opt.value)}
+                  aria-pressed={fontSize === opt.value}
+                  className={`flex flex-col items-center justify-center gap-1 px-4 py-4 rounded-md border transition-colors ${
+                    fontSize === opt.value ? 'border-brand bg-brand-light' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={`font-semibold text-gray-900 ${opt.value === 'normal' ? 'text-base' : opt.value === 'large' ? 'text-lg' : 'text-xl'}`}>{opt.sample}</span>
+                  <span className="text-xs text-gray-600">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-md border border-gray-200 px-4 py-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900">High contrast</p>
+              <p className="text-xs text-gray-500 mt-0.5">Darkens borders, strengthens focus outlines, and maximizes text contrast for easier reading.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHighContrast(!highContrast)}
+              aria-pressed={highContrast}
+              aria-label="Toggle high contrast"
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${highContrast ? 'bg-brand' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${highContrast ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* --- My Accounts --- */}

@@ -99,3 +99,32 @@
 .animate-slide-in-right {
   animation: slide-in-right 0.2s ease-out;
 }
+
+/* ── Accessibility: font size ──
+   Tailwind's rem-based type scale inherits from html, so scaling
+   html scales the whole app. */
+html.font-size-normal  { font-size: 16px; }
+html.font-size-large   { font-size: 18px; }
+html.font-size-xlarge  { font-size: 20px; }
+
+/* ── Accessibility: high contrast ──
+   Pushes borders to near-black, hardens text to max contrast, and
+   strengthens focus rings. Keeps brand color for primary actions. */
+html.high-contrast {
+  --color-gray-50:  #e5e7eb;
+  --color-gray-100: #9ca3af;
+  --color-gray-200: #4b5563;
+  --color-gray-300: #1f2937;
+  --color-gray-400: #111827;
+  --color-gray-500: #111827;
+  --color-gray-600: #0b1220;
+  --color-gray-700: #030712;
+}
+html.high-contrast body { color: #000; }
+html.high-contrast *:focus-visible {
+  outline: 3px solid #000 !important;
+  outline-offset: 2px;
+}
+html.high-contrast a { text-decoration: underline; }
+html.high-contrast .tiptap blockquote { color: #111827; border-left-color: #111827; }
+html.high-contrast .tiptap hr { border-top-color: #111827; }

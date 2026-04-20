@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
+import { AccessibilityProvider } from './context/AccessibilityContext'
 import ProtectedRoute from './router/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
 import DebugPanel from './components/DebugPanel'
@@ -62,6 +63,7 @@ const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 export default function App() {
   return (
     <BrowserRouter>
+      <AccessibilityProvider>
       <AuthProvider>
         <ThemeProvider>
         <ToastProvider>
@@ -229,6 +231,7 @@ export default function App() {
         </ToastProvider>
         </ThemeProvider>
       </AuthProvider>
+      </AccessibilityProvider>
     </BrowserRouter>
   )
 }
