@@ -693,6 +693,9 @@ export interface JourneyDecisionNode extends JourneyBaseNode {
   label: string
   /** Optional longer description shown in the settings sidebar. */
   description?: string
+  /** When set, the matching automation fires right after the decision
+   *  task is completed and before the journey advances to the next node. */
+  automationId?: string | null
 }
 
 /**

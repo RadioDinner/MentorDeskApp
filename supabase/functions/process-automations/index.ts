@@ -7,6 +7,9 @@
 //
 // REQUEST BODY
 // ------------
+// Two invocation modes:
+//
+// (1) Trigger-based (default):
 // {
 //   "organization_id": "<uuid>",
 //   "trigger_type":    "lesson_completed" | "course_completed" | ...,
@@ -19,6 +22,15 @@
 //     "meeting_id": "<uuid>?"
 //   }
 // }
+//
+// (2) Direct invocation (e.g. from a journey decision-task completion):
+// {
+//   "organization_id": "<uuid>",
+//   "automation_id":   "<uuid>",
+//   "trigger_payload": { "mentee_id": "<uuid>?" }
+// }
+// Runs ONLY that automation, regardless of its trigger_type. Useful when
+// the caller already decided which automation should fire.
 //
 // SETUP
 // -----
@@ -153,27 +165,38 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json()
     const organizationId: string = body.organization_id
-    const triggerType: string = body.trigger_type
+    const automationId: string | undefined = body.automation_id
+    const triggerType: string | undefined = body.trigger_type
     const payload: TriggerPayload = body.trigger_payload ?? {}
-    if (!organizationId || !triggerType) {
-      return new Response(JSON.stringify({ error: 'organization_id and trigger_type required' }), { status: 400, headers: cors })
+    if (!organizationId || (!automationId && !triggerType)) {
+      return new Response(JSON.stringify({ error: 'organization_id plus automation_id or trigger_type required' }), { status: 400, headers: cors })
     }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 
-    // Load enabled automations for this (org, trigger_type).
-    const { data: automations, error: loadErr } = await admin
-      .from('automations')
-      .select('id, organization_id, owner_id, name, trigger_type, trigger_config, actions')
-      .eq('organization_id', organizationId)
-      .eq('trigger_type', triggerType)
-      .eq('enabled', true)
-
-    if (loadErr) {
-      return new Response(JSON.stringify({ error: loadErr.message }), { status: 500, headers: cors })
+    let matched: Automation[]
+    if (automationId) {
+      // Direct invocation: run exactly this automation if enabled and in-org.
+      const { data, error } = await admin
+        .from('automations')
+        .select('id, organization_id, owner_id, name, trigger_type, trigger_config, actions')
+        .eq('id', automationId)
+        .eq('organization_id', organizationId)
+        .eq('enabled', true)
+        .maybeSingle()
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: cors })
+      matched = data ? [data as Automation] : []
+    } else {
+      // Trigger-based: load by (org, trigger_type) and filter by trigger_config.
+      const { data, error } = await admin
+        .from('automations')
+        .select('id, organization_id, owner_id, name, trigger_type, trigger_config, actions')
+        .eq('organization_id', organizationId)
+        .eq('trigger_type', triggerType!)
+        .eq('enabled', true)
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: cors })
+      matched = (data ?? []).filter(a => matchesTrigger(a as Automation, payload))
     }
-
-    const matched = (automations ?? []).filter(a => matchesTrigger(a as Automation, payload))
     const summaries: { automation_id: string; status: string; action_count: number }[] = []
 
     for (const a of matched as Automation[]) {

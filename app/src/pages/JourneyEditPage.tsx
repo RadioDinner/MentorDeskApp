@@ -39,6 +39,7 @@ import type {
   FlowLayoutMode,
   AdvanceTrigger,
   DelayUnit,
+  Automation,
 } from '../types'
 
 type HistorySnapshot = { nodes: JourneyNode[]; connectors: JourneyConnector[] }
@@ -57,6 +58,7 @@ export default function JourneyEditPage() {
   const [past, setPast] = useState<HistorySnapshot[]>([])
   const [saving, setSaving] = useState(false)
   const [offerings, setOfferings] = useState<Offering[]>([])
+  const [automations, setAutomations] = useState<Automation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -134,6 +136,15 @@ export default function JourneyEditPage() {
         setPast([])
         setDirty(false)
         if (!offeringsRes.error) setOfferings(offeringsRes.data ?? [])
+
+        // Automations list for decision-node "fire automation on complete" picker.
+        const { data: autoData } = await supabase
+          .from('automations')
+          .select('*')
+          .eq('organization_id', orgId)
+          .order('name', { ascending: true })
+          .limit(1000)
+        setAutomations((autoData ?? []) as Automation[])
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
       } finally {
@@ -1083,6 +1094,7 @@ export default function JourneyEditPage() {
         <NodeSettingsSidebar
           node={selectedNode}
           offerings={offerings}
+          automations={automations}
           connectors={connectors}
           canEdit={canEdit}
           onUpdate={(updates) => updateNode(selectedNode.id, updates)}
@@ -1099,6 +1111,7 @@ export default function JourneyEditPage() {
 function NodeSettingsSidebar({
   node,
   offerings,
+  automations,
   connectors,
   canEdit,
   onUpdate,
@@ -1106,6 +1119,7 @@ function NodeSettingsSidebar({
 }: {
   node: JourneyNode
   offerings: Offering[]
+  automations: Automation[]
   connectors: JourneyConnector[]
   canEdit: boolean
   onUpdate: (updates: Record<string, unknown>) => void
@@ -1261,6 +1275,24 @@ function NodeSettingsSidebar({
                   placeholder="Describe what this decision point is about..."
                   className={`${inputClass} resize-none`}
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Fire automation on task completion</label>
+                <select
+                  value={dNode.automationId ?? ''}
+                  onChange={e => onUpdate({ automationId: e.target.value || null })}
+                  disabled={!canEdit}
+                  className={inputClass + ' bg-white'}
+                >
+                  <option value="">None</option>
+                  {automations.filter(a => a.enabled).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Runs the automation's actions right after the mentor completes this decision task, before the journey advances.
+                </p>
               </div>
 
               <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">

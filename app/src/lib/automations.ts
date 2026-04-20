@@ -29,9 +29,28 @@ export async function fireAutomationTrigger(
       },
     })
   } catch {
-    // Swallow: automations are best-effort side-effects, never block the
-    // user's primary action. Runs table records success/failure for
-    // matched automations; unreachable edge function is logged server-
-    // side by Supabase.
+    // Swallow: automations are best-effort side-effects.
+  }
+}
+
+/** Fire a specific automation by id, bypassing trigger matching. Used when
+ *  the caller already knows which automation should run (e.g. a journey
+ *  decision node with a pinned automationId). Awaits completion so the
+ *  caller can sequence a "fire then advance" workflow. */
+export async function fireAutomationById(
+  organizationId: string,
+  automationId: string,
+  payload: TriggerPayload,
+): Promise<void> {
+  try {
+    await supabase.functions.invoke('process-automations', {
+      body: {
+        organization_id: organizationId,
+        automation_id: automationId,
+        trigger_payload: payload,
+      },
+    })
+  } catch {
+    // Swallow: automations are best-effort side-effects.
   }
 }

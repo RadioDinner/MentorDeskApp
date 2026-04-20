@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import { migrateContent } from '../lib/journeyFlow'
+import { fireAutomationById } from '../lib/automations'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import type {
@@ -155,6 +156,19 @@ export default function MentorTasksPage() {
       const journey = task.journey
       const targetNode = journey.content.nodes.find(n => n.id === targetNodeId)
       if (!targetNode) { toast.error('Target node not found.'); return }
+
+      // If the decision node has a pinned automation, run it BEFORE the
+      // journey advances so the automation's actions see the pre-advance
+      // state (mentee still at the decision).
+      if (task.decision_node_id) {
+        const decisionNode = journey.content.nodes.find(n => n.id === task.decision_node_id)
+        const automationId = (decisionNode as { automationId?: string | null } | undefined)?.automationId
+        if (automationId) {
+          await fireAutomationById(profile.organization_id, automationId, {
+            mentee_id: journey.mentee_id,
+          })
+        }
+      }
 
       const now = new Date().toISOString()
       const journeyUpdates: Record<string, unknown> = { current_node_id: targetNodeId }
