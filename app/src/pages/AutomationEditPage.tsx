@@ -93,14 +93,9 @@ export default function AutomationEditPage() {
     if (actions.length === 0) { toast.error('Add at least one action.'); return }
     setSaving(true)
     try {
-      // Resolve the owning staff record (automation.owner_id references staff).
-      const { data: staffRow } = await supabase
-        .from('staff').select('id').eq('user_id', profile.user_id).eq('organization_id', profile.organization_id).maybeSingle()
-      if (!staffRow?.id) { toast.error('Only staff can own automations.'); setSaving(false); return }
-
       const payload = {
         organization_id: profile.organization_id,
-        owner_id: staffRow.id as string,
+        owner_id: profile.id,
         name: name.trim(),
         description: description.trim() || null,
         enabled,
