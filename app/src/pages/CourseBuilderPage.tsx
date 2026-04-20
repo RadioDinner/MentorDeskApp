@@ -461,10 +461,10 @@ function AddSectionBar({ onAdd }: { onAdd: (type: SectionType) => Promise<void> 
 // ── Section Editor ──
 
 const SECTION_STYLES: Record<SectionType, { border: string; bg: string; label: string; badge: string }> = {
-  text:     { border: 'border-gray-200/80', bg: 'bg-gray-50/50', label: 'Text',     badge: 'bg-gray-100 text-gray-600' },
-  video:    { border: 'border-sky-200/80',  bg: 'bg-sky-50/40',  label: 'Video',    badge: 'bg-sky-100 text-sky-600' },
-  quiz:     { border: 'border-violet-200/80', bg: 'bg-violet-50/40', label: 'Quiz', badge: 'bg-violet-100 text-violet-600' },
-  response: { border: 'border-indigo-200/80', bg: 'bg-indigo-50/40', label: 'Response', badge: 'bg-indigo-100 text-indigo-600' },
+  text:     { border: 'border-gray-400', bg: 'bg-gray-50/50', label: 'Text',     badge: 'bg-gray-100 text-gray-600' },
+  video:    { border: 'border-sky-400',  bg: 'bg-sky-50/40',  label: 'Video',    badge: 'bg-sky-100 text-sky-600' },
+  quiz:     { border: 'border-violet-400', bg: 'bg-violet-50/40', label: 'Quiz', badge: 'bg-violet-100 text-violet-600' },
+  response: { border: 'border-indigo-400', bg: 'bg-indigo-50/40', label: 'Response', badge: 'bg-indigo-100 text-indigo-600' },
 }
 
 function SectionEditor({
