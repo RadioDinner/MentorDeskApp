@@ -511,7 +511,7 @@ function SectionEditor({
   const mentorFields = DYNAMIC_FIELDS.filter(f => f.group === 'mentor')
 
   return (
-    <div className={`bg-white rounded-md border ${style.border} overflow-hidden`}>
+    <div className={`bg-white rounded-md border-2 ${style.border} overflow-hidden shadow-sm`}>
       {/* Section header */}
       <div className={`px-5 py-2.5 ${style.bg} border-b border-gray-100 flex items-center justify-between`}>
         <div className="flex items-center gap-2 flex-1 min-w-0">
