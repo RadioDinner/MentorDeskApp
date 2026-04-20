@@ -168,6 +168,92 @@ export interface OfferingFolder {
   created_at: string
 }
 
+// ── Automations ────────────────────────────────────────────────────────
+
+export type AutomationTriggerType =
+  | 'lesson_completed'
+  | 'lesson_reached'
+  | 'course_completed'
+  | 'course_started'
+  | 'meeting_scheduled'
+  | 'meeting_completed'
+  | 'meeting_cancelled'
+
+/** Configuration shapes per trigger type. Union-discriminated by the outer
+ *  automation's trigger_type. All fields optional so partially-filled
+ *  drafts round-trip cleanly. */
+export interface AutomationTriggerConfig {
+  course_id?: string | null        // for course-* and lesson-* triggers
+  lesson_id?: string | null        // for lesson_reached (specific lesson)
+  lesson_index?: number | null     // alternative to lesson_id (ordinal in course)
+  offering_id?: string | null      // for meeting-* triggers
+}
+
+export type AutomationActionType = 'create_task' | 'send_email' | 'send_notification'
+
+export interface AutomationActionCreateTask {
+  type: 'create_task'
+  title: string
+  body?: string | null
+  assignee: 'owner' | 'mentor_of_mentee'
+  due_days_offset?: number | null
+  urgency?: 'normal' | 'urgent'
+}
+
+export interface AutomationActionSendEmail {
+  type: 'send_email'
+  to: 'owner' | 'mentee' | 'custom'
+  custom_email?: string | null
+  subject: string
+  body: string
+}
+
+export interface AutomationActionSendNotification {
+  type: 'send_notification'
+  to: 'owner' | 'mentee'
+  title: string
+  body?: string | null
+}
+
+export type AutomationAction =
+  | AutomationActionCreateTask
+  | AutomationActionSendEmail
+  | AutomationActionSendNotification
+
+export interface Automation {
+  id: string
+  organization_id: string
+  owner_id: string
+  name: string
+  description: string | null
+  enabled: boolean
+  trigger_type: AutomationTriggerType
+  trigger_config: AutomationTriggerConfig
+  actions: AutomationAction[]
+  created_at: string
+  updated_at: string
+}
+
+export interface AutomationActionResult {
+  action_index: number
+  action_type: AutomationActionType
+  status: 'success' | 'failed' | 'skipped'
+  detail?: string | null
+}
+
+export interface AutomationRun {
+  id: string
+  organization_id: string
+  automation_id: string
+  mentee_id: string | null
+  trigger_payload: Record<string, unknown>
+  status: 'success' | 'partial' | 'failed' | 'skipped'
+  action_results: AutomationActionResult[]
+  error_message: string | null
+  started_at: string
+  finished_at: string | null
+}
+
 export interface Mentee {
   id: string
   organization_id: string

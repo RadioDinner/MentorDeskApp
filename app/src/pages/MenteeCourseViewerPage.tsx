@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
+import { fireAutomationTrigger } from '../lib/automations'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
@@ -189,8 +190,24 @@ export default function MenteeCourseViewerPage() {
       }
       setLessons(prev => prev.map(l => l.id === selectedLesson.id ? { ...l, progress: { ...(l.progress ?? {}), status: 'completed', completed_at: now } as LessonProgress } : l))
       const updatedLessons = lessons.map(l => l.id === selectedLesson.id ? { ...l, progress: { status: 'completed' } } : l)
+
+      // Fire automation triggers. Lesson-completed always. Course-completed
+      // only when every lesson is now done. These are best-effort — failure
+      // never blocks the user's progression.
+      const completedIndex = lessons.findIndex(l => l.id === selectedLesson.id)
+      fireAutomationTrigger(orgId, 'lesson_completed', {
+        mentee_id: menteeId,
+        course_id: course?.id,
+        lesson_id: selectedLesson.id,
+        lesson_index: completedIndex >= 0 ? completedIndex : undefined,
+      })
+
       if (updatedLessons.every(l => l.progress?.status === 'completed')) {
         await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', id)
+        fireAutomationTrigger(orgId, 'course_completed', {
+          mentee_id: menteeId,
+          course_id: course?.id,
+        })
         fireCelebration()
         setShowCelebration(true)
       } else {

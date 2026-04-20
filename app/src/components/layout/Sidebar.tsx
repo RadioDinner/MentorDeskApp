@@ -95,6 +95,7 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
       { label: 'Tasks',        letter: 'K', path: '/my-tasks',     gradient: 'from-amber-400 to-amber-600' },
       { label: 'Meetings',     letter: 'T', path: '/meetings',     gradient: 'from-rose-400 to-rose-600' },
       { label: 'Availability', letter: 'A', path: '/availability', gradient: 'from-violet-400 to-violet-600' },
+      { label: 'Automations',  letter: 'U', path: '/automations',  gradient: 'from-orange-400 to-orange-600' },
       { label: 'Reports',      letter: 'R', path: '/reports',      gradient: 'from-cyan-400 to-cyan-600' },
     ]
     return (

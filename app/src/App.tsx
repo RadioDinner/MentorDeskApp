@@ -59,6 +59,8 @@ const JourneysPage               = lazy(() => import('./pages/JourneysPage'))
 const JourneyCreatePage          = lazy(() => import('./pages/JourneyCreatePage'))
 const JourneyEditPage            = lazy(() => import('./pages/JourneyEditPage'))
 const MentorTasksPage            = lazy(() => import('./pages/MentorTasksPage'))
+const AutomationsPage            = lazy(() => import('./pages/AutomationsPage'))
+const AutomationEditPage         = lazy(() => import('./pages/AutomationEditPage'))
 const ComingSoonPage             = lazy(() => import('./pages/ComingSoonPage'))
 
 export default function App() {
@@ -205,6 +207,21 @@ export default function App() {
             <Route path="/my-canvases" element={<MenteeCanvasesPage />} />
             <Route path="/my-canvases/:id" element={<CanvasEditPage />} />
             <Route path="/my-billing" element={<MenteeBillingPage />} />
+            <Route path="/automations" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations', 'mentor', 'assistant_mentor']}>
+                <AutomationsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/automations/new" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations', 'mentor', 'assistant_mentor']}>
+                <AutomationEditPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/automations/:id" element={
+              <ProtectedRoute allowedRoles={['admin', 'operations', 'mentor', 'assistant_mentor']}>
+                <AutomationEditPage />
+              </ProtectedRoute>
+            } />
             <Route path="/reports" element={<ComingSoonPage title="Reports" />} />
             <Route path="/billing" element={<ComingSoonPage title="Billing" />} />
             <Route path="/invoicing" element={

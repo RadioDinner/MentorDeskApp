@@ -15,6 +15,7 @@ export const ALL_MODULES: ModuleDef[] = [
   { key: 'assistant-mentors', label: 'Asst. Mentors',     letter: 'A', group: 'People',    path: '/assistant-mentors',  gradient: 'from-teal-400 to-teal-600',       color: 'bg-teal-500' },
   { key: 'mentees',           label: 'Mentees',           letter: 'E', group: 'People',    path: '/mentees',            gradient: 'from-green-400 to-green-600',     color: 'bg-green-500' },
   { key: 'pairings',          label: 'Pairings',          letter: 'P', group: 'Business',  path: '/pairings',           gradient: 'from-violet-400 to-violet-600',   color: 'bg-violet-500' },
+  { key: 'automations',       label: 'Automations',       letter: 'U', group: 'Business',  path: '/automations',        gradient: 'from-orange-400 to-orange-600',   color: 'bg-orange-500' },
   { key: 'reports',           label: 'Reports',           letter: 'R', group: 'Business',  path: '/reports',            gradient: 'from-cyan-400 to-cyan-600',       color: 'bg-cyan-500' },
   { key: 'courses',           label: 'Courses',           letter: 'C', group: 'Offerings', path: '/courses',            gradient: 'from-indigo-400 to-indigo-600',   color: 'bg-indigo-500' },
   { key: 'engagements',       label: 'Engagements',       letter: 'G', group: 'Offerings', path: '/engagements',        gradient: 'from-rose-400 to-rose-600',       color: 'bg-rose-500' },
