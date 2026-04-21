@@ -241,6 +241,19 @@ export interface AutomationActionResult {
   detail?: string | null
 }
 
+export interface Notification {
+  id: string
+  organization_id: string
+  recipient_user_id: string
+  title: string
+  body: string | null
+  link: string | null
+  category: string
+  source_automation_id: string | null
+  read_at: string | null
+  created_at: string
+}
+
 export interface AutomationRun {
   id: string
   organization_id: string

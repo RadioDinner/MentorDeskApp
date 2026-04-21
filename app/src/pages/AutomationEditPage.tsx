@@ -23,8 +23,8 @@ const TRIGGERS: { value: AutomationTriggerType; label: string; desc: string }[] 
 
 const ACTION_TYPES: { value: AutomationActionType; label: string }[] = [
   { value: 'create_task',       label: 'Create task' },
+  { value: 'send_notification', label: 'Send notification' },
   { value: 'send_email',        label: 'Send email (coming soon)' },
-  { value: 'send_notification', label: 'Send notification (coming soon)' },
 ]
 
 const inputClass =
@@ -337,8 +337,18 @@ function ActionStep({
 
       {action.type === 'send_notification' && (
         <div className="space-y-3">
-          <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Notification delivery isn't configured yet, so this step will be saved and logged as "skipped" when fired.
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Send to</label>
+              <select
+                value={action.to}
+                onChange={e => onChange({ to: e.target.value as 'owner' | 'mentee' } as Partial<AutomationAction>)}
+                className={inputClass + ' bg-white'}
+              >
+                <option value="owner">Me (automation owner)</option>
+                <option value="mentee">The mentee</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
@@ -348,6 +358,7 @@ function ActionStep({
             <label className="block text-xs font-medium text-gray-700 mb-1">Body (optional)</label>
             <textarea rows={2} value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
           </div>
+          <p className="text-[11px] text-gray-400">The recipient sees this on their dashboard as a clickable notification card.</p>
         </div>
       )}
     </div>

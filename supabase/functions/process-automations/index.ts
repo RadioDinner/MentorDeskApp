@@ -137,8 +137,38 @@ async function runAction(
     }
 
     if (type === 'send_notification') {
-      // In-app notifications backend is not configured yet.
-      return { action_index: index, action_type: type, status: 'skipped', detail: 'Notification delivery not configured' }
+      // Resolve recipient auth.users.id based on action.to:
+      //   'owner'  → the staff owner of the automation
+      //   'mentee' → the mentee of the triggering event
+      let recipientUserId: string | null = null
+      if (action.to === 'mentee') {
+        if (!payload.mentee_id) {
+          return { action_index: index, action_type: type, status: 'skipped', detail: 'No mentee in trigger payload' }
+        }
+        const { data: m } = await admin.from('mentees').select('user_id').eq('id', payload.mentee_id).maybeSingle()
+        recipientUserId = (m?.user_id as string | null) ?? null
+        if (!recipientUserId) {
+          return { action_index: index, action_type: type, status: 'skipped', detail: 'Mentee has no linked user account' }
+        }
+      } else {
+        // default → 'owner'
+        const { data: s } = await admin.from('staff').select('user_id').eq('id', automation.owner_id).maybeSingle()
+        recipientUserId = (s?.user_id as string | null) ?? null
+        if (!recipientUserId) {
+          return { action_index: index, action_type: type, status: 'skipped', detail: 'Automation owner has no linked user account' }
+        }
+      }
+
+      const { error } = await admin.from('notifications').insert({
+        organization_id: automation.organization_id,
+        recipient_user_id: recipientUserId,
+        title: String(action.title ?? 'Notification'),
+        body: action.body ?? null,
+        category: 'automation',
+        source_automation_id: automation.id,
+      })
+      if (error) return { action_index: index, action_type: type, status: 'failed', detail: error.message }
+      return { action_index: index, action_type: type, status: 'success' }
     }
 
     return { action_index: index, action_type: type, status: 'failed', detail: `Unknown action type: ${type}` }

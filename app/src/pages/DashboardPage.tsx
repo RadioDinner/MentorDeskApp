@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase, supabaseRestGet } from '../lib/supabase'
 import type { StaffMember, MentorTask } from '../types'
 import { Skeleton } from '../components/ui'
+import NotificationsWidget from '../components/NotificationsWidget'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -222,6 +223,8 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {menteeProfile.first_name}</h1>
           <p className="text-sm text-gray-500 mt-1">{formatDate()}</p>
         </div>
+
+        <NotificationsWidget />
 
         {menteeLoading ? (
           <Skeleton count={3} className="h-20 w-full" gap="gap-3" />
@@ -455,6 +458,8 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      <NotificationsWidget />
+
       {/* Module Sections */}
       {sections.map(section => (
         <div key={section.label}>
@@ -619,6 +624,8 @@ function MentorDashboard({ profile, navigate }: { profile: StaffMember; navigate
           <p className="text-xs text-gray-500 mt-1">Pending tasks</p>
         </div>
       </div>
+
+      <NotificationsWidget />
 
       {/* Tasks widget */}
       <div>
