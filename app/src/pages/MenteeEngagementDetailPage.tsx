@@ -7,11 +7,12 @@ import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { generateBookableBlocks, hasConflict, formatTimeDisplay } from '../lib/scheduling'
+import { notifyUser } from '../lib/notify'
 import { Modal } from '../components/ui'
 import type { MenteeOffering, Offering, EngagementSession, Meeting, AvailabilitySchedule, AllocationGrantMode, AllocationRefreshMode, CancellationPolicy } from '../types'
 import { DEFAULT_CANCELLATION_POLICY } from '../components/CancellationPolicyEditor'
 
-interface MentorInfo { id: string; first_name: string; last_name: string }
+interface MentorInfo { id: string; first_name: string; last_name: string; user_id?: string | null }
 
 export default function MenteeEngagementDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -100,7 +101,7 @@ export default function MenteeEngagementDetailPage() {
 
         const { data: pairingData } = await supabase
           .from('pairings')
-          .select('mentor_id, mentor:staff!pairings_mentor_id_fkey(id, first_name, last_name)')
+          .select('mentor_id, mentor:staff!pairings_mentor_id_fkey(id, first_name, last_name, user_id)')
           .eq('mentee_id', menteeId!)
           .in('status', ['active', 'paused'])
           .limit(1)
@@ -121,7 +122,7 @@ export default function MenteeEngagementDetailPage() {
           // Last resort: find any mentor in the org
           const { data: anyMentor } = await supabase
             .from('staff')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, user_id')
             .eq('organization_id', engagement.organization_id)
             .in('role', ['mentor', 'assistant_mentor'])
             .limit(1)
@@ -225,6 +226,21 @@ export default function MenteeEngagementDetailPage() {
       setSelectedStart('')
       setSelectedEnd('')
       toast.success('Meeting scheduled!')
+
+      // Notify the mentor per their prefs.
+      if (mentor.user_id && menteeProfile) {
+        const menteeName = `${menteeProfile.first_name} ${menteeProfile.last_name}`
+        const when = startsAtDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        notifyUser({
+          recipientUserId: mentor.user_id,
+          organizationId: orgId,
+          eventKey: 'meeting_scheduled_by_mentee',
+          title: `${menteeName} scheduled a meeting`,
+          body: when,
+          link: '/meetings',
+          category: 'meeting',
+        })
+      }
     } catch (err) {
       toast.error((err as Error).message || 'Failed to schedule')
     } finally {
@@ -259,6 +275,22 @@ export default function MenteeEngagementDetailPage() {
       if (updateErr) { toast.error(updateErr.message); return }
       setMyMeetings(prev => prev.map(m => m.id === cancelTarget.id ? { ...m, status: 'cancelled' as const, cancelled_at: new Date().toISOString() } : m))
       toast.success('Meeting cancelled.')
+
+      // Notify the mentor per their prefs.
+      if (mentor?.user_id && menteeProfile && orgId) {
+        const menteeName = `${menteeProfile.first_name} ${menteeProfile.last_name}`
+        const when = new Date(cancelTarget.starts_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        notifyUser({
+          recipientUserId: mentor.user_id,
+          organizationId: orgId,
+          eventKey: 'meeting_cancelled_by_mentee',
+          title: `${menteeName} cancelled a meeting`,
+          body: `${when}${cancelReason.trim() ? ` — "${cancelReason.trim()}"` : ''}`,
+          link: '/meetings',
+          category: 'meeting',
+        })
+      }
+
       setCancelTarget(null)
       setCancelReason('')
     } catch (err) {

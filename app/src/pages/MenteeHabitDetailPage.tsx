@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabaseRestGet, supabaseRestCall } from '../lib/supabase'
+import { supabase, supabaseRestGet, supabaseRestCall } from '../lib/supabase'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import LoadingErrorState from '../components/LoadingErrorState'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { notifyUser } from '../lib/notify'
 import {
   todayISO,
   diffDays,
@@ -29,6 +30,7 @@ export default function MenteeHabitDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyStepId, setBusyStepId] = useState<string | null>(null)
+  const [mentorUserId, setMentorUserId] = useState<string | null>(null)
 
   useLoadingGuard(loading, useCallback(() => {
     setLoading(false)
@@ -68,6 +70,17 @@ export default function MenteeHabitDetailPage() {
         setSteps(stepsRes.data ?? [])
         if (logsRes.error) { setError(logsRes.error.message); return }
         setLogs(logsRes.data ?? [])
+
+        // Lookup active mentor for habit-check-in notifications.
+        const { data: pairingData } = await supabase
+          .from('pairings')
+          .select('mentor:staff!pairings_mentor_id_fkey(user_id)')
+          .eq('mentee_id', menteeProfile!.id)
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle()
+        const m = pairingData?.mentor as unknown as { user_id: string | null } | null
+        setMentorUserId(m?.user_id ?? null)
       } catch (err) {
         setError((err as Error).message || 'Failed to load')
       } finally {
@@ -136,6 +149,23 @@ export default function MenteeHabitDetailPage() {
         const next = [...logs, newLog]
         setLogs(next)
         await syncProgress(next)
+
+        // If this click just brought all of today's steps to checked,
+        // notify the mentor (per their notification prefs).
+        const wasAll = steps.every(s => logs.some(l => l.mentee_habit_step_id === s.id && l.log_date === today))
+        const nowAll = steps.every(s => next.some(l => l.mentee_habit_step_id === s.id && l.log_date === today))
+        if (!wasAll && nowAll && mentorUserId && menteeProfile) {
+          const menteeName = `${menteeProfile.first_name} ${menteeProfile.last_name}`
+          notifyUser({
+            recipientUserId: mentorUserId,
+            organizationId: mh.organization_id,
+            eventKey: 'habit_checkin_by_mentee',
+            title: `${menteeName} completed today's habit`,
+            body: mh.name_snapshot,
+            link: `/mentees/${menteeProfile.id}/edit`,
+            category: 'system',
+          })
+        }
       }
     } finally {
       setBusyStepId(null)

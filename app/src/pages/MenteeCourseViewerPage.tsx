@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { replaceDynamicFields } from '../lib/dynamicFields'
 import { fireAutomationTrigger } from '../lib/automations'
+import { notifyUser } from '../lib/notify'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
 import { useToast } from '../context/ToastContext'
@@ -45,6 +46,7 @@ export default function MenteeCourseViewerPage() {
   const [saving, setSaving] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
   const [orgCompletionMessage, setOrgCompletionMessage] = useState<string | null>(null)
+  const [mentorUserId, setMentorUserId] = useState<string | null>(null)
   const [fieldCtx, setFieldCtx] = useState<DynamicFieldContext>({})
 
   const menteeId = menteeProfile?.id
@@ -81,17 +83,18 @@ export default function MenteeCourseViewerPage() {
         }
         const { data: pairingData } = await supabase
           .from('pairings')
-          .select('mentor:staff!pairings_mentor_id_fkey(first_name, last_name, email, phone)')
+          .select('mentor:staff!pairings_mentor_id_fkey(first_name, last_name, email, phone, user_id)')
           .eq('mentee_id', menteeId!)
           .eq('status', 'active')
           .limit(1)
           .single()
         if (pairingData?.mentor) {
-          const m = pairingData.mentor as unknown as { first_name: string; last_name: string; email: string; phone: string | null }
+          const m = pairingData.mentor as unknown as { first_name: string; last_name: string; email: string; phone: string | null; user_id: string | null }
           ctx.mentor_first_name = m.first_name
           ctx.mentor_last_name = m.last_name
           ctx.mentor_email = m.email
           ctx.mentor_phone = m.phone ?? undefined
+          setMentorUserId(m.user_id ?? null)
         }
         setFieldCtx(ctx)
 
@@ -202,12 +205,38 @@ export default function MenteeCourseViewerPage() {
         lesson_index: completedIndex >= 0 ? completedIndex : undefined,
       })
 
+      // Notify the mentor per their preferences.
+      if (mentorUserId) {
+        const menteeName = menteeProfile ? `${menteeProfile.first_name} ${menteeProfile.last_name}` : 'Your mentee'
+        notifyUser({
+          recipientUserId: mentorUserId,
+          organizationId: orgId,
+          eventKey: 'lesson_completed_by_mentee',
+          title: `${menteeName} completed a lesson`,
+          body: `${selectedLesson.title}${course?.name ? ` · ${course.name}` : ''}`,
+          link: `/mentees/${menteeId}/edit`,
+          category: 'system',
+        })
+      }
+
       if (updatedLessons.every(l => l.progress?.status === 'completed')) {
         await supabase.from('mentee_offerings').update({ status: 'completed', completed_at: now }).eq('id', id)
         fireAutomationTrigger(orgId, 'course_completed', {
           mentee_id: menteeId,
           course_id: course?.id,
         })
+        if (mentorUserId) {
+          const menteeName = menteeProfile ? `${menteeProfile.first_name} ${menteeProfile.last_name}` : 'Your mentee'
+          notifyUser({
+            recipientUserId: mentorUserId,
+            organizationId: orgId,
+            eventKey: 'course_completed_by_mentee',
+            title: `${menteeName} completed ${course?.name ?? 'a course'}`,
+            body: 'Every lesson is done.',
+            link: `/mentees/${menteeId}/edit`,
+            category: 'system',
+          })
+        }
         fireCelebration()
         setShowCelebration(true)
       } else {

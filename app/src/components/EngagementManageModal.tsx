@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { logAudit } from '../lib/audit'
 import { computeCredits } from '../lib/credits'
 import { getAvailableSlots, hasConflict, formatTimeDisplay } from '../lib/scheduling'
+import { notifyUser } from '../lib/notify'
 import type { Mentee, Offering, MenteeOffering, StaffMember, EngagementSession, AllocationPeriod, Invoice, InvoiceStatus, Meeting, AvailabilitySchedule } from '../types'
 import Button from './ui/Button'
 import { Skeleton } from './ui'
@@ -310,7 +311,22 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
       title: schedTitle.trim() || `Meeting with ${mentee.first_name}`,
       starts_at: startsAt, ends_at: endsAt, duration_minutes: durationMinutes, status: 'scheduled',
     }).select().single()
-    if (data) setMeetings(prev => [data as Meeting, ...prev])
+    if (data) {
+      setMeetings(prev => [data as Meeting, ...prev])
+      // Notify the mentee per their prefs.
+      if (mentee.user_id) {
+        const when = new Date(startsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        notifyUser({
+          recipientUserId: mentee.user_id,
+          organizationId: profile.organization_id,
+          eventKey: 'meeting_scheduled_by_mentor',
+          title: `${profile.first_name} scheduled a meeting`,
+          body: when,
+          link: `/my-engagements/${assignment.id}`,
+          category: 'meeting',
+        })
+      }
+    }
     setShowScheduler(false); setSchedDate(''); setSchedStart(''); setSchedEnd(''); setSchedTitle('')
     setScheduling(false)
   }

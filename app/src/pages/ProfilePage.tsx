@@ -8,6 +8,9 @@ import Button from '../components/ui/Button'
 import { useToast } from '../context/ToastContext'
 import { useAccessibility } from '../context/AccessibilityContext'
 import type { FontSize } from '../context/AccessibilityContext'
+import { useUserPreferences } from '../context/UserPreferencesContext'
+import { eventsForRole, resolveChannels } from '../lib/notificationEvents'
+import type { NotificationChannel } from '../lib/notificationEvents'
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   admin:            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Admin' },
@@ -24,9 +27,10 @@ const CREATABLE_ROLES: { role: string; label: string; desc: string; table: 'staf
 ]
 
 export default function ProfilePage() {
-  const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile } = useAuth()
+  const { profile, session, refreshProfile, allProfiles, activeProfileId, switchProfile, isMenteeMode } = useAuth()
   const toast = useToast()
   const { fontSize, highContrast, setFontSize, setHighContrast } = useAccessibility()
+  const { prefs, setSection } = useUserPreferences()
 
   // Profile form state
   const [firstName, setFirstName] = useState('')
@@ -325,6 +329,17 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* --- Notifications --- */}
+      <NotificationsPrefsCard
+        role={isMenteeMode ? 'mentee' : profile.role}
+        storedPrefs={prefs.notifications ?? {}}
+        onToggle={(eventKey, channel, value) => {
+          const prev = prefs.notifications ?? {}
+          const nextForEvent = { ...(prev[eventKey] ?? {}), [channel]: value }
+          setSection('notifications', { ...prev, [eventKey]: nextForEvent })
+        }}
+      />
+
       {/* --- My Accounts --- */}
       <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-2">My Accounts</h2>
@@ -420,6 +435,83 @@ export default function ProfilePage() {
         </form>
       </div>
 
+    </div>
+  )
+}
+
+// ── Notifications preferences card ────────────────────────────────────
+
+const CHANNELS: { key: NotificationChannel; label: string; note?: string }[] = [
+  { key: 'inApp', label: 'In-app' },
+  { key: 'email', label: 'Email', note: 'coming soon' },
+  { key: 'sms',   label: 'Text',  note: 'coming soon' },
+]
+
+function NotificationsPrefsCard({ role, storedPrefs, onToggle }: {
+  role: string
+  storedPrefs: Record<string, Partial<{ inApp: boolean; email: boolean; sms: boolean }>>
+  onToggle: (eventKey: string, channel: NotificationChannel, value: boolean) => void
+}) {
+  const events = eventsForRole(role)
+  if (events.length === 0) return null
+
+  // Group events by their group label, preserving catalog order.
+  const groups: { group: string; events: typeof events }[] = []
+  const seen = new Set<string>()
+  for (const ev of events) {
+    if (!seen.has(ev.group)) {
+      seen.add(ev.group)
+      groups.push({ group: ev.group, events: [] })
+    }
+    groups.find(g => g.group === ev.group)!.events.push(ev)
+  }
+
+  return (
+    <div className="bg-white rounded-md border border-gray-200/80 px-8 py-8">
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Notifications</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Choose which events notify you and which channels to use. Email and text delivery are saved but pending delivery setup.
+      </p>
+
+      <div className="space-y-6">
+        {groups.map(group => (
+          <div key={group.group}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{group.group}</p>
+            <div className="rounded-md border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+              {group.events.map(ev => {
+                const resolved = resolveChannels(ev.key, storedPrefs[ev.key])
+                return (
+                  <div key={ev.key} className="flex items-start justify-between gap-4 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">{ev.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{ev.description}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {CHANNELS.map(c => {
+                        const checked = resolved[c.key]
+                        return (
+                          <label key={c.key} className="flex flex-col items-center gap-1 cursor-pointer">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              onClick={() => onToggle(ev.key, c.key, !checked)}
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-brand' : 'bg-gray-300'}`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                            </button>
+                            <span className="text-[10px] text-gray-500 leading-none">{c.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { logAudit } from '../lib/audit'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import EngagementManageModal from './EngagementManageModal'
 import { migrateContent } from '../lib/journeyFlow'
+import { notifyUser } from '../lib/notify'
 import type { Mentee, Offering, MenteeOffering, StaffMember, LessonProgress, QuestionResponse, Lesson, LessonQuestion, FlowStep, JourneyFlow, MenteeJourney } from '../types'
 
 interface Props {
@@ -181,6 +182,20 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
       toast.success(`${offering?.type === 'course' ? 'Course assigned' : 'Engagement opened'} successfully.`)
       setShowCourseSelect(false)
       setShowEngagementSelect(false)
+
+      // Notify the mentee per their prefs — only for courses (engagements
+      // get a different narrative that should land on scheduling events).
+      if (mentee.user_id && offering?.type === 'course') {
+        notifyUser({
+          recipientUserId: mentee.user_id,
+          organizationId: profile.organization_id,
+          eventKey: 'course_assigned',
+          title: `You've been assigned a course: ${offering.name}`,
+          body: offering.description ?? null,
+          link: `/my-courses/${insertedId}`,
+          category: 'system',
+        })
+      }
 
       await logAudit({
         organization_id: profile.organization_id,
@@ -620,13 +635,13 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
+                        {activeCourses.map(a => <CourseCard key={a.id} assignment={a} menteeUserId={mentee.user_id} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                         {completedCourses.length > 0 && activeCourses.length > 0 && (
                           <div className="border-t border-gray-100 pt-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Completed</p>
                           </div>
                         )}
-                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
+                        {completedCourses.map(a => <CourseCard key={a.id} assignment={a} menteeUserId={mentee.user_id} onRemove={handleCourseRemove} onStatusChange={handleCourseStatusChange} />)}
                       </div>
                     )}
                   </div>
@@ -821,8 +836,9 @@ export default function MenteeManageSlideOver({ mentee, profile, onClose }: Prop
 
 // ── Sub-components ──
 
-function CourseCard({ assignment, onRemove, onStatusChange }: {
+function CourseCard({ assignment, menteeUserId, onRemove, onStatusChange }: {
   assignment: MenteeOfferingWithDetails
+  menteeUserId: string | null
   onRemove: (id: string) => void
   onStatusChange: (id: string, status: string) => void
 }) {
@@ -855,6 +871,19 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
     }
     setLessonDetails(prev => prev.map(l => ({ ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) })))
     toast.success('Course progress reset.')
+
+    // Let the mentee know their progress was reset.
+    if (menteeUserId) {
+      notifyUser({
+        recipientUserId: menteeUserId,
+        organizationId: assignment.organization_id,
+        eventKey: 'lesson_progress_reset',
+        title: 'Your progress was reset',
+        body: offering?.name ? `All lessons and responses for "${offering.name}" have been cleared.` : 'All lessons and responses have been cleared.',
+        link: `/my-courses/${assignment.id}`,
+        category: 'system',
+      })
+    }
   }
 
   async function markCourseComplete() {
@@ -891,6 +920,19 @@ function CourseCard({ assignment, onRemove, onStatusChange }: {
     }
     setLessonDetails(prev => prev.map(l => l.id === lessonId ? { ...l, progress: null, responses: l.responses.map(r => ({ ...r, response_text: null, selected_option_index: null, is_correct: null, answered_at: '' })) } : l))
     toast.success('Lesson reset.')
+
+    if (menteeUserId) {
+      const lesson = lessonDetails.find(l => l.id === lessonId)
+      notifyUser({
+        recipientUserId: menteeUserId,
+        organizationId: assignment.organization_id,
+        eventKey: 'lesson_progress_reset',
+        title: 'A lesson was reset',
+        body: lesson?.title ? `"${lesson.title}" progress and responses have been cleared.` : 'Your lesson progress has been cleared.',
+        link: `/my-courses/${assignment.id}`,
+        category: 'system',
+      })
+    }
   }
 
   async function markLessonComplete(lessonId: string) {

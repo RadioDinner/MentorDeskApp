@@ -11,7 +11,11 @@ export interface UserPreferences {
     highContrast?: boolean
     brandTint?: boolean
   }
-  // Future sections land here: notifications, display, defaults, etc.
+  /** Per-event per-channel notification toggles. Unlisted events fall
+   *  back to the defaults declared in lib/notificationEvents.ts, so
+   *  adding new events doesn't require updating stored prefs. */
+  notifications?: Record<string, Partial<{ inApp: boolean; email: boolean; sms: boolean }>>
+  // Future sections land here: display, defaults, etc.
   [key: string]: unknown
 }
 
