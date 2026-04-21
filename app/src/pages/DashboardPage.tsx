@@ -27,12 +27,25 @@ interface AdminStats {
   activeEnrollments: number
 }
 
-interface MenteeEngagement {
-  id: string
+interface MenteeAssignment {
+  id: string                 // mentee_offerings.id
+  offeringName: string
+  offeringType: 'course' | 'engagement'
   status: string
   mentor: { first_name: string; last_name: string } | null
-  offeringName: string | null
-  offeringType: string | null
+  // Course-only
+  lessonsTotal?: number
+  lessonsCompleted?: number
+  // Engagement-only
+  nextMeetingAt?: string | null
+}
+
+interface MenteeHabitCard {
+  id: string
+  name: string
+  status: string
+  successfulDays: number
+  goalDays: number | null
 }
 
 export default function DashboardPage() {
@@ -40,39 +53,130 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<AdminStats>({ activeMentees: 0, mentors: 0, activePairings: 0, activeEnrollments: 0 })
   const [statsLoading, setStatsLoading] = useState(true)
-  const [menteeEngagements, setMenteeEngagements] = useState<MenteeEngagement[]>([])
+  const [menteeAssignments, setMenteeAssignments] = useState<MenteeAssignment[]>([])
+  const [menteeHabits, setMenteeHabits] = useState<MenteeHabitCard[]>([])
+  const [menteeLoading, setMenteeLoading] = useState(true)
 
   useEffect(() => {
     if (!profile) return
 
     if (isMenteeMode && menteeProfile) {
       async function fetchMenteeData() {
-        const { data } = await supabase
-          .from('pairings')
-          .select(`
-            id, status,
-            mentor:staff!pairings_mentor_id_fkey ( first_name, last_name ),
-            offering:offerings ( name, type )
-          `)
-          .eq('mentee_id', menteeProfile!.id)
-          .in('status', ['active', 'paused'])
+        setMenteeLoading(true)
+        const menteeId = menteeProfile!.id
+        const nowIso = new Date().toISOString()
 
-        if (data) {
-          setMenteeEngagements(
-            (data as unknown as {
-              id: string
-              status: string
-              mentor: { first_name: string; last_name: string } | null
-              offering: { name: string; type: string } | null
-            }[]).map(p => ({
-              id: p.id,
-              status: p.status,
-              mentor: p.mentor,
-              offeringName: p.offering?.name ?? null,
-              offeringType: p.offering?.type ?? null,
-            }))
-          )
+        const [moRes, pairingsRes, habitsRes, meetingsRes, lessonsRes, progressRes] = await Promise.all([
+          // Active courses + engagements (the actual assignments).
+          supabase
+            .from('mentee_offerings')
+            .select('id, status, offering_id, offering:offerings(id, name, type)')
+            .eq('mentee_id', menteeId)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false }),
+          // Mentor per offering (used to label engagement cards).
+          supabase
+            .from('pairings')
+            .select('offering_id, mentor:staff!pairings_mentor_id_fkey(first_name, last_name)')
+            .eq('mentee_id', menteeId)
+            .eq('status', 'active'),
+          // Active habits.
+          supabase
+            .from('mentee_habits')
+            .select('id, name_snapshot, status, successful_days_count, goal_successful_days_snapshot, duration_days_snapshot')
+            .eq('mentee_id', menteeId)
+            .eq('status', 'active')
+            .order('assigned_at', { ascending: false }),
+          // Upcoming meetings (for engagement "next meeting" preview).
+          supabase
+            .from('meetings')
+            .select('id, mentee_offering_id, scheduled_start_at')
+            .eq('mentee_id', menteeId)
+            .eq('status', 'scheduled')
+            .gte('scheduled_start_at', nowIso)
+            .order('scheduled_start_at', { ascending: true }),
+          // Course total-lessons (indexed by offering_id).
+          supabase
+            .from('lessons')
+            .select('id, offering_id')
+            .eq('organization_id', menteeProfile!.organization_id),
+          // Course progress (completed lessons per assignment).
+          supabase
+            .from('lesson_progress')
+            .select('mentee_offering_id, status')
+            .eq('mentee_id', menteeId)
+            .eq('status', 'completed'),
+        ])
+
+        // Index mentor-per-offering so we can label engagement cards.
+        const mentorByOffering: Record<string, { first_name: string; last_name: string }> = {}
+        for (const p of (pairingsRes.data ?? []) as unknown as { offering_id: string | null; mentor: { first_name: string; last_name: string } | null }[]) {
+          if (p.offering_id && p.mentor) mentorByOffering[p.offering_id] = p.mentor
         }
+
+        // Index next meeting per mentee_offering.
+        const nextMeetingByMO: Record<string, string> = {}
+        for (const m of (meetingsRes.data ?? []) as { mentee_offering_id: string | null; scheduled_start_at: string }[]) {
+          if (m.mentee_offering_id && !nextMeetingByMO[m.mentee_offering_id]) {
+            nextMeetingByMO[m.mentee_offering_id] = m.scheduled_start_at
+          }
+        }
+
+        // Index lessons per course offering.
+        const lessonCountByOffering: Record<string, number> = {}
+        for (const l of (lessonsRes.data ?? []) as { offering_id: string }[]) {
+          lessonCountByOffering[l.offering_id] = (lessonCountByOffering[l.offering_id] ?? 0) + 1
+        }
+
+        // Index completed lessons per assignment.
+        const completedByMO: Record<string, number> = {}
+        for (const p of (progressRes.data ?? []) as { mentee_offering_id: string }[]) {
+          completedByMO[p.mentee_offering_id] = (completedByMO[p.mentee_offering_id] ?? 0) + 1
+        }
+
+        type MORow = {
+          id: string
+          status: string
+          offering_id: string
+          offering: { id: string; name: string; type: 'course' | 'engagement' } | null
+        }
+        const assignments: MenteeAssignment[] = ((moRes.data ?? []) as unknown as MORow[])
+          .filter(m => m.offering)
+          .map(m => {
+            const offering = m.offering!
+            const base: MenteeAssignment = {
+              id: m.id,
+              offeringName: offering.name,
+              offeringType: offering.type,
+              status: m.status,
+              mentor: mentorByOffering[m.offering_id] ?? null,
+            }
+            if (offering.type === 'course') {
+              base.lessonsTotal = lessonCountByOffering[m.offering_id] ?? 0
+              base.lessonsCompleted = completedByMO[m.id] ?? 0
+            } else {
+              base.nextMeetingAt = nextMeetingByMO[m.id] ?? null
+            }
+            return base
+          })
+
+        setMenteeAssignments(assignments)
+
+        type HabitRow = {
+          id: string; name_snapshot: string; status: string
+          successful_days_count: number | null
+          goal_successful_days_snapshot: number | null
+          duration_days_snapshot: number | null
+        }
+        setMenteeHabits(((habitsRes.data ?? []) as HabitRow[]).map(h => ({
+          id: h.id,
+          name: h.name_snapshot,
+          status: h.status,
+          successfulDays: h.successful_days_count ?? 0,
+          goalDays: h.goal_successful_days_snapshot ?? h.duration_days_snapshot ?? null,
+        })))
+
+        setMenteeLoading(false)
       }
       fetchMenteeData()
       return
@@ -109,6 +213,9 @@ export default function DashboardPage() {
 
   // ====== MENTEE DASHBOARD ======
   if (isMenteeMode && menteeProfile) {
+    const engagements = menteeAssignments.filter(a => a.offeringType === 'engagement')
+    const courses = menteeAssignments.filter(a => a.offeringType === 'course')
+    const hasAnything = engagements.length + courses.length + menteeHabits.length > 0
     return (
       <div className="max-w-3xl space-y-6">
         <div>
@@ -116,56 +223,129 @@ export default function DashboardPage() {
           <p className="text-sm text-gray-500 mt-1">{formatDate()}</p>
         </div>
 
-        {menteeEngagements.length > 0 ? (
-          <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Engagements</h3>
-            <div className="space-y-3">
-              {menteeEngagements.map(eng => (
-                <div key={eng.id} className="bg-white rounded-md border border-gray-200/80 px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {eng.offeringName ?? 'General Mentoring'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Mentor: {eng.mentor ? `${eng.mentor.first_name} ${eng.mentor.last_name}` : 'Unassigned'}
-                        {eng.offeringType === 'course' && ' · Course'}
-                        {eng.offeringType === 'engagement' && ' · Engagement'}
-                      </p>
-                    </div>
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${
-                      eng.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
-                    }`}>
-                      {eng.status === 'active' ? 'Active' : 'Paused'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {menteeLoading ? (
+          <Skeleton count={3} className="h-20 w-full" gap="gap-3" />
+        ) : !hasAnything ? (
+          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
+            <p className="text-sm text-gray-500">Nothing assigned yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Your mentor will assign engagements, courses, or habits when ready.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-md border border-gray-200/80 px-6 py-12 text-center">
-            <p className="text-sm text-gray-500">No active engagements right now.</p>
-            <p className="text-xs text-gray-400 mt-1">Your mentor or organization admin will assign you when ready.</p>
-          </div>
+          <>
+            {engagements.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Engagements</h3>
+                <div className="space-y-3">
+                  {engagements.map(eng => (
+                    <button
+                      key={eng.id}
+                      onClick={() => navigate(`/my-engagements/${eng.id}`)}
+                      className="w-full bg-white rounded-md border border-gray-200/80 px-5 py-4 text-left hover:border-brand hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{eng.offeringName}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Mentor: {eng.mentor ? `${eng.mentor.first_name} ${eng.mentor.last_name}` : 'Unassigned'}
+                          </p>
+                          {eng.nextMeetingAt ? (
+                            <p className="text-xs text-brand font-medium mt-1.5">
+                              Next meeting · {new Date(eng.nextMeetingAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-400 mt-1.5">No meeting scheduled · tap to schedule</p>
+                          )}
+                        </div>
+                        <svg className="w-4 h-4 text-gray-400 shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {courses.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Courses</h3>
+                <div className="space-y-3">
+                  {courses.map(c => {
+                    const total = c.lessonsTotal ?? 0
+                    const done = c.lessonsCompleted ?? 0
+                    const pct = total > 0 ? Math.round((done / total) * 100) : 0
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => navigate(`/my-courses/${c.id}`)}
+                        className="w-full bg-white rounded-md border border-gray-200/80 px-5 py-4 text-left hover:border-brand hover:shadow-sm transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <p className="text-sm font-semibold text-gray-900 truncate flex-1">{c.offeringName}</p>
+                          <span className="text-xs font-medium text-gray-600 tabular-nums shrink-0">{pct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                          <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {done} of {total} lesson{total !== 1 ? 's' : ''} complete
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {menteeHabits.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Habits</h3>
+                <div className="space-y-3">
+                  {menteeHabits.map(h => {
+                    const pct = h.goalDays && h.goalDays > 0 ? Math.min(100, Math.round((h.successfulDays / h.goalDays) * 100)) : 0
+                    return (
+                      <button
+                        key={h.id}
+                        onClick={() => navigate(`/my-habits/${h.id}`)}
+                        className="w-full bg-white rounded-md border border-gray-200/80 px-5 py-4 text-left hover:border-brand hover:shadow-sm transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <p className="text-sm font-semibold text-gray-900 truncate flex-1">{h.name}</p>
+                          {h.goalDays && <span className="text-xs font-medium text-gray-600 tabular-nums shrink-0">{pct}%</span>}
+                        </div>
+                        {h.goalDays ? (
+                          <>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-xs text-gray-500">{h.successfulDays} of {h.goalDays} successful days</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-gray-500">{h.successfulDays} successful day{h.successfulDays !== 1 ? 's' : ''}</p>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Links</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => navigate('/my-engagements')}
-              className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              <p className="text-sm font-medium text-gray-900">My Engagements</p>
-              <p className="text-xs text-gray-500 mt-0.5">View your courses and programs</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button onClick={() => navigate('/my-engagements')} className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              <p className="text-sm font-medium text-gray-900">Engagements</p>
             </button>
-            <button
-              onClick={() => navigate('/my-billing')}
-              className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-            >
+            <button onClick={() => navigate('/my-courses')} className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              <p className="text-sm font-medium text-gray-900">Courses</p>
+            </button>
+            <button onClick={() => navigate('/my-habits')} className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              <p className="text-sm font-medium text-gray-900">Habits</p>
+            </button>
+            <button onClick={() => navigate('/my-billing')} className="bg-white rounded-md border border-gray-200/80 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
               <p className="text-sm font-medium text-gray-900">Billing</p>
-              <p className="text-xs text-gray-500 mt-0.5">Payment info and invoices</p>
             </button>
           </div>
         </div>
