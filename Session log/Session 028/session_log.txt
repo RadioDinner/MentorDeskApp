@@ -1,0 +1,427 @@
+SESSION 028 HANDOFF LOG
+========================
+Date: 2026-04-21
+Branch: main (all work merged and pushed)
+
+
+OVERVIEW
+---------
+
+Big build session focused on three interwoven verticals:
+  1. An Automations module with an edge-function engine
+  2. A full in-app Notifications system (bell + table + per-event
+     per-channel preferences)
+  3. A user-preferences foundation that follows users across devices
+
+Plus a visual overhaul, accessibility prefs, a mentee dashboard
+refresh, a habit-history calendar view, the mentee course-complete
+celebration, and a handful of targeted bug fixes.
+
+
+NEW MIGRATIONS (run in numerical-descending order, oldest to newest)
+---------------------------------------------------------------------
+
+  944  lesson_progress_staff_policies.sql
+       Adds staff INSERT/UPDATE/DELETE policies for lesson_progress and
+       question_responses. Fixes the "Reset Progress" button silently
+       no-op'ing for mentors.
+
+  943  course_completion_message.sql
+       organizations.default_course_completion_message +
+       offerings.course_completion_message (both nullable TEXT).
+
+  942  user_preferences.sql
+       (user_id PK -> auth.users, preferences JSONB, timestamps).
+       RLS: user manages own row; service role bypasses.
+
+  941  automations.sql
+       automations + automation_runs tables. Also extends mentor_tasks
+       with source='automation' + source_automation_id FK.
+
+  940  my_staff_role_prefers_admin.sql
+       Rewrites my_staff_role() and my_organization_id() with an
+       ORDER BY so users holding multiple staff rows (e.g. admin who
+       created test mentor/asst-mentor accounts) deterministically
+       resolve to the highest-privilege row. Fixes audit log access
+       for admins with test sub-accounts.
+
+  939  notifications.sql
+       notifications(recipient_user_id -> auth.users, title, body,
+       link, category, read_at, ...) with per-user RLS.
+
+USER IS RESPONSIBLE FOR APPLYING THESE:
+  supabase db push
+(or paste each file into the Supabase SQL editor)
+
+
+NEW EDGE FUNCTION
+------------------
+
+  supabase/functions/process-automations/index.ts
+
+  Two invocation modes:
+    (1) Trigger-based  — { org, trigger_type, trigger_payload }
+    (2) Direct by id   — { org, automation_id, trigger_payload }
+
+  Implements create_task fully (resolves assignee: owner vs
+  mentor_of_mentee via pairings). Implements send_notification by
+  inserting into the notifications table (resolves recipient:
+  owner vs mentee via staff.user_id / mentees.user_id). send_email
+  is intentionally logged as "skipped" until SMTP ships.
+
+  Substitutes dynamic field tokens ({mentee_first_name}, {mentor_*},
+  etc.) in every string field of every action step, mirroring the
+  course builder's token syntax.
+
+  Writes one row per fire to automation_runs with per-step results
+  for debugging.
+
+  DEPLOY:
+    supabase functions deploy process-automations
+
+
+WORK COMPLETED THIS SESSION (commit trail, newest first)
+---------------------------------------------------------
+
+  3c01937  Notifications: self-exclude + per-meeting cancel/reschedule
+  6e9bd91  Auto-recover from stale-chunk errors after a deploy
+  2dddbef  Automations: dynamic field tokens in action titles & bodies
+  e7adbea  Notification preferences: per-event, per-channel toggles
+  adf1710  Journey decision nodes: reach + complete automations,
+           inline quick-create
+  28a70e6  Notifications: move from dashboard widget to top-bar bell
+  99b8b49  Notifications: schema + dashboard widget + automation wiring
+  26ee938  Mentee dashboard: dynamic cards for everything they're
+           involved in
+  54ce1c4  Habit history: replace tiny squares with a monthly calendar
+  83789f0  Fix audit log access for admins with test sub-accounts
+  686b9e6  Fix: admins could not create automations
+  f75de54  Journey decision nodes can fire an automation on task
+           completion
+  9d349cb  Journey editor: drop connector label chips
+  1a3ee6f  Automations: schema + edge function + UI + first triggers
+  02b5d9c  Default UI to slate (blue) scale; defer brand-tint scheme
+  9f38771  Brand tint: use OKLCH relative color for real brand ramp
+  32ccb0e  Accessibility: on-brand tinted color scheme
+  3714e6d  User preferences: per-auth-user JSONB store synced across
+           devices
+  3539ce5  Accessibility preferences: font size + high contrast
+  25ed399  Visibility overhaul: push gray palette two steps darker
+  dc62ad7  Custom course completion popup message (per-course + org
+           default)
+  dc65cd8  Visibility overhaul: shift gray palette up one step
+  1c32430  Fix mentor-side reset/mark-complete on lesson progress
+  08c4faf  Mentee course complete: confetti + celebration modal
+  47b5292  Mentee course viewer: type-colored section frames (match
+           builder)
+  3e1cc87  Revert: course builder section frame beef-up
+  bf6ac6f  Course builder: beef up section frames (border-2 + shadow)
+  b7b0a92  Course builder: darker section frames for visual separation
+
+
+NEW FEATURE SURFACES
+---------------------
+
+A) AUTOMATIONS MODULE (Business group)
+   Routes: /automations (list), /automations/new, /automations/:id
+   Data:   automations + automation_runs tables
+   Pages:  AutomationsPage, AutomationEditPage
+   Lib:    lib/automations.ts (fireAutomationTrigger, fireAutomationById)
+   Engine: edge function process-automations (trigger + direct modes)
+
+   Trigger types: manual | lesson_completed | lesson_reached |
+                  course_completed | course_started |
+                  meeting_scheduled | meeting_completed |
+                  meeting_cancelled
+
+   Action types:  create_task | send_notification | send_email
+
+   Triggers currently fired by the client:
+     lesson_completed / course_completed
+       MenteeCourseViewerPage.completeLesson
+     (meeting and course_started triggers exist in the catalog but
+     aren't fired from the client yet — they will fire if other code
+     paths call fireAutomationTrigger)
+
+   Dynamic fields in action strings: {mentee_first_name},
+   {mentee_last_name}, {mentee_email}, {mentee_phone},
+   {mentor_first_name}, {mentor_last_name}, {mentor_email},
+   {mentor_phone}. Substituted by the edge function at fire time.
+
+
+B) JOURNEY EDITOR × AUTOMATIONS
+   JourneyDecisionNode gained two optional slots:
+     reachAutomationId  — fires when the journey lands on the
+                          decision and a mentor task is created
+                          (typical use: notify the mentor)
+     automationId       — fires when the decision task is completed,
+                          before the journey advances
+
+   Inline "+ New" buttons next to each dropdown open
+   QuickCreateAutomationModal, which inserts a new automation with
+   trigger_type='manual' and auto-selects it in the slot that opened
+   the modal.
+
+   Also: connector label chips are removed. Connectors now show only a
+   small hover × delete button.
+
+
+C) NOTIFICATIONS SYSTEM
+   Data: notifications table, keyed on auth.users.id.
+   Bell: NotificationsBell in the Topbar (every page, every role).
+         Red unread badge ("99+" cap), popover panel, per-row hover
+         dismiss, "Mark all read", outside/Escape close. Polls every
+         60s and refreshes on open.
+   Dispatch: lib/notify.ts (notifyUser). Respects per-user per-event
+             per-channel prefs from user_preferences.notifications.
+             Self-exclusion: short-circuits if recipient_user_id ===
+             session.user.id (fixes the multi-profile bug where a
+             user notified themselves via their own mentor/mentee
+             pairings).
+
+   Catalog (lib/notificationEvents.ts):
+     Mentor-facing (group: Meeting changes)
+       meeting_scheduled_by_mentee
+       meeting_cancelled_by_mentee
+     Mentor-facing (group: Mentee progress)
+       lesson_completed_by_mentee
+       course_completed_by_mentee
+       habit_checkin_by_mentee
+     Mentee-facing (group: Meeting changes)
+       meeting_scheduled_by_mentor
+       meeting_cancelled_by_mentor
+     Mentee-facing (group: Assignments)
+       course_assigned
+       lesson_progress_reset
+
+   Per-user prefs UI on /profile → Notifications card with 3 toggle
+   switches per event (In-app / Email / Text). Email and Text are
+   stored and respected but intentionally skipped until delivery
+   infra lands.
+
+
+D) USER PREFERENCES FOUNDATION
+   context/UserPreferencesContext.tsx wraps the entire app inside
+   AuthProvider. Bootstraps from localStorage for instant render,
+   fetches the DB row on login/user-swap, upserts debounced 500ms,
+   migrates local-only prefs to the DB on first authenticated load.
+
+   AccessibilityContext now delegates to UserPreferencesContext —
+   font size + high contrast toggles follow the user across devices.
+   On-brand color scheme was built (OKLCH relative colors) then
+   deferred at user's request; the toggle is removed and the CSS is
+   gone.
+
+
+E) MENTEE EXPERIENCES
+   - Course completion: canvas-confetti + dismissable "Course
+     Complete!" modal. Message is resolved from offering override
+     → org default → hardcoded fallback.
+   - Dashboard: dynamic cards for active engagements (tap to view
+     /my-engagements/:id, shows next meeting or "tap to schedule"),
+     active courses (progress bar + lesson counts), active habits
+     (progress bar + goal). Empty state "Nothing assigned yet".
+   - Habit detail history: flex-wrap of tiny squares replaced by a
+     real monthly calendar with strong green-emerald / rose-tinted
+     contrast.
+
+
+F) ADMIN/MENTOR MEETING MANAGEMENT
+   In the Manage Engagement modal (EngagementManageModal), each
+   upcoming scheduled meeting row now shows Reschedule and Cancel
+   buttons.
+   - Reschedule: reuses the scheduler panel in update-in-place mode
+     so session logs and invoice links are preserved. Conflict
+     detection excludes the meeting being moved.
+   - Cancel: opens a reason dialog, sets status='cancelled',
+     cancelled_by, cancellation_reason. Fires
+     meeting_cancelled_by_mentor to the mentee.
+
+
+G) VISIBILITY OVERHAUL
+   Tailwind @theme in index.css overrides the gray palette with
+   slate (blue-tinted) values, two steps darker than the default
+   Tailwind ramp:
+     gray-50  = #e2e8f0  (slate-200)
+     gray-100 = #cbd5e1  (slate-300)
+     gray-200 = #94a3b8  (slate-400)
+     gray-300 = #64748b  (slate-500)
+     gray-400 = #475569  (slate-600)
+     gray-500 = #334155  (slate-700)
+
+   Cascades through every border-gray-*, text-gray-*, bg-gray-* in
+   the codebase without touching individual components.
+
+   Company Settings → Branding: brand color inputs are disabled with
+   a "Coming soon" badge and an explainer. Saved values stay visible.
+
+
+H) CHUNK-LOAD AUTO-RECOVERY
+   main.tsx listens for vite:preloadError plus uncaught/rejection
+   events with chunk-load-error signatures, and forces a single page
+   reload (guarded with sessionStorage so a real bug can't loop).
+   ErrorBoundary.componentDidCatch does the same and now awaits the
+   error_reports insert with a "reporting…/reported." UI state.
+
+
+BUG FIXES
+----------
+
+  1. Reset Progress silently failed for mentors
+     ROOT: migration 976 only granted staff SELECT on
+     lesson_progress + question_responses; mentor DELETE was denied
+     by RLS with no error bubbled up.
+     FIX: migration 944 adds staff INSERT/UPDATE/DELETE policies for
+     both tables. Also made resetCourse / resetLesson /
+     markLessonComplete / removeCourse surface Supabase errors
+     instead of swallowing them.
+
+  2. Admins couldn't create automations
+     ROOT: AutomationEditPage was doing a redundant staff lookup
+     keyed on profile.user_id, which mis-resolved for admin users.
+     FIX: profile IS the staff row — use profile.id directly as
+     automation.owner_id.
+
+  3. Audit log said "No audit entries found" for real admins
+     ROOT: my_staff_role() used LIMIT 1 with no ORDER BY. Users
+     with multiple staff rows (e.g. admin who created test mentor
+     accounts via profile → My Accounts) could have the function
+     return the non-admin row, blocking admin-scoped RLS.
+     FIX: migration 940 rewrites my_staff_role() and
+     my_organization_id() to prefer the highest-privilege role.
+
+  4. Mentee saw their own lesson-completed notifications
+     ROOT: in the multi-profile test setup both profiles share an
+     auth.users.id; notifyUser was resolving the mentor's user_id
+     and writing a notification to the same auth user.
+     FIX: notifyUser now self-excludes if recipient_user_id ===
+     current session user_id.
+
+  5. Chunk load error after a deploy
+     ROOT: Vite emits per-build hashed chunk filenames; a user's
+     stale tab holds the old HTML that references filenames the CDN
+     no longer serves.
+     FIX: main.tsx + ErrorBoundary detect chunk load errors and
+     reload the page once (sessionStorage loop guard).
+
+
+OPEN ITEMS / FUTURE WORK
+--------------------------
+
+Deferred from this session:
+
+  * On-brand color scheme — built via OKLCH relative colors, user
+    asked to park. CSS removed; the toggle is gone. Company Settings
+    brand color inputs are disabled with "Coming soon" messaging.
+
+Previously-deferred and still open:
+
+  * Email delivery — SMTP not wired. notify and automations both
+    store prefs/actions but silently skip email.
+  * SMS delivery — same story; prefs exposed as "Text" toggle.
+  * Password reset / email invite flow — still pointing at
+    localhost SMTP config.
+  * Auto-advance journeys on offering completion — journey nodes
+    have advanceTrigger/delayValue/delayUnit stored, but no server
+    watcher advances mentees yet.
+  * Webhook entry trigger for journeys — entryTrigger field stored,
+    no endpoint exists.
+  * Pending-assignment notification delivery — amber badge works,
+    no email/SMS/push.
+  * Mentor task auto-delay trigger execution.
+  * Full pagination UI (only AuditLogPage has it).
+  * Stripe, Google/Outlook Calendar integrations.
+  * EngagementManageModal + MenteeManageSlideOver mobile + a11y
+    polish (still raw overlays, ~940 LOC each).
+  * Test coverage expansion beyond lib/ (57 unit tests currently).
+
+Not wired yet despite the event existing:
+
+  * meeting_cancelled_by_mentor is now wired (shipped this session).
+  * habit_checkin_by_mentee wires on the mentee habit detail page
+    but there's no per-habit opt-out at habit creation time (the
+    user mentioned "set up notifications when building out habits"
+    — this could mean a per-habit notify-on-completion flag that
+    gates the event independent of user prefs).
+
+
+DELIBERATE DESIGN DECISIONS
+----------------------------
+
+  * user_preferences is keyed on auth.users.id (not staff/mentee) so
+    a user with multiple profiles sees consistent prefs across them.
+
+  * notifications is keyed on auth.users.id for the same reason.
+
+  * Automation engine lives in a Supabase edge function and runs with
+    service role, so it can scan all automations in an org regardless
+    of who owns them, and bypass RLS for writes. Clients invoke via
+    supabase.functions.invoke, which carries the user's JWT.
+
+  * 'manual' is a valid trigger type for automations that should fire
+    only from journeys or direct-by-id invocation — not on global
+    events.
+
+  * Journey decision nodes now have TWO automation slots
+    (reachAutomationId fires on arrival; automationId fires on
+    completion) rather than one, so authors can notify-on-arrival AND
+    also trigger side-effects when the task completes.
+
+  * notifyUser is best-effort and never blocks the primary user
+    action. Email/SMS stubs return without throwing.
+
+  * Brand colors in Company Settings are deliberately disabled (UI
+    is visible but greyed out) — not removed — so when brand theming
+    is re-enabled, admins see their previously-saved values preserved.
+
+
+CURRENT CODEBASE STATE
+-----------------------
+
+  * main = 3c01937, pushed to origin. (This commit will be advanced
+    to the next commit after the session log is added.)
+  * Working tree: clean after this commit.
+  * Build: clean (tsc + vite, no errors).
+  * Bundle size: CourseBuilderPage still the biggest at ~460 kB
+    gzipped to 141 kB. Nothing regressed this session.
+  * Migrations range:
+      lowest (newest):  939_notifications.sql
+      highest (oldest): 999
+  * New npm deps this session: canvas-confetti, @types/canvas-confetti.
+  * No console statements added (session 027 cleaned them all).
+
+
+TO DEPLOY FROM A FRESH SESSION
+-------------------------------
+
+  1. Apply pending migrations: `supabase db push`
+  2. Deploy the edge function:
+       supabase functions deploy process-automations
+  3. git pull main
+  4. cd app && npm install && npm run build
+  5. Vercel auto-deploys from main.
+
+Without step 1, Company Settings will error on save
+("column default_course_completion_message not found"), and
+mentor Reset Progress will continue silently failing.
+
+Without step 2, automations save successfully in the UI but no fires
+produce tasks or notifications.
+
+
+TEST PATH: AUTOMATIONS END-TO-END
+----------------------------------
+
+  1. /automations → + New automation
+  2. Trigger: "Course completed"; leave course filter blank.
+  3. Add a send_notification action to "Me (automation owner)" with
+     title "Nice work {mentee_first_name}!" — use the { } Fields
+     button to insert the token.
+  4. Save.
+  5. Switch to a test mentee profile that owns an active course,
+     complete the last lesson.
+  6. Switch back to the staff profile. The bell badge should show 1
+     unread; click to see the personalized title.
+
+
+========================================================================

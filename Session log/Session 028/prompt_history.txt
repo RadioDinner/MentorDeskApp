@@ -1,1 +1,70 @@
 1. I want to do a review session. Review all 20 some odd sessions to this point and see if there are any features that are half baked or need work
+
+2. make a to do list for everything that isn't deferred, isn't a placeholder and isn't an integration
+
+3. Is there a way we could build a "Preview course" in the course builder?
+
+4. actually, I don't think that is really useful atm. I'd like to change up the colors a little bit on the course builder. Right now everything is kinda jumbled. Can you put a darker frame around each lesson section in the course builder? I think that will help give some visual separation
+
+5. push to main and continue pushing to main for the rest of the session
+
+6. beef it up a lil
+
+7. put it back
+
+8. I want to make some of the same changes to the lesson view that the mentee sees
+
+9. I want something to happen when the mentee completes a course. Like maybe an animation of celebration or something.
+
+10. the reset progress feature doesn't work from the mentor side
+
+11. Go ahead with the canvas confetti and dismissable "Course complete"
+
+12. fix the reset progress rls bug yeah
+
+13. I have an issue with how hard everything is to see on this monitor. At work it isn't as bad, but I want to overhaul EVERYTHING, to make the screens easier to read and see. Think about changes like we made to the course builder. I just want everything a little bit more distinct
+
+14. sure lets go do that overhaul
+
+15. That visual overhaul was pretty good but I want stuff to be more distinct
+
+16. In all logins, the admin/staff, mentor, assistant mentors and mentees, I want an accessibility option built into their dashboard. I want them to be able to increase the font size for their login and I want to be able to turn on high contrast colors to help the visually impaired.
+
+17. go ahead to follow user around on devices. Actually, I'd want you to start provisioning all user based preference settings like that for the future app and logging in on different devices.
+
+18. on the visuals, can we do an "On color" scheme that the org selects? I want it to be based off a "gradient" of the brand colors in the company settings. So if the org company brand is blue, it would be blue scale. Can you manage this? Also, when saving the brand colors in the company options, it gives me the error message of "Could not find the 'default_course_completion_message' column of 'organizations' in the schema cache"
+
+19. I don'ot want the default to be orange though, do you understand that?
+ I want the colors to change based off the orgs selection
+
+20. you know what, stop, let's put this on the deferred feature list and stop trying to change the brand colors. I want the brand colors option to be greyed out and unaccessible for now on the admin company options settings. Let's make the UI BLUE SCALE instead of grey by default
+
+21. I want to pivot to building a feature module called "Automations" in the "Business" group of modules. I want mentors and staff to be able to create automations like "When mentee reaches lesson 5 of course X, send me an email." or "When mentee completes course Y, add a task for me to follow up with them". I want the automations to be unique and buildable with steps to send emails or notifications or tasks based on thigns like lesson completion, course completion, meetings scheduled, etc. Understand?
+
+22. lets setup the edge function right now, otherwise I don't really care how we get there. You pick the best way then I'll refine to my preferences. go go go!!!!!
+
+23. In the journey editor, I want you to remove the "Label" popup when you connect modules, and I want the ability to trigger an automation from the Journey builder. For example, a Journey might come to a decision tree, which will add a task to the mentors task list. Then when the task is complete, it'll fire an automation before moving to the next step in the journey
+
+24. It says "Only staff can own automations." I am the admin, fix this
+
+25. When I went into the audit trail it says "No audit entries found." no matter what filters are selected. Did something break
+
+26. [screenshot of habit history squares attached] Can you see what I circled? I want a more obvious visual contrast between the days that were successful/made it vs the unsuccesful/missed days. Maybe we should make it a calendar view.
+
+27. I want the mentee home page to be more dynamic. I'd like it to show links to whatever they're involved in. If they have an active engagement, make so they can click it and view or schedule appointments. Or if they have a habit assigned, it should appera in the dashbaord
+
+28. ok I want to start building out notifications. Let's start with the adding the notifications to mentees, asssistant mentors and mentors dashboards. I think we should also add one to the staff/admin dashboard
+
+29. I want a "Notifications" button or something for the dashboards. Not a module, but some kind of sleek notification feature where they can view them, click through to modules, etc, or dismiss them or mark them read
+
+30. In the journey creation/editor, I want the abiliity to create an automation. For example, the decision situation we discussed earlier. Let's say a mentee completes the "Discovery call" engagement and reaches the "decision" module. I want a way for the mentor to find out that they're done with the course via notification and I want to be able to set an automation on the decision tree to fire a task if they want to
+
+31. I want all login types to be able to turn on or off certain notifications. For example, if a mentee cancels an appointment, if the mentor has "Meeting changes" notifications turned on for email, notification and text, I want him to get a notification by all 3 channels. I want notifications for a few things, and I want you to make sure the mentor can turn on or off each one I request. I want a notification to be sent when a mentee completes a habit for the day, when they complete a lesson, when they complete a course, when they schedule a meeting, when they cancel a meeting. I want to be able to setup notifications when building out habits too. I want mentees to get notifications when assigned a course, when the MENTOR cancels a meeting, when the MENTOR schedules a meeting, when the mentor resets lesson progress
+
+32. I want wildcard options added to automations so that when creating a notification, in the title I could set the step to say "Hey {mentee_first_name}, your course has begun! Good Luck!". Similar to how they function in course builder
+
+33. I got this error, "Something went wrong / error loading dynamically imported module: https://mentor-desk-app.vercel.app/assets/MentorMeetingsPage-DlRaht1v.js / This error has been automatically reported." but I don't think it actually got reported
+
+34. I don't want the mentee to get a notifcation when completing a lesson. Why did that happen? Are notifiacations overlapping from the mentor login? Also, I want admin/staff and the mentors, when viewing a mentee, to be able to cancel a meeting or reschedule from the "Manage" button on the engagement
+
+35. alright, let's wrap the session. Write the hand-off and push everything to main a final time
