@@ -31,6 +31,14 @@ export interface NotifyArgs {
 export async function notifyUser(args: NotifyArgs): Promise<void> {
   const { recipientUserId, organizationId, eventKey, title, body, link, category } = args
   try {
+    // Self-exclusion: when a user holds multiple profiles linked to the
+    // same auth user (e.g. admin with test mentor / mentee accounts via
+    // the profile "My Accounts" feature), an event triggered while
+    // active on one profile shouldn't land in their own bell from the
+    // other profile. Nobody wants to notify themselves.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.id === recipientUserId) return
+
     // Load the recipient's per-event channel prefs.
     const { data: prefsRow } = await supabase
       .from('user_preferences')

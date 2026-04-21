@@ -58,13 +58,21 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
   const [editInvoiceAmount, setEditInvoiceAmount] = useState('')
 
-  // Schedule meeting
+  // Schedule meeting (also used for rescheduling: when rescheduleTargetId
+  // is set, the scheduler form updates that meeting instead of inserting).
   const [showScheduler, setShowScheduler] = useState(false)
   const [schedDate, setSchedDate] = useState('')
   const [schedStart, setSchedStart] = useState('')
   const [schedEnd, setSchedEnd] = useState('')
   const [schedTitle, setSchedTitle] = useState('')
   const [scheduling, setScheduling] = useState(false)
+  const [rescheduleTargetId, setRescheduleTargetId] = useState<string | null>(null)
+
+  // Cancel a single meeting (distinct from cancelling the whole engagement
+  // above — those state variables are for the engagement-level cancel).
+  const [cancelTarget, setCancelTarget] = useState<Meeting | null>(null)
+  const [meetingCancelReason, setMeetingCancelReason] = useState('')
+  const [cancellingMeeting, setCancellingMeeting] = useState(false)
 
   // Session logging
   const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10))
@@ -296,8 +304,12 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
 
   async function scheduleMeeting() {
     if (!schedDate || !schedStart || !schedEnd) return
-    // Check for conflicts with all existing meetings for this mentor
-    if (hasConflict(schedDate, schedStart, schedEnd, meetings)) {
+    // When rescheduling, exclude the meeting being moved from conflict
+    // checks so its current slot doesn't collide with itself.
+    const conflictScope = rescheduleTargetId
+      ? meetings.filter(m => m.id !== rescheduleTargetId)
+      : meetings
+    if (hasConflict(schedDate, schedStart, schedEnd, conflictScope)) {
       toast.error('This time conflicts with another meeting.')
       return
     }
@@ -305,30 +317,103 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
     const startsAt = `${schedDate}T${schedStart}:00`
     const endsAt = `${schedDate}T${schedEnd}:00`
     const durationMinutes = Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60000)
-    const { data } = await supabase.from('meetings').insert({
-      organization_id: profile.organization_id, mentee_offering_id: assignment.id,
-      mentee_id: mentee.id, mentor_id: profile.id,
-      title: schedTitle.trim() || `Meeting with ${mentee.first_name}`,
-      starts_at: startsAt, ends_at: endsAt, duration_minutes: durationMinutes, status: 'scheduled',
-    }).select().single()
-    if (data) {
-      setMeetings(prev => [data as Meeting, ...prev])
-      // Notify the mentee per their prefs.
+
+    if (rescheduleTargetId) {
+      // Reschedule: update the existing meeting in place so session logs
+      // and invoice links are preserved.
+      const { data, error } = await supabase.from('meetings').update({
+        starts_at: startsAt,
+        ends_at: endsAt,
+        duration_minutes: durationMinutes,
+        title: schedTitle.trim() || undefined,
+      }).eq('id', rescheduleTargetId).select().single()
+      if (error) { toast.error(error.message); setScheduling(false); return }
+      setMeetings(prev => prev.map(m => m.id === rescheduleTargetId ? (data as Meeting) : m))
       if (mentee.user_id) {
         const when = new Date(startsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
         notifyUser({
           recipientUserId: mentee.user_id,
           organizationId: profile.organization_id,
           eventKey: 'meeting_scheduled_by_mentor',
-          title: `${profile.first_name} scheduled a meeting`,
+          title: `${profile.first_name} rescheduled your meeting`,
           body: when,
           link: `/my-engagements/${assignment.id}`,
           category: 'meeting',
         })
       }
+      toast.success('Meeting rescheduled.')
+    } else {
+      const { data, error } = await supabase.from('meetings').insert({
+        organization_id: profile.organization_id, mentee_offering_id: assignment.id,
+        mentee_id: mentee.id, mentor_id: profile.id,
+        title: schedTitle.trim() || `Meeting with ${mentee.first_name}`,
+        starts_at: startsAt, ends_at: endsAt, duration_minutes: durationMinutes, status: 'scheduled',
+      }).select().single()
+      if (error) { toast.error(error.message); setScheduling(false); return }
+      if (data) {
+        setMeetings(prev => [data as Meeting, ...prev])
+        if (mentee.user_id) {
+          const when = new Date(startsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          notifyUser({
+            recipientUserId: mentee.user_id,
+            organizationId: profile.organization_id,
+            eventKey: 'meeting_scheduled_by_mentor',
+            title: `${profile.first_name} scheduled a meeting`,
+            body: when,
+            link: `/my-engagements/${assignment.id}`,
+            category: 'meeting',
+          })
+        }
+      }
     }
     setShowScheduler(false); setSchedDate(''); setSchedStart(''); setSchedEnd(''); setSchedTitle('')
+    setRescheduleTargetId(null)
     setScheduling(false)
+  }
+
+  function beginReschedule(m: Meeting) {
+    const starts = new Date(m.starts_at)
+    const ends = new Date(m.ends_at)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    setRescheduleTargetId(m.id)
+    setSchedDate(`${starts.getFullYear()}-${pad(starts.getMonth() + 1)}-${pad(starts.getDate())}`)
+    setSchedStart(`${pad(starts.getHours())}:${pad(starts.getMinutes())}`)
+    setSchedEnd(`${pad(ends.getHours())}:${pad(ends.getMinutes())}`)
+    setSchedTitle(m.title ?? '')
+    setShowScheduler(true)
+  }
+
+  async function confirmCancelMeeting() {
+    if (!cancelTarget) return
+    setCancellingMeeting(true)
+    try {
+      const reason = meetingCancelReason.trim()
+      const { error } = await supabase.from('meetings').update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: profile.id,
+        cancellation_reason: reason || null,
+      }).eq('id', cancelTarget.id)
+      if (error) { toast.error(error.message); return }
+      setMeetings(prev => prev.map(m => m.id === cancelTarget.id ? { ...m, status: 'cancelled' as const, cancelled_at: new Date().toISOString() } : m))
+      toast.success('Meeting cancelled.')
+      if (mentee.user_id) {
+        const when = new Date(cancelTarget.starts_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        notifyUser({
+          recipientUserId: mentee.user_id,
+          organizationId: profile.organization_id,
+          eventKey: 'meeting_cancelled_by_mentor',
+          title: `${profile.first_name} cancelled your meeting`,
+          body: `${when}${reason ? ` — "${reason}"` : ''}`,
+          link: `/my-engagements/${assignment.id}`,
+          category: 'meeting',
+        })
+      }
+      setCancelTarget(null)
+      setMeetingCancelReason('')
+    } finally {
+      setCancellingMeeting(false)
+    }
   }
 
   // Available slots for selected date (accounts for existing bookings)
@@ -454,8 +539,16 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                 {/* Meetings */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-900">Meetings ({meetings.length})</h3>
-                    <button onClick={() => setShowScheduler(!showScheduler)} className="text-sm font-medium text-brand hover:text-brand-hover transition-colors">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Meetings ({meetings.length}){rescheduleTargetId && ' — rescheduling'}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setShowScheduler(!showScheduler)
+                        if (showScheduler) { setRescheduleTargetId(null); setSchedDate(''); setSchedStart(''); setSchedEnd(''); setSchedTitle('') }
+                      }}
+                      className="text-sm font-medium text-brand hover:text-brand-hover transition-colors"
+                    >
                       {showScheduler ? 'Cancel' : '+ Schedule Meeting'}
                     </button>
                   </div>
@@ -496,7 +589,7 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                       )}
                       <input type="text" value={schedTitle} onChange={e => setSchedTitle(e.target.value)} placeholder="Meeting title (optional)" className={inputClass} />
                       <Button onClick={scheduleMeeting} disabled={scheduling || !schedDate || !schedStart || !schedEnd}>
-                        {scheduling ? 'Scheduling...' : 'Book Meeting'}
+                        {scheduling ? 'Saving...' : rescheduleTargetId ? 'Save new time' : 'Book Meeting'}
                       </Button>
                     </div>
                   )}
@@ -507,6 +600,7 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                     <div className="space-y-2">
                       {meetings.map(m => {
                         const isPast = new Date(m.ends_at) <= new Date()
+                        const canModify = !isPast && m.status === 'scheduled'
                         const mStatusColors: Record<string, string> = { scheduled: 'text-blue-600', completed: 'text-green-600', cancelled: 'text-gray-400', no_show: 'text-red-600' }
                         return (
                           <div key={m.id} className={`flex items-center gap-4 px-4 py-3 rounded-lg border ${isPast ? 'bg-gray-50 border-gray-100' : 'bg-white border-gray-200'}`}>
@@ -519,6 +613,24 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
                               <p className="text-xs text-gray-500">{new Date(m.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – {new Date(m.ends_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · {m.duration_minutes}min</p>
                             </div>
                             <span className={`text-xs font-medium capitalize ${mStatusColors[m.status] ?? ''}`}>{m.status}</span>
+                            {canModify && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => beginReschedule(m)}
+                                  className="px-2 py-1 text-[11px] font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                  Reschedule
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setCancelTarget(m); setMeetingCancelReason('') }}
+                                  className="px-2 py-1 text-[11px] font-medium rounded border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -841,6 +953,41 @@ export default function EngagementManageModal({ assignment, profile, mentee, onC
               </Button>
               <Button variant="danger" size="sm" onClick={confirmCancel} disabled={closingOut}>
                 {closingOut ? 'Cancelling...' : 'Cancel engagement'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel-a-single-meeting dialog */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={e => { e.stopPropagation(); if (!cancellingMeeting) setCancelTarget(null) }}>
+          <div className="bg-white rounded-xl shadow-2xl w-[92%] max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Cancel this meeting?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {new Date(cancelTarget.starts_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} with {mentee.first_name} {mentee.last_name}.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+              <textarea
+                value={meetingCancelReason}
+                onChange={e => setMeetingCancelReason(e.target.value)}
+                rows={2}
+                placeholder="Shared with the mentee in their notification."
+                className={inputClass + ' resize-none'}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button
+                type="button"
+                disabled={cancellingMeeting}
+                onClick={() => setCancelTarget(null)}
+                className="px-3 py-1.5 text-sm text-gray-700 border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Keep meeting
+              </button>
+              <Button onClick={confirmCancelMeeting} disabled={cancellingMeeting} variant="danger">
+                {cancellingMeeting ? 'Cancelling…' : 'Cancel meeting'}
               </Button>
             </div>
           </div>
