@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext'
 import { useLoadingGuard } from '../hooks/useLoadingGuard'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
+import DynamicFieldsButton from '../components/DynamicFieldsButton'
 import type {
   Automation, AutomationTriggerType, AutomationAction, AutomationActionType,
   AutomationTriggerConfig, Offering,
@@ -268,6 +269,9 @@ function ActionStep({
   onMoveUp: () => void
   onMoveDown: () => void
 }) {
+  const titleRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const subjectRef = useRef<HTMLInputElement>(null)
   return (
     <div className="rounded-md border border-gray-200 px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
@@ -287,12 +291,18 @@ function ActionStep({
       {action.type === 'create_task' && (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Task title</label>
-            <input type="text" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Task title</label>
+              <DynamicFieldsButton targetRef={titleRef} onInsert={(v) => onChange({ title: v } as Partial<AutomationAction>)} />
+            </div>
+            <input ref={titleRef} type="text" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Notes (optional)</label>
-            <textarea rows={2} value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Notes (optional)</label>
+              <DynamicFieldsButton targetRef={bodyRef} onInsert={(v) => onChange({ body: v } as Partial<AutomationAction>)} />
+            </div>
+            <textarea ref={bodyRef} rows={2} value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
@@ -326,12 +336,18 @@ function ActionStep({
             Email delivery isn't configured yet, so this step will be saved and logged as "skipped" when fired.
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Subject</label>
-            <input type="text" value={action.subject} onChange={e => onChange({ subject: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Subject</label>
+              <DynamicFieldsButton targetRef={subjectRef} onInsert={(v) => onChange({ subject: v } as Partial<AutomationAction>)} />
+            </div>
+            <input ref={subjectRef} type="text" value={action.subject} onChange={e => onChange({ subject: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Body</label>
-            <textarea rows={3} value={action.body} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Body</label>
+              <DynamicFieldsButton targetRef={bodyRef} onInsert={(v) => onChange({ body: v } as Partial<AutomationAction>)} />
+            </div>
+            <textarea ref={bodyRef} rows={3} value={action.body} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
           </div>
         </div>
       )}
@@ -352,14 +368,22 @@ function ActionStep({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
-            <input type="text" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Title</label>
+              <DynamicFieldsButton targetRef={titleRef} onInsert={(v) => onChange({ title: v } as Partial<AutomationAction>)} />
+            </div>
+            <input ref={titleRef} type="text" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Body (optional)</label>
-            <textarea rows={2} value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Body (optional)</label>
+              <DynamicFieldsButton targetRef={bodyRef} onInsert={(v) => onChange({ body: v } as Partial<AutomationAction>)} />
+            </div>
+            <textarea ref={bodyRef} rows={2} value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
           </div>
-          <p className="text-[11px] text-gray-400">The recipient sees this on their dashboard as a clickable notification card.</p>
+          <p className="text-[11px] text-gray-400">
+            Use <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{'{mentee_first_name}'}</code>, <code className="text-[10px] text-purple-500 bg-purple-50 px-1 rounded">{'{mentor_first_name}'}</code>, etc. — they're replaced with real values when the notification fires.
+          </p>
         </div>
       )}
     </div>

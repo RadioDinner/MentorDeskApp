@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import Button from './ui/Button'
 import { Modal } from './ui'
+import DynamicFieldsButton from './DynamicFieldsButton'
 import type { Automation, AutomationAction, AutomationActionType } from '../types'
 
 interface Props {
@@ -120,6 +121,8 @@ function ActionCard({ action, index, onChange, onRemove }: {
   onChange: (patch: Partial<AutomationAction>) => void
   onRemove: () => void
 }) {
+  const titleRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   return (
     <div className="rounded-md border border-gray-200 px-3 py-2.5 bg-gray-50/40">
       <div className="flex items-center justify-between mb-2">
@@ -134,7 +137,12 @@ function ActionCard({ action, index, onChange, onRemove }: {
 
       {action.type === 'create_task' && (
         <div className="space-y-2">
-          <input type="text" placeholder="Task title" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
+          <div className="relative">
+            <input ref={titleRef} type="text" placeholder="Task title" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' pr-20'} />
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+              <DynamicFieldsButton targetRef={titleRef} onInsert={(v) => onChange({ title: v } as Partial<AutomationAction>)} />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <select value={action.assignee} onChange={e => onChange({ assignee: e.target.value as 'owner' | 'mentor_of_mentee' } as Partial<AutomationAction>)} className={inputClass + ' bg-white'}>
               <option value="owner">Me (automation owner)</option>
@@ -156,8 +164,18 @@ function ActionCard({ action, index, onChange, onRemove }: {
               <option value="mentee">The mentee</option>
             </select>
           </div>
-          <input type="text" placeholder="Notification title" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass} />
-          <textarea rows={2} placeholder="Body (optional)" value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none'} />
+          <div className="relative">
+            <input ref={titleRef} type="text" placeholder="Notification title" value={action.title} onChange={e => onChange({ title: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' pr-20'} />
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+              <DynamicFieldsButton targetRef={titleRef} onInsert={(v) => onChange({ title: v } as Partial<AutomationAction>)} />
+            </div>
+          </div>
+          <div className="relative">
+            <textarea ref={bodyRef} rows={2} placeholder="Body (optional)" value={action.body ?? ''} onChange={e => onChange({ body: e.target.value } as Partial<AutomationAction>)} className={inputClass + ' resize-none pr-20'} />
+            <div className="absolute right-1.5 top-1.5">
+              <DynamicFieldsButton targetRef={bodyRef} onInsert={(v) => onChange({ body: v } as Partial<AutomationAction>)} />
+            </div>
+          </div>
         </div>
       )}
     </div>

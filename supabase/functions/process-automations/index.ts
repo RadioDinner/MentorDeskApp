@@ -71,6 +71,67 @@ interface Automation {
   actions: Record<string, unknown>[]
 }
 
+interface DynamicCtx {
+  mentee_first_name?: string
+  mentee_last_name?: string
+  mentee_email?: string
+  mentee_phone?: string
+  mentor_first_name?: string
+  mentor_last_name?: string
+  mentor_email?: string
+  mentor_phone?: string
+}
+
+/** Replace {token} occurrences with matching values from ctx. Unknown or
+ *  empty tokens collapse to an empty string. Mirrors the client-side
+ *  replaceDynamicFields so authors see consistent behavior. */
+function substituteDynamicFields(s: string | null | undefined, ctx: DynamicCtx): string {
+  if (!s) return ''
+  return s.replace(
+    /\{(mentee_first_name|mentee_last_name|mentee_email|mentee_phone|mentor_first_name|mentor_last_name|mentor_email|mentor_phone)\}/g,
+    (_m, key: string) => (ctx[key as keyof DynamicCtx] ?? ''),
+  )
+}
+
+/** Build the personalization context for a given automation fire. Loads
+ *  the mentee (if any) and their currently-active mentor so tokens
+ *  referencing either one resolve at delivery time. Silent-failing — if
+ *  the lookup errors, we just return whatever we have. */
+async function buildDynamicCtx(admin: ReturnType<typeof createClient>, payload: TriggerPayload): Promise<DynamicCtx> {
+  const ctx: DynamicCtx = {}
+  if (!payload.mentee_id) return ctx
+  try {
+    const { data: mentee } = await admin
+      .from('mentees')
+      .select('first_name, last_name, email, phone')
+      .eq('id', payload.mentee_id)
+      .maybeSingle()
+    if (mentee) {
+      ctx.mentee_first_name = mentee.first_name as string | undefined
+      ctx.mentee_last_name  = mentee.last_name as string | undefined
+      ctx.mentee_email      = mentee.email as string | undefined
+      ctx.mentee_phone      = (mentee.phone as string | null | undefined) ?? undefined
+    }
+    const { data: pairing } = await admin
+      .from('pairings')
+      .select('mentor:staff!pairings_mentor_id_fkey(first_name, last_name, email, phone)')
+      .eq('mentee_id', payload.mentee_id)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle()
+    const m = pairing?.mentor as unknown as { first_name?: string; last_name?: string; email?: string; phone?: string | null } | null
+    if (m) {
+      ctx.mentor_first_name = m.first_name ?? undefined
+      ctx.mentor_last_name  = m.last_name ?? undefined
+      ctx.mentor_email      = m.email ?? undefined
+      ctx.mentor_phone      = m.phone ?? undefined
+    }
+  } catch {
+    // Best-effort only.
+  }
+  return ctx
+}
+
 function matchesTrigger(a: Automation, payload: TriggerPayload): boolean {
   const cfg = a.trigger_config ?? {}
   // Course-scoped triggers: if the automation specifies a course_id,
@@ -92,6 +153,7 @@ async function runAction(
   automation: Automation,
   action: Record<string, unknown>,
   payload: TriggerPayload,
+  ctx: DynamicCtx,
   index: number,
 ): Promise<ActionResult> {
   const type = String(action.type ?? '')
@@ -119,8 +181,8 @@ async function runAction(
         organization_id: automation.organization_id,
         mentor_id: mentorStaffId,
         mentee_id: payload.mentee_id ?? null,
-        title: String(action.title ?? 'Automation task'),
-        notes: action.body ?? null,
+        title: substituteDynamicFields(String(action.title ?? 'Automation task'), ctx) || 'Automation task',
+        notes: substituteDynamicFields(action.body as string | null | undefined, ctx) || null,
         priority: action.urgency === 'urgent' ? 'urgent' : 'normal',
         due_date: dueDate,
         source: 'automation',
@@ -162,8 +224,8 @@ async function runAction(
       const { error } = await admin.from('notifications').insert({
         organization_id: automation.organization_id,
         recipient_user_id: recipientUserId,
-        title: String(action.title ?? 'Notification'),
-        body: action.body ?? null,
+        title: substituteDynamicFields(String(action.title ?? 'Notification'), ctx) || 'Notification',
+        body: substituteDynamicFields(action.body as string | null | undefined, ctx) || null,
         category: 'automation',
         source_automation_id: automation.id,
       })
@@ -229,11 +291,15 @@ Deno.serve(async (req) => {
     }
     const summaries: { automation_id: string; status: string; action_count: number }[] = []
 
+    // Build personalization context once per fire (automations in a batch
+    // share the same trigger payload and thus the same mentee/mentor).
+    const dynamicCtx = await buildDynamicCtx(admin, payload)
+
     for (const a of matched as Automation[]) {
       const startedAt = new Date().toISOString()
       const results: ActionResult[] = []
       for (let i = 0; i < a.actions.length; i++) {
-        results.push(await runAction(admin, a, a.actions[i], payload, i))
+        results.push(await runAction(admin, a, a.actions[i], payload, dynamicCtx, i))
       }
       const anySuccess = results.some(r => r.status === 'success')
       const anyFailed = results.some(r => r.status === 'failed')
