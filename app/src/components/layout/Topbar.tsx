@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import NotificationsBell from '../NotificationsBell'
 
 const ROLE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   admin:             { bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-400' },
@@ -54,6 +55,8 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
+      <div className="flex items-center gap-1 ml-auto">
+      <NotificationsBell />
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setOpen(!open)}
@@ -126,6 +129,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
             </button>
           </div>
         )}
+      </div>
       </div>
     </header>
   )
