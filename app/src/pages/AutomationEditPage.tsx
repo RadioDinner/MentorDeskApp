@@ -12,6 +12,7 @@ import type {
 } from '../types'
 
 const TRIGGERS: { value: AutomationTriggerType; label: string; desc: string }[] = [
+  { value: 'manual',             label: 'Manual / linked from a journey', desc: "Doesn't fire on its own. Use from a journey decision or by explicit invocation." },
   { value: 'lesson_completed',   label: 'Lesson completed',   desc: 'Fires each time a mentee completes any lesson.' },
   { value: 'lesson_reached',     label: 'Lesson reached',     desc: 'Fires when a mentee starts a specific lesson.' },
   { value: 'course_completed',   label: 'Course completed',   desc: 'Fires when a mentee finishes every lesson in a course.' },

@@ -9,6 +9,7 @@ import { Skeleton } from '../components/ui'
 import type { Automation, AutomationTriggerType } from '../types'
 
 const TRIGGER_LABELS: Record<AutomationTriggerType, string> = {
+  manual:             'Only from a journey or direct call',
   lesson_completed:   'When a lesson is completed',
   lesson_reached:     'When a specific lesson is reached',
   course_completed:   'When a course is completed',

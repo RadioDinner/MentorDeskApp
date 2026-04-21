@@ -171,6 +171,7 @@ export interface OfferingFolder {
 // ── Automations ────────────────────────────────────────────────────────
 
 export type AutomationTriggerType =
+  | 'manual'
   | 'lesson_completed'
   | 'lesson_reached'
   | 'course_completed'
@@ -706,8 +707,11 @@ export interface JourneyDecisionNode extends JourneyBaseNode {
   label: string
   /** Optional longer description shown in the settings sidebar. */
   description?: string
-  /** When set, the matching automation fires right after the decision
-   *  task is completed and before the journey advances to the next node. */
+  /** Fires when the mentee's journey reaches this decision (i.e. when the
+   *  mentor task is created). Typical use: notify the mentor. */
+  reachAutomationId?: string | null
+  /** Fires when the decision task is completed, before the journey
+   *  advances to the selected next node. */
   automationId?: string | null
 }
 

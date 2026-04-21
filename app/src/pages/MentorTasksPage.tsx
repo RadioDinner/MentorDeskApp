@@ -315,6 +315,15 @@ export default function MentorTasksPage() {
       priority: 'urgent',
     })
 
+    // If this decision node pins an on-reach automation, fire it now.
+    // Typical use: send the mentor a notification that a decision is due.
+    const reachAutomationId = (node as { reachAutomationId?: string | null } | undefined)?.reachAutomationId
+    if (reachAutomationId) {
+      await fireAutomationById(profile.organization_id, reachAutomationId, {
+        mentee_id: menteeId,
+      })
+    }
+
     // Reload to pick it up
     await loadTasks()
   }

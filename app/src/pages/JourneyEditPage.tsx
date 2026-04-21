@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext'
 import LoadingErrorState from '../components/LoadingErrorState'
 import Button from '../components/ui/Button'
 import { Skeleton } from '../components/ui'
+import QuickCreateAutomationModal from '../components/QuickCreateAutomationModal'
 import {
   NODE_DEFAULTS,
   HISTORY_LIMIT,
@@ -1098,6 +1099,7 @@ export default function JourneyEditPage() {
           connectors={connectors}
           canEdit={canEdit}
           onUpdate={(updates) => updateNode(selectedNode.id, updates)}
+          onAutomationCreated={(a) => setAutomations(prev => [a, ...prev])}
           onClose={() => setSelectedNodeId(null)}
         />
       )}
@@ -1115,6 +1117,7 @@ function NodeSettingsSidebar({
   connectors,
   canEdit,
   onUpdate,
+  onAutomationCreated,
   onClose,
 }: {
   node: JourneyNode
@@ -1123,10 +1126,14 @@ function NodeSettingsSidebar({
   connectors: JourneyConnector[]
   canEdit: boolean
   onUpdate: (updates: Record<string, unknown>) => void
+  onAutomationCreated: (automation: Automation) => void
   onClose: () => void
 }) {
   const outgoing = connectors.filter(c => c.fromNodeId === node.id)
   const incoming = connectors.filter(c => c.toNodeId === node.id)
+  // Tracks which decision-node automation slot is requesting a quick-create
+  // modal. The created automation id lands in the matching slot on save.
+  const [quickCreateSlot, setQuickCreateSlot] = useState<null | 'reach' | 'complete'>(null)
 
   const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
@@ -1278,20 +1285,60 @@ function NodeSettingsSidebar({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Fire automation on task completion</label>
-                <select
-                  value={dNode.automationId ?? ''}
-                  onChange={e => onUpdate({ automationId: e.target.value || null })}
-                  disabled={!canEdit}
-                  className={inputClass + ' bg-white'}
-                >
-                  <option value="">None</option>
-                  {automations.filter(a => a.enabled).map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Fire automation when decision is reached</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={dNode.reachAutomationId ?? ''}
+                    onChange={e => onUpdate({ reachAutomationId: e.target.value || null })}
+                    disabled={!canEdit}
+                    className={inputClass + ' bg-white flex-1'}
+                  >
+                    <option value="">None</option>
+                    {automations.filter(a => a.enabled).map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setQuickCreateSlot('reach')}
+                    className="shrink-0 px-2.5 py-2 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    title="Create a new automation"
+                  >
+                    + New
+                  </button>
+                </div>
                 <p className="text-[11px] text-gray-400 mt-1">
-                  Runs the automation's actions right after the mentor completes this decision task, before the journey advances.
+                  Fires the moment the mentee's journey arrives here — typical use: send the mentor a notification that a decision is due.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Fire automation when decision is completed</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={dNode.automationId ?? ''}
+                    onChange={e => onUpdate({ automationId: e.target.value || null })}
+                    disabled={!canEdit}
+                    className={inputClass + ' bg-white flex-1'}
+                  >
+                    <option value="">None</option>
+                    {automations.filter(a => a.enabled).map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setQuickCreateSlot('complete')}
+                    className="shrink-0 px-2.5 py-2 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    title="Create a new automation"
+                  >
+                    + New
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Fires right after the mentor completes this decision task, before the journey advances.
                 </p>
               </div>
 
@@ -1345,6 +1392,24 @@ function NodeSettingsSidebar({
           </div>
         )}
       </div>
+
+      <QuickCreateAutomationModal
+        open={quickCreateSlot !== null}
+        onClose={() => setQuickCreateSlot(null)}
+        defaultName={
+          node.type === 'decision' && 'label' in node && (node as { label?: string }).label
+            ? `${(node as { label: string }).label} — ${quickCreateSlot === 'reach' ? 'on reach' : 'on complete'}`
+            : undefined
+        }
+        onCreated={(automation) => {
+          onAutomationCreated(automation)
+          if (quickCreateSlot === 'reach') {
+            onUpdate({ reachAutomationId: automation.id })
+          } else if (quickCreateSlot === 'complete') {
+            onUpdate({ automationId: automation.id })
+          }
+        }}
+      />
     </div>
   )
 }
