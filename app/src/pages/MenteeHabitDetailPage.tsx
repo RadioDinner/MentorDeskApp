@@ -290,32 +290,148 @@ export default function MenteeHabitDetailPage() {
         )}
       </div>
 
-      {/* History grid */}
+      {/* History calendar */}
       <div className="bg-white rounded-md border border-gray-200/80 px-6 py-5">
-        <h2 className="text-base font-semibold text-gray-900 mb-3">History</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-900">History</h2>
+          <div className="flex items-center gap-3 text-[11px] text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-emerald-500" />
+              Successful
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-rose-200 border border-rose-300" />
+              Missed
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm border-2 border-brand" />
+              Today
+            </span>
+          </div>
+        </div>
         {gridDays.length === 0 ? (
           <p className="text-sm text-gray-400">History will appear as days go by.</p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {gridDays.map(d => (
-              <div
-                key={d.date}
-                title={`${formatDate(d.date)}${d.successful ? ' — successful' : ''}`}
-                className={`w-5 h-5 rounded-sm ${
-                  d.successful
-                    ? 'bg-teal-500'
-                    : d.isToday
-                      ? 'bg-gray-200 ring-1 ring-teal-400'
-                      : 'bg-gray-200'
-                }`}
-              />
-            ))}
-          </div>
+          <HabitHistoryCalendar
+            startDate={mh.start_date}
+            lastDay={lastDay}
+            today={today}
+            successfulDates={successfulDates}
+          />
         )}
-        <p className="text-[11px] text-gray-400 mt-3">
-          Filled squares are successful days. Today is ringed.
-        </p>
       </div>
     </div>
   )
+}
+
+// ── History calendar ──────────────────────────────────────────────────
+// Monthly grid showing each day's outcome. Strong visual contrast:
+//   Successful day → solid emerald cell with white day number + check
+//   Missed day     → rose-tinted cell with struck-through number
+//   Today          → thick brand border regardless of success state
+//   Before start / future → muted gray text on white
+
+const WEEKDAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+function HabitHistoryCalendar({ startDate, lastDay, today, successfulDates }: {
+  startDate: string
+  lastDay: string
+  today: string
+  successfulDates: Set<string>
+}) {
+  // Build list of (year, month) pairs spanning startDate through lastDay.
+  const months: { year: number; month: number }[] = []
+  const start = parseISO(startDate)
+  const end = parseISO(lastDay)
+  const cur = new Date(start.getFullYear(), start.getMonth(), 1)
+  const endMarker = new Date(end.getFullYear(), end.getMonth(), 1)
+  while (cur <= endMarker) {
+    months.push({ year: cur.getFullYear(), month: cur.getMonth() })
+    cur.setMonth(cur.getMonth() + 1)
+  }
+
+  return (
+    <div className="space-y-5">
+      {months.map(({ year, month }) => (
+        <CalendarMonth
+          key={`${year}-${month}`}
+          year={year}
+          month={month}
+          startDate={startDate}
+          today={today}
+          successfulDates={successfulDates}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CalendarMonth({ year, month, startDate, today, successfulDates }: {
+  year: number
+  month: number
+  startDate: string
+  today: string
+  successfulDates: Set<string>
+}) {
+  const firstOfMonth = new Date(year, month, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const leading = firstOfMonth.getDay() // 0 = Sun
+  const monthLabel = firstOfMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' })
+
+  const cells: ({ iso: string; day: number } | null)[] = []
+  for (let i = 0; i < leading; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    cells.push({ iso, day: d })
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-gray-700 mb-2">{monthLabel}</p>
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {WEEKDAY_HEADERS.map((w, i) => (
+          <div key={i} className="text-[10px] font-medium text-gray-400 text-center">{w}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((c, i) => {
+          if (!c) return <div key={i} />
+          const isBeforeStart = c.iso < startDate
+          const isFuture = c.iso > today
+          const isToday = c.iso === today
+          const isSuccessful = successfulDates.has(c.iso)
+          const isMissed = !isSuccessful && !isBeforeStart && !isFuture
+
+          let cellClass = 'aspect-square flex items-center justify-center rounded-md text-xs font-medium border transition-colors'
+          if (isSuccessful) {
+            cellClass += ' bg-emerald-500 border-emerald-500 text-white'
+          } else if (isMissed) {
+            cellClass += ' bg-rose-50 border-rose-200 text-rose-700 line-through'
+          } else if (isBeforeStart || isFuture) {
+            cellClass += ' bg-white border-gray-100 text-gray-300'
+          } else {
+            cellClass += ' bg-white border-gray-200 text-gray-400'
+          }
+          if (isToday) cellClass += ' ring-2 ring-brand ring-offset-1'
+
+          return (
+            <div
+              key={c.iso}
+              title={`${c.iso}${isSuccessful ? ' — successful' : isMissed ? ' — missed' : ''}`}
+              className={cellClass}
+            >
+              {c.day}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function parseISO(iso: string): Date {
+  // iso = "YYYY-MM-DD" — construct as local date, not UTC, so month
+  // boundaries don't drift across timezones.
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
